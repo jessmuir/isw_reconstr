@@ -8,6 +8,7 @@ from matplotlib.ticker import FixedLocator, LogLocator
 from MapParams import *
 from ClRunUtils import *
 from genCrossCor import *
+from mapdef_utils import *
 from scipy.integrate import quad,romberg
 from scipy.interpolate import interp1d
 from scipy.special import sph_jn
@@ -1343,7 +1344,26 @@ def plot_ISW_Ilk_integrand():
     print "writing to file: ",savename
     plt.savefig(savename)
     plt.close()
-    
+
+#-----------------
+# compute C_l for limber approx, compare to existing deslike Cl
+def testLimber():
+    outdir = 'test_output/Ilktests/'
+    runtag='limber_desphoto'
+    cosmfile='testparam.cosm'
+    #kdat=KData(kmin=1.e-5,kmax=1,nperlogk=100,krcutadd=50,krcutmult=20)
+    rundat=ClRunData(tag=runtag,rundir=outdir,cosmpfile=cosmfile,lmax=100,zmax=10.5,limberl=0)
+    iswmaps=get_fullISW_MapType(zmax=10).binmaps
+    desmaps=get_DESlike_SurveyType(.05,'desphoto').binmaps
+    #maps=desmaps+iswmaps
+    maps=desmaps+iswmaps
+    cldat=getCl(maps,rundat,dopairs=[('all')],DoNotOverwrite=False,redoAllCl=True)
+    print 'resulting shape:',cldat.cl.shape
+
+    #refruntag='desphoto6bin' #non-limber Cl here
+    #refrundat=get_generic_rundat(outdir=outdir,tag=refruntag,noilktag=True)
+    #refcl=getCl(maps,refrundat,dopairs=['all'],DoNotOverwrite=True)
+
 #################################################################
 if __name__=="__main__":
     #test_cosm_tabs()
@@ -1370,3 +1390,5 @@ if __name__=="__main__":
 
     #test_misc_error()
     #plot_ISW_Ilk_integrand()
+
+    testLimber()

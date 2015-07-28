@@ -6,6 +6,7 @@ from scipy.interpolate import interp1d
 import os, subprocess,copy
 from multiprocessing import Pool, Manager,cpu_count
 import itertools
+import matplotlib.pyplot as plt
 
 # This file contains functions used to compute I(k) functions for maps
 # and the angular cross correlations between those maps
@@ -120,6 +121,65 @@ def findxmin(n,tol=1.e-10):
 # functions for computing, tabulating,and using I_l(k) functions
 ###########################################################################
 #=========================================================================
+#Functions for computing Cl with Limber approx
+def LimberCl_intwrapper(argtuple):
+    nl,indocross,mappair,cosm,zintlim,epsilon=argtuple
+    if not indocross: #don't do anything if we don't want this pair
+        return 0.
+    n,lval=nl
+    if lval==0:
+        return 0
+    binmap1,binmap2=mappair
+
+    #get cosmological functions
+    co_r = cosm.co_r #function with arg z
+    z_from_cor = cosm.z_from_cor #function with arg r
+    hubble = cosm.hub #functionw ith arg z 
+    D = cosm.growth #function with arg z
+    f = cosm.growthrate #function with arg z
+    c = cosm.c
+    
+    #limber approx writes k in terms of ell, z; set P(k) up for this
+    kofz_tab=lval/cosm.r_array #the k value corresponding to each z value;
+    Pofz_tab=cosm.P(kofz_tab) #tabulated, the P(k) corresponding to k=ell/r(z) for each z value; 
+    kofz=interp1d(cosm.z_array,kofz_tab,bounds_error=False,fill_value=0.)
+    Pofz=interp1d(cosm.z_array,Pofz_tab,bounds_error=False,fill_value=0.)
+
+    #use info in binmaps to figure out zmin and zmax
+    zmin=max(binmap1.zmin,binmap2.zmin)
+    zmin=max(0.01,zmin)
+    zmax=min(binmap1.zmax,binmap2.zmax)
+    if zmax<=zmin:
+        return 0.
+
+    #set up the ISW prefactor as a function of z
+    Nisw=binmap1.isISW + binmap2.isISW
+    if Nisw:
+        prefactor= (100.)**2 #H0^2 in units h^2km^2/Mpc^2/s^2 
+        prefactor*= 3./cosm.c**2 #h^2/Mpc^2 
+        iswpref =lambda z: prefactor*(1.-f(z))/(kofz(z)**2) #unitless function
+        if Nisw==1:
+            iswprefactor= iswpref
+        elif Nisw==2:
+            iswprefactor=lambda z: iswpref(z)*iswpref(z)
+    else:
+        iswprefactor=lambda z:1.
+
+    result=quad(lambda z: LimberCl_integrand(z,hubble,D,co_r,Pofz,iswprefactor,binmap1.window,binmap2.window,c),zmin,zmax,full_output=1,limit=zintlim,epsabs=epsilon,epsrel=epsilon)[0]
+    return result
+
+def LimberCl_integrand(z,hubble,growth,cor,Pz_interpfn,iswprefactor,window1,window2,c=299792):
+    result=window1(z)*window2(z)    
+    #print 'windows;',result
+    #print 'pzinterp',Pz_interpfn(z)
+    #print 'hubble*growth*r^2',hubble(z)*(growth(z)**2)/(cor(z)**2)
+    if result==0 or z==0:
+        return 0
+    result*=Pz_interpfn(z)*hubble(z)*(growth(z)**2)/(cor(z)**2)/c
+    return result
+
+
+#=============================================================
 # functions handling Ilk for an individual bin map
 #=========================================================================
 # getIlk: reads in Ilk file if there, otherwise computes
@@ -150,7 +210,11 @@ def computeIlk(binmap,rundata):
     #set up arrays
     kvals = rundata.kdata.karray
     Nk = kvals.size
-    lvals = rundata.lvals
+    # just do the ell with no limber approx
+    if rundata.limberl>=0 and rundata.limberl<=rundata.lmax:
+        lvals = rundata.lvals[:np.where(rundata.lvals<rundata.limberl)[0][-1]+1]#rundata.lvals
+    else:
+        lvals=rundata.lvals
     Nell = lvals.size
     Ivals = np.zeros((Nell,Nk))
     eps = rundata.epsilon
@@ -383,24 +447,29 @@ def readIlk_file(binmap,rundata):
     inkmax=k[-1]
 
     #return ivals if nperlogk and l values match up, otherwise return empty array
-    
-
-    if l.size==rundata.lvals.size:
-        if np.all(l==rundata.lvals):
-            if innperlogk>= rundata.kdata.nperlogk and inkmin<=rundata.kdata.kmin and inkmax>=rundata.kdata.kmax:
-            #if innperlogk>rundata.kdata.nperlogk:
-            #    print "   Warning, Ilk using larger nperlogk than kdata."
-            #if inkmin<=rundata.kdata.kmin:
-            #    print "   Warning, Ilk using lower kmin than kdata."
-            #if inkmax>rundata.kdata.kmax:
-            #    print "   Warning, Ilk using higher kmax than kdata."    
-                return I,k #k_forI can be different than kdata, as long as it samples ok
+    #should have all ell in lvals where ell<limberl, assume ascending order #NEED TO CHECK LIMBER STUFF
+    limberl=rundata.limberl
+    if limberl>=0 and limberl<=rundata.lmax:
+        # these are the expected ell values we want out
+        checkell=rundata.lvals[:np.where(rundata.lvals<limberl)[0][-1]+1]
+    else:
+        checkell=rundata.lvals
+    if l.size>=checkell.size:
+        lind_incheck=[] #index of each checkell element in l
+        for lval in checkell:
+            where = np.where(l==lval)[0]
+            if where.size==1:
+                lind_incheck.append(where[0])
             else:
-                print " *** unexpected kvals, recompute."
+                print " *** unexpected lvals, recompute."
                 return np.array([]),np.array([])
+        lind_incheck=np.array(lind_incheck)
+        if innperlogk>= rundata.kdata.nperlogk and inkmin<=rundata.kdata.kmin and inkmax>=rundata.kdata.kmax:
+            return I[lind_incheck,:],k #k_forI can be different than kdata, as long as it samples enough
         else:
-             print " *** unexpected lvals, recompute."
-             return np.array([]),np.array([])
+            print " *** unexpected kvals, recompute."
+            return np.array([]),np.array([])
+
     else:
         print " *** unexpected number of lvals, recompute."
         return np.array([]),np.array([])
@@ -546,6 +615,7 @@ def getCl(binmaplist,rundata,dopairs=[],redoAllCl=False,redoTheseCl=False,redoAu
 def computeCl(binmaps,rundata,dopairs=[],docrossind=[],redoIlk=False,addauto=False):
     bintags=[m.tag for m in binmaps]
     nbars=[m.nbar for m in binmaps] #will be -1 for e.g. ISW
+
     cldat=ClData(rundata,bintags,dopairs=dopairs,docrossind=docrossind,addauto=addauto,nbarlist=nbars)
     
     #get list of pairs of indices for all unique cross corrs
@@ -560,67 +630,118 @@ def computeCl(binmaps,rundata,dopairs=[],docrossind=[],redoIlk=False,addauto=Fal
     #print 'in computeCl, dopairs',dopairs
     #if we're not computing anything, just return array ofzeros
     Clvals = np.zeros((Ncross,Nell))
+
     if not len(docross):
         print "    No new values needed."
         cldat.cl=Clvals
         return cldat
     
     print "  Computing new C_l values."    
-    #get Ilk functions
-    Igrid=[]#map,ell,k
-    kforIgrid=[]#map,k
-    #np.zeros((Nmap,rundata.lvals.size,rundata.kdata.karray.size))
-    for m in xrange(Nmap):
-        Igridbit,k_forI=getIlk_for_binmap(binmaps[m],rundata,redoIlk)
-        Igrid.append(Igridbit)
-        kforIgrid.append(k_forI)
-    Igrid=np.array(Igrid)
-    kforIgrid = np.array(kforIgrid)
-    lnkforIgrid = np.log(kforIgrid)
-    #del kforIgrid,Igridbit,k_forI
-    
-    #get k and power spectrum info for run
+
+    # First sort out when to switch to limber approx
+    limberl=rundata.limberl #where to switch to Limber
+    print "limberl=",limberl
+    if limberl>0 and limberl<=rundata.lmax:
+        lvals_preLim=rundata.lvals[:np.where(rundata.lvals<limberl)[0][-1]+1]
+        Nell_preLim=lvals_preLim.size
+        lvals_postLim=rundata.lvals[np.where(rundata.lvals<limberl)[0][-1]+1:]
+        Nell_postLim=Nell-Nell_preLim
+    elif limberl==0:
+        lvals_preLim=np.array([])
+        Nell_preLim=0
+        lvals_postLim=rundata.lvals
+        Nell_postLim=Nell
+    else:
+        lvals_preLim=rundata.lvals
+        lvals_postLim=np.array([])
+        Nell_preLim=Nell
+        Nell_postLim=0
+
+    #print 'preLim lvals:',lvals_preLim
+    #print 'Nell_preLim',Nell_preLim
+    #print 'postLim lvals:',lvals_postLim
+    #print 'Nell_postLim',Nell_postLim  
+
+    #get k and power spectrum info for run, need this limber or not
     kdata=rundata.kdata
     cosm = rundata.cosm
     if not cosm.havePk:
         # For Pk, just use camb's default adaptive nperlogk spacing 
         print 'getting CAMB P(k), kmin,kmax=',kdata.kmin,kdata.kmax
         cosm.getPk(kdata.kmin,kdata.kmax)#kperln=kdata.nperlogk*np.log(10))
-    Plnk = interp1d(np.log(cosm.k_forPower),cosm.P_forPower,bounds_error=False,fill_value=0.)
-    lnkmin=np.log(kdata.kmin)
-    lnkmax=np.log(kdata.kmax)
 
-    print "  Performing C_l integrals."
-    
-    #Do Cl computations, interating through crosspairs and lvals
-    nl= itertools.product(xrange(Ncross),xrange(Nell)) #items=[n,lind]
-    Ipair_fornl=[(Igrid[crosspairs[xind,0],lind,:],Igrid[crosspairs[xind,1],lind,:]) for (xind,lind) in itertools.product(xrange(Ncross),xrange(Nell))]
-    lnkforIpair=[(lnkforIgrid[crosspairs[xind,0],:],lnkforIgrid[crosspairs[xind,1],:]) for (xind,lind) in itertools.product(xrange(Ncross),xrange(Nell))]
-    indocross=[xind in docross for (xind,lind) in itertools.product(xrange(Ncross),xrange(Nell))]
-    
-    #put everything into a tuple for the integral wrapper
-    argiter = itertools.izip(nl,indocross,itertools.repeat(lnkmin),itertools.repeat(lnkmax),itertools.repeat(Plnk),Ipair_fornl,lnkforIpair,itertools.repeat(rundata.kintlim),itertools.repeat(rundata.epsilon)) #for quad
-    
-    pool = Pool()
-    results=pool.map_async(Clintwrapper,argiter)
-    newCl=np.array(results.get())
-    pool.close()
-    pool.join()
+    if Nell_preLim:
+        #get Ilk functions
+        print "  Getting Ilk transfer functions.."
+        Igrid=[]#map,ell,k; ell indices only for ell<limberl 
+        kforIgrid=[]#map,k
+        #np.zeros((Nmap,Nell_preLim,rundata.kdata.karray.size))
+        for m in xrange(Nmap):
+            Igridbit,k_forI=getIlk_for_binmap(binmaps[m],rundata,redoIlk)
+            Igrid.append(Igridbit)
+            kforIgrid.append(k_forI)
+        Igrid=np.array(Igrid)
+        kforIgrid = np.array(kforIgrid)
+        lnkforIgrid = np.log(kforIgrid)
 
-    #rearrange into [n,l] shape
-    Clvals=newCl.reshape(Ncross,Nell)
+        #set up P(k) in terms of lnk
+        Plnk = interp1d(np.log(cosm.k_forPower),cosm.P_forPower,bounds_error=False,fill_value=0.)
+        lnkmin=np.log(kdata.kmin)
+        lnkmax=np.log(kdata.kmax)
+  
+        #Do Cl computations, interating through crosspairs and lvals
+        print "  Performing non-Limber C_l integrals."
+        nl= itertools.product(xrange(Ncross),xrange(Nell_preLim)) #items=[n,lind]
+        Ipair_fornl=[(Igrid[crosspairs[xind,0],lind,:],Igrid[crosspairs[xind,1],lind,:]) for (xind,lind) in itertools.product(xrange(Ncross),xrange(Nell_preLim))]
+        lnkforIpair=[(lnkforIgrid[crosspairs[xind,0],:],lnkforIgrid[crosspairs[xind,1],:]) for (xind,lind) in itertools.product(xrange(Ncross),xrange(Nell_preLim))]
+        indocross=[xind in docross for (xind,lind) in itertools.product(xrange(Ncross),xrange(Nell_preLim))]
+    
+        #put everything into a tuple for the integral wrapper
+        argiter = itertools.izip(nl,indocross,itertools.repeat(lnkmin),itertools.repeat(lnkmax),itertools.repeat(Plnk),Ipair_fornl,lnkforIpair,itertools.repeat(rundata.kintlim),itertools.repeat(rundata.epsilon)) #for quad
+    
+        pool = Pool()
+        results=pool.map_async(Clintwrapper,argiter)
+        newCl=np.array(results.get())
+        pool.close()
+        pool.join()
 
-    #6/22; moved shot noise to separate cldat.noisecl object computed 
-    #      directly from the ClData object's nbar array
-    #add shot noise for galaxy-galaxy auto-correlation, but not for l=0
-    # i=0
-    # for n in xrange(Ncross):
-    #     x=crosspairs[n][0]
-    #     if x==crosspairs[n][1] and binmaps[x].isGal and binmaps[x].addnoise:
-    #         if i<1: print "Adding shot noise for galaxy-galaxy auto-correlation."
-    #         i+=1
-    #         zeroind = np.where(0==rundata.lvals)[0][0] #index of zero in lvals
-    #         Clvals[n,:]+=(np.arange(Nell)!=zeroind)*1./binmaps[x].nbar
+        #rearrange into [n,l] shape
+        Clvals[:,:Nell_preLim]=newCl.reshape(Ncross,Nell_preLim)
+
+    #WORKING HERE, NEED TO TEST
+    # Do Limber approx calculations 
+    if Nell_postLim:
+        print "  Performing Limber approx C_l integrals."
+        #make sure z-dep functions have been tabulated
+        zmax=max([m.zmax for m in binmaps])
+        if not cosm.tabZ or cosm.zmax<zmax:
+            cosm.tabulateZdep(zmax)
+
+        nl= itertools.product(xrange(Ncross),lvals_postLim) #items=[n,lvals]
+        mappair=[(binmaps[crosspairs[xind,0]],binmaps[crosspairs[xind,1]]) for (xind,lind) in itertools.product(xrange(Ncross),xrange(Nell_postLim))]
+        
+        indocross=[xind in docross for (xind,lind) in itertools.product(xrange(Ncross),xrange(Nell_postLim))]
+        #put everything into a tuple for the integral wrapper
+        argiter = itertools.izip(nl,indocross,mappair,itertools.repeat(cosm),itertools.repeat(rundata.zintlim),itertools.repeat(rundata.epsilon)) #for quad
+        #run computations in parallel
+        DOPARALLEL=0
+        if DOPARALLEL:
+            pool=Pool()
+            results=pool.map_async(LimberCl_intwrapper,argiter)
+            limberCl=np.array(results.get())
+            pool.close()
+            pool.join()
+            Clvals[:,Nell_preLim:]=limberCl.reshape(Ncross,Nell_postLim)
+        else: #the nonparallel version is for testing that things run
+            argiter=list(argiter)
+            for i in xrange(len(argiter)):
+                argtuple=argiter[i]
+                nl,indocross,mappair,cosm,zintlim,epsilon=argtuple
+                n,lval=nl
+                lind=np.where(rundata.lvals==lval)[0][0]
+                thiscl=LimberCl_intwrapper(argtuple)
+                print 'n,lval',n,lval,thiscl*lval*(1+lval)/(2*np.pi)
+                Clvals[n,lind]=thiscl
 
     cldat.cl=Clvals
                     
