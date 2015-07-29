@@ -15,7 +15,6 @@ from scipy.special import sph_jn
 import time
 
 
-
 #################################################################
 # Test Cosmology functions and their interpolation
 #  Check in values per z needed for accuracy
@@ -1347,23 +1346,108 @@ def plot_ISW_Ilk_integrand():
 
 #-----------------
 # compute C_l for limber approx, compare to existing deslike Cl
-def testLimber():
+def testLimber(): 
     outdir = 'test_output/Ilktests/'
     runtag='limber_desphoto'
     cosmfile='testparam.cosm'
     #kdat=KData(kmin=1.e-5,kmax=1,nperlogk=100,krcutadd=50,krcutmult=20)
     rundat=ClRunData(tag=runtag,rundir=outdir,cosmpfile=cosmfile,lmax=100,zmax=10.5,limberl=0)
+    #rundat=ClRunData(tag=runtag,rundir=outdir,cosmpfile=cosmfile,lmax=2,zmax=10.5,limberl=0)
     iswmaps=get_fullISW_MapType(zmax=10).binmaps
-    desmaps=get_DESlike_SurveyType(.05,'desphoto').binmaps
-    #maps=desmaps+iswmaps
+    desmaps=get_DESlike_SurveyType(.05,'desphoto').binmaps#[:1]
     maps=desmaps+iswmaps
-    cldat=getCl(maps,rundat,dopairs=[('all')],DoNotOverwrite=False,redoAllCl=True)
+    #cldat=getCl(maps,rundat,dopairs=[('all')],DoNotOverwrite=False,redoAllCl=True) #for computing
+    cldat=getCl(maps,rundat,dopairs=[('all')],DoNotOverwrite=True,redoAllCl=False) #for plotting
     print 'resulting shape:',cldat.cl.shape
 
-    #refruntag='desphoto6bin' #non-limber Cl here
-    #refrundat=get_generic_rundat(outdir=outdir,tag=refruntag,noilktag=True)
-    #refcl=getCl(maps,refrundat,dopairs=['all'],DoNotOverwrite=True)
+    refruntag='desphoto6bin' #non-limber Cl here
 
+    refrundat=get_generic_rundat(outdir=outdir,tag=refruntag,noilktag=True)
+    refcldat=getCl(maps,refrundat,dopairs=['all'],DoNotOverwrite=True)
+
+    plotdir='test_output/Ilktests/plots/'
+
+    plotname='limbertest_auto.png'
+    plottitle='Limber tests: auto power for desphoto, isw'
+    crossinds=[]
+    crosslabels=[]
+    for n in xrange(cldat.Nmap):
+        crossinds.append(cldat.crossinds[n,n])
+        if 'isw' in cldat.bintaglist[n]:
+            crosslabels.append('isw')
+        else:
+            crosslabels.append(cldat.bintaglist[n][cldat.bintaglist[n].find('bin'):])
+    plotLimbercomp_Cl(plotdir+plotname,cldat.cl,refcldat.cl,crossinds,crosslabels,title=plottitle)
+
+    plotname='limbertest_ISWcross.png'
+    plottitle='Limber tests: desphoto crosspower w isw '
+    crossinds=[]
+    crosslabels=[]
+    for n in xrange(cldat.Nmap-1):
+        crossinds.append(cldat.crossinds[n,-1])
+        crosslabels.append('isw-'+cldat.bintaglist[n][cldat.bintaglist[n].find('bin'):])
+    plotLimbercomp_Cl(plotdir+plotname,cldat.cl,refcldat.cl,crossinds,crosslabels,title=plottitle)
+    
+    plotname='limbertest_neighbors.png'
+    plottitle='Limber tests: desphoto neighboring bin crosspower'
+    crossinds=[]
+    crosslabels=[]
+    for n in xrange(cldat.Nmap-2):
+        crossinds.append(cldat.crossinds[n,n+1])
+        crosslabels.append(cldat.bintaglist[n][cldat.bintaglist[n].find('bin'):]+'-'+cldat.bintaglist[n+1][cldat.bintaglist[n+1].rfind('bin')+3:])
+    plotLimbercomp_Cl(plotdir+plotname,cldat.cl,refcldat.cl,crossinds,crosslabels,title=plottitle)
+
+
+def plotLimbercomp_Cl(outname,limcl,nolimcl,crosslist,labellist,title=''):
+    colorlist=['#1f78b4', '#33a02c','#e31a1c', '#ff7f00','#cab2d6', '#6a3d9a', '#b15928','#a6cee3','#b2df8a','#fb9a99','#fdbf6f']
+    nlines=len(crosslist)
+    Nell_lim = limcl.shape[1]
+    ell=np.arange(Nell_lim)
+    nolimcl=nolimcl[:,:Nell_lim]
+
+    #make three plots lf l(l+1)C_l/2pi; value, diff, diff/(exact)
+    #plt.figure(0,figsize=(5,9))
+    plt.figure(0,figsize=(5,6))
+
+    #absolute values
+    #ax1=plt.subplot(311)
+    ax1=plt.subplot(211)
+    if not title:
+        plt.title('Limber approx test')
+    else:
+        plt.title(title)
+    plt.grid(True)
+    plt.ylabel('$\ell(\ell+1)|C_{\ell}|/(2\pi)$')
+    #plt.xlabel('Multipole $\ell$')
+    for n in  xrange(nlines):
+        plt.loglog(ell,ell*(ell+1)*np.fabs(limcl[crosslist[n],:])/(2*np.pi),linestyle='--',color=colorlist[n%len(colorlist)])
+        plt.loglog(ell,ell*(ell+1)*np.fabs(nolimcl[crosslist[n],:])/(2*np.pi),linestyle='-',label=labellist[n],color=colorlist[n%len(colorlist)])
+    plt.legend(prop={'size':8},loc='lower center',ncol=2)
+
+    # #absolute value of differences
+    # ax2=plt.subplot(312, sharex=ax1)
+    # plt.ylabel('|Limber - exact|')
+    # #plt.ylim((1.e-12,1.e-4))
+    # #plt.xlabel('Multipole $\ell$')
+    # for n in xrange(nlines):
+    #     plt.loglog(ell,ell*(ell+1)*np.fabs(limcl[crosslist[n],:]- nolimcl[crosslist[n],:])/(2*np.pi),linestyle='-',label=labellist[n],color=colorlist[n%len(colorlist)])
+    # plt.grid(True)
+    # #plt.legend()
+
+    #relative difference
+    #ax3=plt.subplot(313, sharex=ax1)
+    ax2=plt.subplot(212, sharex=ax1)
+    plt.ylabel('|Limber - exactr|/|exact|')
+    plt.ylim((1.e-5,1.))
+    plt.xlabel('Multipole $\ell$')
+    ax=plt.gca()
+    ax.xaxis.grid(b=True, which='both')
+    for n in xrange(nlines):
+        plt.loglog(ell,np.fabs((limcl[crosslist[n],:]- nolimcl[crosslist[n],:])/nolimcl[crosslist[n],:]),linestyle='-',label=labellist[n],color=colorlist[n%len(colorlist)])
+    plt.grid(True)
+    #plt.legend()
+    plt.savefig(outname,bbox_inches='tight')
+    plt.close()
 #################################################################
 if __name__=="__main__":
     #test_cosm_tabs()

@@ -57,7 +57,8 @@ class ClData(object):
         self.noisecl = np.zeros((self.Ncross,self.Nell))
         for i in xrange(self.Nmap):
             if self.nbar[i]!=-1: #assumes -1 for no noise or isw
-                self.noisecl[i,i]=1/self.nbar[i]
+                diagind=self.crossinds[i,i]
+                self.noisecl[diagind,:]=1/self.nbar[i]
 
 
     def hasClvals(self):
@@ -140,10 +141,11 @@ def LimberCl_intwrapper(argtuple):
     c = cosm.c
     
     #limber approx writes k in terms of ell, z; set P(k) up for this
-    kofz_tab=lval/cosm.r_array #the k value corresponding to each z value;
+    # clip off first entry to avoid dividing by zero
+    kofz_tab=(lval+.5)/cosm.r_array[1:] #the k value corresponding to each z value;
     Pofz_tab=cosm.P(kofz_tab) #tabulated, the P(k) corresponding to k=ell/r(z) for each z value; 
-    kofz=interp1d(cosm.z_array,kofz_tab,bounds_error=False,fill_value=0.)
-    Pofz=interp1d(cosm.z_array,Pofz_tab,bounds_error=False,fill_value=0.)
+    kofz=interp1d(cosm.z_array[1:],kofz_tab,bounds_error=False,fill_value=0.)
+    Pofz=interp1d(cosm.z_array[1:],Pofz_tab,bounds_error=False,fill_value=0.)
 
     #use info in binmaps to figure out zmin and zmax
     zmin=max(binmap1.zmin,binmap2.zmin)
@@ -154,6 +156,7 @@ def LimberCl_intwrapper(argtuple):
 
     #set up the ISW prefactor as a function of z
     Nisw=binmap1.isISW + binmap2.isISW
+    #print binmap1.tag,binmap2.tag,Nisw
     if Nisw:
         prefactor= (100.)**2 #H0^2 in units h^2km^2/Mpc^2/s^2 
         prefactor*= 3./cosm.c**2 #h^2/Mpc^2 
@@ -176,6 +179,7 @@ def LimberCl_integrand(z,hubble,growth,cor,Pz_interpfn,iswprefactor,window1,wind
     if result==0 or z==0:
         return 0
     result*=Pz_interpfn(z)*hubble(z)*(growth(z)**2)/(cor(z)**2)/c
+    result*=iswprefactor(z)
     return result
 
 
@@ -231,37 +235,6 @@ def computeIlk(binmap,rundata):
     #bounds for integral in comoving radius
     rmin=co_r(binmap.zmin)
     rmax=co_r(binmap.zmax)
-
-    #THIS SECTION WAS COMMENTED OUT ON 6/1/2015.
-    #  IN ORDER TO SWITCH TO APPLYING KRCUT INDEP OF BIN, WHERE KR=L+KRCUT
-    ##################################################
-    # #print 'bin zmax',binmap.zmax
-    # dr=co_r(binmap.zmaxnom)-co_r(binmap.zminnom)
-    # #kmax_fast_osc = krcut/dr #if k*dr>>1, bessel fn is oscillating rapidly
-    # #kmax_is_ocs = (l+krcut)/rmin #if kr>>l, bessel fn is in osc regime
-    
-    # if krcut>0:
-    #     if rmin>0:
-    #         kcut = np.array([max(krcut/dr,(l+krcut)/rmin) for l in lvals])
-    #     else: #for rmin=0, just require that most of bin is in osc regime
-    #         kcut = np.array([max(krcut/dr,(l+krcut)/(.1*dr)) for l in lvals])
-    #     kindcut=np.zeros(Nell)
-    #     for lind in xrange(Nell):
-    #         wheregt= np.where(kvals<=kcut[lind])[0]
-    #         if wheregt.size:
-    #             kindcut[lind]=wheregt[-1]
-    #         else: #all are nonzero
-    #             kindcut[lind]=Nk-1
-    # else:
-    #     kindcut = np.array([Nk-1 for lind in xrange(Nell)]) #keep all
-
-    # if DOPARALLEL:
-    #Do computations, interating through k and l vals
-    #5/15/15 introducing sharpkcut to compare to CLASS
-
-    #isprecut=np.array([np.arange(Nk)<=kindcut[lind]for lind in xrange(Nell)])
-    #isprecut=isprecut.flatten()
-    ##################################################
     
     lk= itertools.product(lvals,kvals) #items=[l,k]
     argiter=itertools.izip(lk,itertools.repeat(rmin),itertools.repeat(rmax),itertools.repeat(cosm),itertools.repeat(binmap),itertools.repeat(krcutadd),itertools.repeat(krcutmult),itertools.repeat(zintlim),itertools.repeat(eps),itertools.repeat(rundata.sharpkcut),itertools.repeat(rundata.besselxmincut))
@@ -447,7 +420,7 @@ def readIlk_file(binmap,rundata):
     inkmax=k[-1]
 
     #return ivals if nperlogk and l values match up, otherwise return empty array
-    #should have all ell in lvals where ell<limberl, assume ascending order #NEED TO CHECK LIMBER STUFF
+    #should have all ell in lvals where ell<limberl, assume ascending order
     limberl=rundata.limberl
     if limberl>=0 and limberl<=rundata.lmax:
         # these are the expected ell values we want out
@@ -724,8 +697,9 @@ def computeCl(binmaps,rundata,dopairs=[],docrossind=[],redoIlk=False,addauto=Fal
         #put everything into a tuple for the integral wrapper
         argiter = itertools.izip(nl,indocross,mappair,itertools.repeat(cosm),itertools.repeat(rundata.zintlim),itertools.repeat(rundata.epsilon)) #for quad
         #run computations in parallel
-        DOPARALLEL=0
+        DOPARALLEL=1
         if DOPARALLEL:
+            print "  Running Limber approx integrals in parallel."
             pool=Pool()
             results=pool.map_async(LimberCl_intwrapper,argiter)
             limberCl=np.array(results.get())
@@ -734,6 +708,7 @@ def computeCl(binmaps,rundata,dopairs=[],docrossind=[],redoIlk=False,addauto=Fal
             Clvals[:,Nell_preLim:]=limberCl.reshape(Ncross,Nell_postLim)
         else: #the nonparallel version is for testing that things run
             argiter=list(argiter)
+            print "  Running Limber approx integrals (not in parallel)."
             for i in xrange(len(argiter)):
                 argtuple=argiter[i]
                 nl,indocross,mappair,cosm,zintlim,epsilon=argtuple
