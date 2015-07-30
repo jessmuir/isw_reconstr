@@ -107,13 +107,22 @@ class Cosmology(object):
         self.Om = self.Oc+self.Ob+self.On
         self.OL = 1.-self.Om
     #-----------------------------------
-    def tabulateZdep(self,zmax=10,nperz=200,zrhgf_ext=np.array([])):
+    def tabulateZdep(self,zmax=10,nperz=200,zrhgf_ext=np.array([]),outtag='',overwritefile=False):
         #make z array, tabulate z-dependent quantities, save as member arrays
         # can pass optional array zrhgf [first index specifies z,r,H,g, or f][z index]
         # -if this is non empty, supercedes other argumetns
         self.tabZ=1 #used to see if this fn has been called
+        pf = self.paramfile
+        cosmtag=pf[pf.rfind('/')+1:pf.rfind('.cosm')]
+        if outtag:
+            addtotag='_'+outtag
+        else:
+            addtotag=''
+        tabzfile=self.cambdir+'{0:s}_tabz_zmax{1:f}_nperz{2:d}.dat'.format(cosmtag+addtotag,zmax,nperz)
+
         print "  Tabulating background cosmology fns. zmax={0:g}, nperz={1:g}".format(zmax,nperz)
         if zrhgf_ext.size:
+            print '  using external tabulation...'
             self.z_array=zrhgf_ext[0,:]
             self.r_array=zrhgf_ext[1,:]
             #self.H_array=zrhgf_ext[2,:]
@@ -122,29 +131,58 @@ class Cosmology(object):
             self.zmax=self.z_array[-1]
             self.nperz=self.z_array.size/self.zmax
         else:
-            self.zmax=zmax
-            self.nperz=nperz
-            dz = 1./nperz
-            Nz = zmax*nperz+1
-            self.z_array = dz*np.arange(Nz)
-            self.r_array = np.zeros_like(self.z_array) #Mpc/h units
-            self.H_array = np.zeros_like(self.z_array) #h km/s/Mpc
-            self.g_array = np.zeros_like(self.z_array)
-            self.f_array = np.zeros_like(self.z_array)
-            for i in xrange(self.z_array.size):
-                self.r_array[i]=self.comov_r_z(self.z_array[i])
-                self.H_array[i]=self.Hubble(self.z_array[i])
-                self.g_array[i]=self.D1(self.z_array[i])
-                self.f_array[i]=self.fgrowth(self.z_array[i])
-                
-            self.g_array = self.g_array/self.D1(0) #normalize to 1 today
 
+            if not overwritefile and os.path.isfile(tabzfile):
+                #check for existing file
+                print '    using z data from',tabzfile
+                #if it exists, read it in
+                inzrhgf=np.loadtxt(tabzfile,skiprows=1)
+                #for now, assumes that this is the array we want
+                
+                self.z_array=inzrhgf[:,0]
+                self.r_array=inzrhgf[:,1]
+                self.H_array=inzrhgf[:,2]
+                self.g_array=inzrhgf[:,3]
+                self.f_array=inzrhgf[:,4]
+                self.zmax=self.z_array[-1]
+                self.nperz=self.z_array.size/self.zmax
+            else:
+                self.zmax=zmax
+                self.nperz=nperz
+                dz = 1./nperz
+                Nz = zmax*nperz+1
+                self.z_array = dz*np.arange(Nz)
+                self.r_array = np.zeros_like(self.z_array) #Mpc/h units
+                self.H_array = np.zeros_like(self.z_array) #h km/s/Mpc
+                self.g_array = np.zeros_like(self.z_array)
+                self.f_array = np.zeros_like(self.z_array)
+                for i in xrange(self.z_array.size):
+                    self.r_array[i]=self.comov_r_z(self.z_array[i])
+                    self.H_array[i]=self.Hubble(self.z_array[i])
+                    self.g_array[i]=self.D1(self.z_array[i])
+                    self.f_array[i]=self.fgrowth(self.z_array[i])
+                
+                self.g_array = self.g_array/self.D1(0) #normalize to 1 today
+
+                #write arrays to file
+                zrhgf_grid=np.zeros((self.z_array.size,5))
+                zrhgf_grid[:,0]=self.z_array
+                zrhgf_grid[:,1]=self.r_array
+                zrhgf_grid[:,2]=self.H_array
+                zrhgf_grid[:,3]=self.g_array
+                zrhgf_grid[:,4]=self.f_array
+                header='columns: z r h g f; cosm file {0:s}; zmax {1:f}; nperz {2:d}'.format(cosmtag,zmax,nperz)
+                print '    Saving z tab data to ',tabzfile
+                np.savetxt(tabzfile,zrhgf_grid,header=header)
+                
         #set up interpolating functions
+        print '     Setting up interpolating functions.'
         self.co_r = interp1d(self.z_array,self.r_array,kind='cubic',bounds_error=False,fill_value=0.)
         self.z_from_cor= interp1d(self.r_array,self.z_array,kind='cubic',bounds_error=False,fill_value=0.)
         self.hub =self.Hubble#interp1d(self.z_array,self.H_array,kind='cubic') #analytic!
         self.growth =interp1d(self.z_array,self.g_array,kind='cubic',bounds_error=False,fill_value=0.)
         self.growthrate = interp1d(self.z_array,self.f_array,kind='cubic',bounds_error=False,fill_value=0.)
+        print '     Tabulation done.'
            
     #==================================================
     # getPk: either read in CAMB file, or run CAMB then read in file
