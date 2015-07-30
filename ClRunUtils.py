@@ -117,7 +117,7 @@ class RunData(object):
 class ClRunData(RunData):
     zintlim=10000
     kintlim=10000
-    def __init__(self,tag='',ilktag='',rundir='output/',cosmpfile='testparam.cosm',kdata=0,lmax=0,lvals=np.array([]),zmax=2.,limberl=-1,epsilon=1.e-10,cosm_zrhgf_bkgrd=np.array([]),pk_ext=np.array([]),sharpkcut=False,besselxmincut=True,noilktag=False):
+    def __init__(self,tag='',ilktag='',rundir='output/',cosmpfile='testparam.cosm',kdata=0,lmax=0,lvals=np.array([]),zmax=2.,limberl=20,epsilon=1.e-10,cosm_zrhgf_bkgrd=np.array([]),pk_ext=np.array([]),sharpkcut=False,besselxmincut=True,noilktag=False):
         RunData.__init__(self,tag,rundir,cosmpfile,lmax,lvals,clrundat=True)
         self.limberl=limberl
         self.epsilon=epsilon #used to set tolerance on integrals
