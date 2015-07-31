@@ -117,7 +117,7 @@ class RunData(object):
 class ClRunData(RunData):
     zintlim=10000
     kintlim=10000
-    def __init__(self,tag='',ilktag='',rundir='output/',cosmpfile='testparam.cosm',kdata=0,lmax=0,lvals=np.array([]),zmax=2.,limberl=20,epsilon=1.e-10,cosm_zrhgf_bkgrd=np.array([]),pk_ext=np.array([]),sharpkcut=False,besselxmincut=True,noilktag=False):
+    def __init__(self,tag='',ilktag='',rundir='output/',cosmpfile='testparam.cosm',kdata=0,lmax=0,lvals=np.array([]),zmax=2.,limberl=20,epsilon=1.e-10,cosm_zrhgf_bkgrd=np.array([]),pk_ext=np.array([]),sharpkcut=False,besselxmincut=True,noilktag=False,nperz=200.):
         RunData.__init__(self,tag,rundir,cosmpfile,lmax,lvals,clrundat=True)
         self.limberl=limberl
         self.epsilon=epsilon #used to set tolerance on integrals
@@ -137,7 +137,7 @@ class ClRunData(RunData):
         self.besselxmincut=besselxmincut
         #print 'in ClRundata, zmax=',self.zmax
         #redo barebones cosm with one containing correct kdata, etc
-        self.cosm = Cosmology(self.cosmfile,cambdir=self.cambdir,kmin=self.kdata.kmin,kmax=self.kdata.kmax,epsilon=self.epsilon,bkgd_zrhgf_ext=cosm_zrhgf_bkgrd,pk_ext=pk_ext)
+        self.cosm = Cosmology(self.cosmfile,cambdir=self.cambdir,kmin=self.kdata.kmin,kmax=self.kdata.kmax,epsilon=self.epsilon,bkgd_zrhgf_ext=cosm_zrhgf_bkgrd,pk_ext=pk_ext,nperz=nperz)
 
         #infostr will hold run data to print in header of data files
         kinfo = self.kdata.infostr

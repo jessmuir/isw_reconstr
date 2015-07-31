@@ -42,7 +42,7 @@ class Cosmology(object):
             self.tabulateZdep(zmax,nperz,zrhgf_ext=bkgd_zrhgf_ext)
         else:
             self.tabZ = 0
-            self.nperz = 0
+        self.nperz = nperz
 
         self.cambdir = cambdir #default if no Pk needed
         if pk_ext.size:
@@ -118,7 +118,7 @@ class Cosmology(object):
             addtotag='_'+outtag
         else:
             addtotag=''
-        tabzfile=self.cambdir+'{0:s}_tabz_zmax{1:f}_nperz{2:d}.dat'.format(cosmtag+addtotag,zmax,nperz)
+        tabzfile=self.cambdir+'{0:s}_tabz_zmax{1:f}_nperz{2:f}.dat'.format(cosmtag+addtotag,zmax,nperz)
 
         print "  Tabulating background cosmology fns. zmax={0:g}, nperz={1:g}".format(zmax,nperz)
         if zrhgf_ext.size:
@@ -171,7 +171,7 @@ class Cosmology(object):
                 zrhgf_grid[:,2]=self.H_array
                 zrhgf_grid[:,3]=self.g_array
                 zrhgf_grid[:,4]=self.f_array
-                header='columns: z r h g f; cosm file {0:s}; zmax {1:f}; nperz {2:d}'.format(cosmtag,zmax,nperz)
+                header='columns: z r h g f; cosm file {0:s}; zmax {1:f}; nperz {2:f}'.format(cosmtag,zmax,nperz)
                 print '    Saving z tab data to ',tabzfile
                 np.savetxt(tabzfile,zrhgf_grid,header=header)
                 

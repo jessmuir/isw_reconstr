@@ -227,7 +227,7 @@ def computeIlk(binmap,rundata):
     #set up labels to help references go faster
     cosm = rundata.cosm
     if not cosm.tabZ or cosm.zmax<binmap.zmax:
-        cosm.tabulateZdep(max(rundata.zmax,binmap.zmax))
+        cosm.tabulateZdep(max(rundata.zmax,binmap.zmax),nperz=cosm.nperz)
     co_r = cosm.co_r #function with arg z
     
     krcutadd=rundata.kdata.krcutadd #to make integral well behaved w fast osc
@@ -376,7 +376,7 @@ def writeIlk(Ilkarray,binmap,rundata):
     print 'Writing Ilk data to ',outfile
     k = rundata.kdata.karray
     lvals = rundata.lvals
-    Nell = lvals.size
+    Nell = sum(l<rundata.limberl for l in lvals) #number below limber switch
     krcutstr='{0:13g}.{1:<10g}'.format(rundata.kdata.krcutadd,rundata.kdata.krcutmult)
     if rundata.kdata.krcutadd<0 or rundata.kdata.krcutmult<0:
         krcutstr='{0:23g}'.format(-1.)
@@ -681,14 +681,14 @@ def computeCl(binmaps,rundata,dopairs=[],docrossind=[],redoIlk=False,addauto=Fal
         #rearrange into [n,l] shape
         Clvals[:,:Nell_preLim]=newCl.reshape(Ncross,Nell_preLim)
 
-    #WORKING HERE, NEED TO TEST
     # Do Limber approx calculations 
     if Nell_postLim:
         print "  Performing Limber approx C_l integrals."
         #make sure z-dep functions have been tabulated
+        #print [m.zmax for m in binmaps]
         zmax=max([m.zmax for m in binmaps])
         if not cosm.tabZ or cosm.zmax<zmax:
-            cosm.tabulateZdep(zmax)
+            cosm.tabulateZdep(zmax,nperz=cosm.nperz)
 
         nl= itertools.product(xrange(Ncross),lvals_postLim) #items=[n,lvals]
         mappair=[(binmaps[crosspairs[xind,0]],binmaps[crosspairs[xind,1]]) for (xind,lind) in itertools.product(xrange(Ncross),xrange(Nell_postLim))]

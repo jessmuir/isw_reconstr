@@ -24,15 +24,18 @@ from genCrossCor import *
 #                      orginal map - ISW, gal, desspec, etc + bin number
 #                      mod - e.g. application of calibration error screen
 #                      mask - mask applied to map
-#         maptaglist - list of strings describing maps used, same format as
-#                  MapParams.tag, same dim of glm.shape[1]
+#         maptaglist - list of strings describing maps used, or for 
+#                  iswREC, what maps went into reconstruction
 #         nbarlist - list of nbar values for each  map. -1 if no value given
-#         modtaglist - string describing any modifications to maps, e.g.
+#         modtaglist - 
+#             for LSS: string describing any modifications to maps, e.g.
 #                  calibration error "screen" applied
 #                  -> should either have same len as maptaglist, or have 
 #                     if len=0, set all default 'nomod', if len=1, use that
 #                     tag for all maps
-#         masktag - like modtaglist, but for masks, w default 'fullsky'
+#             for ISW rec, a note signifying what Cl's were used
+#                 for reconstruction ('fid'=same Cl used for simulation)
+#         masktaglist - like modtaglist, but for masks, w default 'fullsky'
 #         rlzns: - array of ints, eitehr the same size as the first dim of glm
 #                  or empty.
 #                    If nonempty, translates from the first index
@@ -71,6 +74,8 @@ class glmData(object):
         self.Nreal = self.glm.shape[0]
         if rlzns.size and rlzns.size!=self.Nreal:
             print "WARNING! mismatch: rlzns.size!=Nreal. defaulting to arange(Nreal)"
+            self.rlzns=np.array([])
+        elif np.all(rlzns==np.arange(self.Nreal)):
             self.rlzns=np.array([])
         else:
             self.rlzns=rlzns
@@ -253,20 +258,22 @@ class glmData(object):
     #given realization int, and index for map,
     # return name of file where the corresponding map data goes
     def get_mapfile(self,real=0,mapind=0,ftype='fits'):
-
-        if self.runtag: runtag='.'+self.runtag
-        else:  runtag=''
-        
-        return ''.join([self.mapdir(),self.maptaglist[mapind],'.',self.modtaglist[mapind],'.',self.masktaglist[mapind],runtag,'.r{0:05d}.'.format(real),ftype])
+        if self.runtag: 
+            runtagstr='.'+self.runtag
+        else:  
+            runtagstr=''
+        return ''.join([self.mapdir(),self.maptaglist[mapind],'.',self.modtaglist[mapind],'.',self.masktaglist[mapind],runtagstr,'.r{0:05d}.'.format(real),ftype])
     
     def get_mapfile_fortags(self,real,maptag,modtag='unmod',masktag='fullsky',ftype='fits'):
         n= self.mapdict[(maptag,modtag,masktag)]
         return self.get_mapfile(real,n,ftype)
     #same as above, but doesn't check whether tags are in mapdict
     def get_mapfile_fortags_unchecked(self,real,maptag,modtag='unmod',masktag='fullsky',ftype='fits'):
-        if self.runtag: runtag='.'+self.runtag
-        else:  runtag=''
-        return ''.join([self.mapdir(),maptag,'.',modtag,'.',masktag,runtag,'.r{0:05d}.'.format(real),ftype])
+        if self.runtag: 
+            runtagstr='.'+self.runtag
+        else:  
+            runtagstr=''
+        return ''.join([self.mapdir(),maptag,'.',modtag,'.',masktag,runtagstr,'.r{0:05d}.'.format(real),ftype])
     #------------------------------------------------------
     # add_newreal: add glm data for new realizations
     #   input: newglm = array of glmdata to add [newreal,map,lm]
@@ -288,6 +295,7 @@ class glmData(object):
         #if so: leave self.rlzns as empty array
         if (not self.rlzns.size) and np.all(newrlzns==np.arange(self.Nreal,self.Nreal+Nnewreal)):
             fullglm=np.zeros((self.Nreal+Nnewreal,self.Nmap,self.Nlm),dtype=np.complex)
+            fullglm[:self.Nreal,:,:]=self.glm
             fullglm[self.Nreal:,:,:]=newglm
             self.glm=fullglm
             self.Nreal=self.Nreal+Nnewreal
@@ -313,20 +321,22 @@ class glmData(object):
                         fullrlzns[self.Nreal+addind]=newrlzns[i]
                         addind+=1
                 self.rlzns=fullrlzns
-                fullglm[:self.Nreal,:,:]=self.glm
                 self.Nreal=fullglm.shape[0]
                 if np.all(self.rlzns==np.arange(self.Nreal)):
                     self.rlzns=np.array([])
                 self.glm=fullglm
     
     #------------------------------------------------------
-    #can combine glmDataGrids if lm vals, runtag, rundir are the same
+    #can combine glmDataGrids if lm vals are the same
     #   if realizations are the same between them, add new maps
     #   if rlzns not equal but maps are, add new realizations
+    # return glmData has runtag and rundir of first 
     #------------------------------------------------------
     def __add__(self,other):
-        if self.lmax==other.lmax and self.Nlm==other.Nlm and self.runtag==other.runtag and self.rundir==other.rundir:
+        if self.lmax==other.lmax and self.Nlm==other.Nlm:
             # if realization numbers are the same, combine along map axis
+            print 'Nreal:',self.Nreal,other.Nreal
+            print 'rlzns.size:',self.rlzns.size,other.rlzns.size
             if self.Nreal==other.Nreal and self.rlzns.size==other.rlzns.size and np.all(self.rlzns==other.rlzns):
                 print "combining along map axis"
                 Nmaptot = self.Nmap +other.Nmap
@@ -349,11 +359,6 @@ class glmData(object):
                     elif len(other.filetags)==1:
                         otherft=other.filetags*other.Nmap                       
                     newfiletags=selfft+otherft
-                    # print 'self.filetags',self.filetags
-                    # print 'other.filetags',other.filetags
-                    # print 'self.Nmap',self.Nmap,'other.Nmap',other.Nmap
-                    # print 'len(newfiletags)',len(newfiletags)
-                    # print 'Nmaptot',Nmaptot
                 
                 newglmData= glmData(newglm,self.lmax,maptags,self.runtag,self.rundir,nbars,modtags,masktags,self.rlzns,newfiletags)
             #if rlzns are different but map/mod/mask info the same, combine
@@ -397,16 +402,24 @@ class glmData(object):
 ###########################################################################
 #================================================
 # get_glm
+#    retrieve glmData object either from file or by generating it
+#    ->if cldata (a clData object) is given, get the rundir and runtag
+#        from it. 
+#          >If overwrite=False, check that files exist; read them in if so
+#            but if not, generate need glm from Cl data
+#    ->If cldata left as an empty string, can read in but not generate
+#          glm data.
 #    if array of realization numbers are given, get those
 #    otherwise get the Nreal, just starting from rlz=0
 #    overwrite - if False, read in glm file if it exists, compute only if needed
 #                if true, recompute all glm and overwrite
 #================================================
-def get_glm(cldata,filetag='',Nreal=1,rlzns=np.array([]),overwrite=False):
-    rundata=cldata.rundat
-    rundir = rundata.rundir
-    runtag=rundata.tag
-    #print runtag
+def get_glm(cldata='',rundir='output/',filetag='',runtag='',Nreal=1,rlzns=np.array([]),overwrite=False,matchClruntag=False):
+    if cldata:
+        rundata=cldata.rundat
+        rundir = rundata.rundir
+        if matchClruntag:
+            runtag=rundata.tag
 
     if not rlzns.size:
         rlzns=np.arange(Nreal)
@@ -422,7 +435,10 @@ def get_glm(cldata,filetag='',Nreal=1,rlzns=np.array([]),overwrite=False):
     #print 'fbase:',fbase
     
     if overwrite: #generate all these realizations of glm
-        glmdat=generate_many_glm_fromcl(cldata,Nreal,rlzns,filetag=filetag)
+        if cldata:
+            glmdat=generate_many_glm_fromcl(cldata,Nreal,rlzns,filetag=filetag,matchClruntag=matchClruntag,runtag=runtag)
+        else:
+            print "NEED cldata in order to generate glm!"
     else: #generate glm for the realizations num w/out existing file
         need=[]
         for r in rlzns:
@@ -430,8 +446,11 @@ def get_glm(cldata,filetag='',Nreal=1,rlzns=np.array([]),overwrite=False):
                 need.append(r)
         #compute if need not empty, don't worry about hanging onto result
         if need:
-            print "Generating glm for realizations:",need
-            generate_many_glm_fromcl(cldata,rlzns=np.array(need),filetag=filetag)
+            if cldata:
+                print "Generating glm for realizations:",need
+                generate_many_glm_fromcl(cldata,rlzns=np.array(need),filetag=filetag,matchClruntag=matchClruntag,runtag=runtag)
+            else:
+                print "NEED cldata in order to generate glm!"
         else:
             print "All data already exists. Reading from file."
         #now, read in files and collect glm data
@@ -449,7 +468,7 @@ def get_glm(cldata,filetag='',Nreal=1,rlzns=np.array([]),overwrite=False):
 #    filetag - filetag for output glmData, labels saved files
 # returns glmData object w mod/masktags set to default 'nomod','fullsky'
 #================================================
-def generate_many_glm_fromcl(cldata,Nreal=1,rlzns=np.array([]),savedat=True,filetag=''):
+def generate_many_glm_fromcl(cldata,Nreal=1,rlzns=np.array([]),savedat=True,filetag='',matchClruntag=True,runtag=''):
     wasarange=False
     if not rlzns.size:
         wasarange=True
@@ -459,11 +478,13 @@ def generate_many_glm_fromcl(cldata,Nreal=1,rlzns=np.array([]),savedat=True,file
     #generate tthe glm data
     glmlist=[]
     for r in rlzns:
-        glmlist.append(generate_glmdat_fromcl(cldata,r,savedat,filetag,False))
+        glmlist.append(generate_glmdat_fromcl(cldata,r,savedat,filetag,False,matchClruntag=matchClruntag,runtag=runtag))
     glmgrid=np.array(glmlist)
     if wasarange:
         rlzns=np.array([])
-    glmdata=glmData(glm=glmgrid,lmax=cldata.rundat.lmax,maptaglist=cldata.bintaglist,runtag=cldata.rundat.tag,rundir=cldata.rundat.rundir,rlzns=rlzns,filetags=[filetag],nbarlist=cldata.nbar)
+    if matchClruntag:
+        runtag=cldata.rundat.tag
+    glmdata=glmData(glm=glmgrid,lmax=cldata.rundat.lmax,maptaglist=cldata.bintaglist,runtag=runtag,rundir=cldata.rundat.rundir,rlzns=rlzns,filetags=[filetag],nbarlist=cldata.nbar)
     if savedat:
         print "writing to files:",glmdata.get_glmfile()[:-9]+'XXXXX.dat'
 
@@ -480,10 +501,12 @@ def generate_many_glm_fromcl(cldata,Nreal=1,rlzns=np.array([]),savedat=True,file
 #    retglmData - if true returns a glmData object, otherwise just glm array
 #
 #================================================
-def generate_glmdat_fromcl(cldata,rlz=0,savedat=True,filetag='',retglmData=True):
+def generate_glmdat_fromcl(cldata,rlz=0,savedat=True,filetag='',retglmData=True,matchClruntag=True,runtag=''):
     #need contiguous lvals starting at 0 to use healpy.synalm
     # rlz is the realization number of this generation; just for labeling
     rundat=cldata.rundat
+    if matchClruntag:
+        runtag=cldata.rundat.tag
     bintaglist=cldata.bintaglist
     if rundat.lvals.size!=rundat.lmax+1:
         print "**STOPPING! Need contiguous lvals for healpy to give glm"
@@ -497,7 +520,7 @@ def generate_glmdat_fromcl(cldata,rlz=0,savedat=True,filetag='',retglmData=True)
     glmgrid=np.array(hp.synalm(cldata.cl+cldata.noisecl,new=True))#[map,lm]
     if retglmData or savedat:
         #modtag and masktag are defaults 'nomod' and 'fullsky'
-        glmdat=glmData(glm=glmgrid,lmax=rundat.lmax,maptaglist=bintaglist,runtag=rundat.tag,rundir=rundat.rundir,rlzns=np.array([rlz]),filetags=[filetag],nbarlist=cldata.nbar)
+        glmdat=glmData(glm=glmgrid,lmax=rundat.lmax,maptaglist=bintaglist,runtag=runtag,rundir=rundat.rundir,rlzns=np.array([rlz]),filetags=[filetag],nbarlist=cldata.nbar)
     #save the data
     if savedat:
         glmdat= write_glm_to_files(glmdat,setnewfiletag=True,newfiletag=filetag)
@@ -511,6 +534,7 @@ def generate_glmdat_fromcl(cldata,rlz=0,savedat=True,filetag='',retglmData=True)
 # if setnewfiletag: change filetag for all glmdata to newfiletag
 # then, write to file only if glmdata has ONEFILE=True
 def write_glm_to_files(glmdata,setnewfiletag=False,newfiletag=''):
+    #print glmdata.glm
     if setnewfiletag:
         glmdata.filetags=[newfiletag]
         glmdata.ONEFILE=True
@@ -546,6 +570,7 @@ def write_glm_to_files(glmdata,setnewfiletag=False,newfiletag=''):
         outflist.append(outf)
         rowlist = [''.join([' {0:8d} {1:3d} {2:3d}'.format(n,hplvals[n],hpmvals[n]),''.join([' {0:+23.16e} {1:+23.16e}'.format(glmdata.glm[r,m,n].real,glmdata.glm[r,m,n].imag) for m in xrange(Nmap)]),'\n']) for n in xrange(Nlm)]
         bodystr=''.join(rowlist)
+        print 'writing to', outf
         f=open(outf,'w')
         f.write(header0)
         f.write(indheader)
@@ -591,8 +616,6 @@ def read_glm_files(filetag='',runtag='',rundir='output/',Nreal=1,rlzns=np.array(
 #                          returns np.array of imaginary glm[map,lm]
 def read_glm_onefile(filename,getheaderinfo=True):
     #print "Reading glm from ",filename
-    #get glm data info from filename
-    # assumes filetag and runtag contains no '.'
     if getheaderinfo:
         rundir=filename[:filename.find('glm_output/')]
         #open the file to get some of the header data
@@ -635,11 +658,11 @@ def read_glm_onefile(filename,getheaderinfo=True):
 #       otherwise, will check if the file exists and will just read
 #       the map in if it already exists
 #     if makeplots=True, will make png files of the maps
-#     Can set NSIDE for the healpix maps, default is 64
+#     Can set NSIDE for the healpix maps, default is 32
 #
 #  returns array w shape Nreal,Nmap,Npix containing helpy maps for each real+map
 #------------------------------------------------------------------------
-def get_maps_from_glm(glmdata,rlzns=np.array([]),redofits=False,makeplots=False,NSIDE=64):
+def get_maps_from_glm(glmdata,rlzns=np.array([]),redofits=False,makeplots=False,NSIDE=32):
     if not rlzns.size:
         rlzns=glmdata.rlzns
     if not rlzns.size:
@@ -659,10 +682,10 @@ def get_maps_from_glm(glmdata,rlzns=np.array([]),redofits=False,makeplots=False,
 #                            if true, overwrites any files with matching name
 #           makeplot - if true, also makes a plot of map and puts it in a png file
 #                      isw maps have red/blue colors, other maps are greyscale
-#           NSIDE- the healpix Nside parameter. default is 64 here
+#           NSIDE- the healpix Nside parameter. default is 32 here
 #    returns: array of heaplix maps, shape is rlzns,Nmaps,Npix
 #------------------------------------------------------------------------
-def get_maps_from_glm_1real(glmdat,rlz=0,redofits=False,makeplots=False,NSIDE=64):
+def get_maps_from_glm_1real(glmdat,rlz=0,redofits=False,makeplots=False,NSIDE=32):
     #print 'in get_maps_from_glm_1real, rlz=',rlz
     #check that realization number is actually in glmdat
     if not glmdat.havethisreal(rlz):
@@ -696,15 +719,15 @@ def get_maps_from_glm_1real(glmdat,rlz=0,redofits=False,makeplots=False,NSIDE=64
     return np.array(hpmaplist) #shape=Nmap,Npix
 #------------------------------------------------------------------------
 # plotmap - plot map, hanging onto various map/mod/mask info
-def plotmap(m,outfname,rlz,maptag,modtag='unmod',masktag='fullsky',runtag=''):
+def plotmap(m,outfname,rlz,maptag,modtag='unmod',masktag='fullsky',titlenote=''):
     #variance=np.var(m)
     maxval=max(np.fabs(m))
     #nsig=6
     scalemax=0.7*maxval#nsig*variance
     scalemin=-0.7*maxval
     plt.figure(0)
-    if runtag:
-        titletag=' ('+runtag+')'
+    if titlenote:
+        titletag=' ('+titlenote+')'
     else: titletag=''
     maptitle=''.join([maptag,'.',modtag,'.',masktag,titletag,', rlzn ',str(rlz)])
     if 'isw' in maptag:
@@ -742,7 +765,7 @@ def plotmap(m,outfname,rlz,maptag,modtag='unmod',masktag='fullsky',runtag=''):
 #  returns: for now, nothing. as long as apply_caliberror_toglm uses same
 #           naming convention as here, it will open up files
 #------------------------------------------------------------------------
-def get_fixedvar_errors_formaps(glmdat,cdatalist=[],overwrite=False,NSIDE=64):
+def get_fixedvar_errors_formaps(glmdat,cdatalist=[],overwrite=False,NSIDE=32):
     #print 'in get_fixedvar...; glmdat.glm.shape=',glmdat.glm.shape
     rundir=glmdat.rundir
     outdir=glmdat.mapdir()
@@ -892,17 +915,18 @@ def apply_caliberror_toglm(inglmdat,mapmodcombos=[],savemaps=False,saveplots=Fal
     #For each realization and map/mod combo, get unmod map and appropriate
     # calib error map, then combine them
     #****For now, assumes approp calib error map exists
+    print "applying calib erros to maps for",len(reals),' realizations'
     for r in reals:
         glmforr=[]
         for c in xrange(len(newmaptags)):
-            print 'r=',r,': applying',newmodtags[c],'to',newmaptags[c]
+            #print 'r=',r,': applying',newmodtags[c],'to',newmaptags[c]
             n=inglmdat.mapdict[(newmaptags[c],'unmod',newmasktags[c])] #index of unmodified map
 
             startmapf=inglmdat.get_mapfile(r,n)
             startmap=hp.read_map(startmapf,verbose=False)
             startnbar=inglmdat.nbarlist[n]
 
-            #read in calib error map #WWORKING HERE
+            #read in calib error map 
             calibmapf=inglmdat.mapdir()+'caliberror.{0:s}.for_{1:s}.r{2:05d}.fits'.format(newmodtags[c],newmaptags[c],r)        
             calibmap=hp.read_map(calibmapf,verbose=False)
             newmap,newnbar=apply_caliberror_tomap(startmap,calibmap,startnbar)
