@@ -202,18 +202,6 @@ def get_glm_array_forrec(glmdat,includelist=[],zerotag='isw_bin0'):
             includelist.remove(zerotag)
 
     dinds=[]#d[n]=i: n=index for rec data glm, i = index in input
-    # if type(zerotag)==str: #string, or just one entry; just maptag
-    #     zerotagstr=zerotag
-    #     zeroind=glmdat.get_mapind_fromtags(zerotag)
-    # elif type(zerotag)==tuple:
-    #     zerotagstr=zerotag[0]
-    #     if len(zerotag)==1:
-    #         zeroind=glmdat.get_mapind_fromtags(zerotag[0])
-    #     elif len(zerotag)==2:
-    #         zeroind=glmdat.get_mapind_fromtags(zerotag[0],zerotag[1])
-    #     else:
-    #         zeroind=glmdat.get_mapind_fromtags(zerotag[0],zerotag[1],zerotag[2])
-
     indexforD=0 #index of data glm to be used in rec
     for x in includelist:
         if type(x)==str:
@@ -287,11 +275,22 @@ def calc_isw_est(cldat,glmdat,recdat,writetofile=True,getmaps=True,makeplots=Fal
     almdat=glmData(almest,glmdat.lmax,outmaptags,glmdat.runtag,glmdat.rundir,rlzns=glmdat.rlzns,filetags=[maptag+'.'+rectag],modtaglist=outmodtags,masktaglist=outmasktags)
 
     if writetofile: #might set as false if we want to do several recons
-        print "WRITING ALM DATA TO FILE"
+        #print "WRITING ALM DATA TO FILE"
         write_glm_to_files(almdat)
     if getmaps:
-        print "GETTING ISW REC MAPS"
+        #print "GETTING ISW REC MAPS"
         get_maps_from_glm(almdat,redofits=True,makeplots=makeplots,NSIDE=recdat.NSIDE)
+
+        #compute rho
+        truemapf=glmdat.get_mapfile_fortags(0,recdat.zerotagstr)
+        truemapbase=truemapf[:truemapf.rfind('.r')]
+        recmapf=almdat.get_mapfile(0,0,'fits')
+        recmapbase=recmapf[:recmapf.rfind('.r')]
+        if almdat.rlzns.size:
+            rlzns=almdat.rlzns
+        else:
+            rlzns=np.arange(almdat.Nreal)
+        rhovals=rho_manyreal(truemapbase,recmapbase,rlzns=rlzns)
 
     return almdat
 
@@ -331,6 +330,9 @@ def domany_isw_recs(cldatlist,glmdatlist,reclist,outfiletag='iswREC',outruntag='
         else:
             glmdat=glmdatlist[i]
         almdat=calc_isw_est(cldat,glmdat,rec,writetofile=False,getmaps=getmaps,makeplots=makeplots)
+
+
+
         if i==0:
             outalmdat=almdat
         else:
@@ -342,6 +344,7 @@ def domany_isw_recs(cldatlist,glmdatlist,reclist,outfiletag='iswREC',outruntag='
     outalmdat.runtag=outruntag
     if writetofile:
         write_glm_to_files(outalmdat,setnewfiletag=True,newfiletag=outfiletag)
+    
 
 #-------------------------------------------------------------------------
 # rho_mapcorr: compute rho (cross corr) between pixels of two maps
@@ -365,30 +368,56 @@ def rho_onereal(map1,map2):
 #-------------------------------------------------------------------------
 # rho_manyreal -  find correlations between pairs of maps for many realizations
 #  input: mapdir -  directory where the maps are 
-#        filebase1/2 - filename of maps, up to but not including '.rXXXXX.fits'
-#        rlzns, Nreal - if rlzns is empty, rlzns=np.arange(Nreal), otherwise
-#                       Nreal=rlzns.size
-# NEED TO TEST
-def rho_manyreal(mapdir,filebase1,filebase2,Nreal=1,rlzns=np.array([])):
+#        filebases - filename of maps, up to but not including '.rXXXXX.fits'
+#        rlzns, Nreal - if rlzns is empty, rlzns=np.arange(Nreal), otherwise Nreal=rlzns.size
+
+def rho_manyreal(truefilebase,recfilebase,Nreal=1,rlzns=np.array([]),savedat=True):
     if rlzns.size:
-        Nreal=rlzns.siz
+        Nreal=rlzns.size
     else:
         rlzns=np.arange(Nreal)
     rhovals=np.zeros(Nreal)
     #read in the maps
     for r in xrange(Nreal):
-        f1=''.join([mapdir,filebase1,'.r{0:05d}.fits'.format(rlzns[r])])
-        f2=''.join([mapdir,filebase2,'.r{0:05d}.fits'.format(rlzns[r])])
+        f1=''.join([truefilebase,'.r{0:05d}.fits'.format(rlzns[r])])
+        f2=''.join([recfilebase,'.r{0:05d}.fits'.format(rlzns[r])])
         map1=hp.read_map(f1,verbose=False)
         map2=hp.read_map(f2,verbose=False)
         #compute cross correlations and store the value
         rhovals[r]=rho_onereal(map1,map2)
+    if savedat:
+        save_rhodat(rhovals,rlzns,truefilebase,recfilebase)
     return rhovals
 
 #------------------------------------------------------------------------------
 # save_rhodat - save rho data to file
-#   #should keep track of what maps went into this, probably do a row per realization
+def save_rhodat(rhovals,rlzns,truefilebase,recfilebase,filetag=''):
+    if filetag:
+        tagstr='_'+filetag
+    else:
+        tagstr=''
+    outf=''.join([recfilebase,'_rhovals',tagstr,'.dat'])
 
+    truestr=truefilebase[truefilebase.rfind('/')+1:]
+    recstr=recfilebase[recfilebase.rfind('/')+1:]
+
+    Nreal=len(rhovals)
+    f=open(outf,'w')
+    f.write('Correlation coefficent rho between true and rec maps\n')
+    f.write('true isw: '+truestr+'\n')
+    f.write('rec isw:  '+recstr+'\n')
+    f.write('NReal: '+str(Nreal)+'\n')
+    f.write('mean: '+str(np.mean(rhovals))+'\n')
+    f.write('{0:5s} {1:s}\n'.format('rlzn','rho'))
+    bodystr=''.join(['{0:05d} {1:0.3f}\n'.format(rlzns[i],rhovals[i])\
+                         for i in xrange(Nreal)])
+    f.write(bodystr)
+    f.close()
+
+
+###########################################################################
+# plotting functions
+###########################################################################
 #------------------------------------------------------------------------------
 #plot_Tin_Trec  - make scatter plot comparing true to reconstructed isw
 def plot_Tin_Trec(iswmapfiles,recmapfiles,reclabels):
@@ -427,10 +456,6 @@ def plot_Tin_Trec(iswmapfiles,recmapfiles,reclabels):
         plt.plot(misw,mrec,linestyle='None',marker='o',alpha=1,label=labeli,markersize=4.,color=coli,markeredgecolor='None')#markerfacecolor='None',markeredgecolor=coli
     plt.plot(10*np.array([-xmax,xmax]),10*np.array([-xmax,xmax]),linestyle='--',linewidth=4.,color='grey')
 
-    #plt.subplots_adjust(right=.8)
-    #plt.legend(loc='lower right',ncol=1,bbox_to_anchor=(1.,.5),numpoints=1,prop={'size':10})
-    #leg=plt.legend(loc='lower right',ncol=1,numpoints=1,prop={'size':16},fancybox=True, framealpha=0.)
-    #leg.draw_frame(False)
     # try doing text boxes instead of legends?
     startboxes=.7
     totlines=19
@@ -449,6 +474,8 @@ def plot_Tin_Trec(iswmapfiles,recmapfiles,reclabels):
     plotdir='output/plots_forposter/'
     plotname='TrecTisw_scatter_variousRECs'
     print 'saving',plotdir+plotname
-    plt.savefig(plotdir+plotname+'small.png',dpi=300)
-    plt.savefig(plotdir+plotname+'.png',dpi=900)
-    #plt.savefig(plotdir+plotname+'.svg', format='svg',dpi=1200)
+    plt.savefig(plotdir+plotname+'.png',dpi=300)
+    #plt.savefig(plotdir+plotname+'.png',dpi=900)
+
+
+

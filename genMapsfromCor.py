@@ -704,7 +704,7 @@ def get_maps_from_glm(glmdata,rlzns=np.array([]),redofits=False,makeplots=False,
     fbases=[glmdata.get_mapfile_base(i) for i in xrange(glmdata.Nmap)]
     for i in xrange(glmdata.Nmap):
         thismapdir=glmdata.mapdir()+fbases[i]+'/'
-        print 'checking for ',thismapdir
+        #print 'checking for ',thismapdir
         if not os.path.isdir(thismapdir):
             print "    creating dir",thismapdir
             os.mkdir(thismapdir)
