@@ -57,7 +57,7 @@ def cltest():
         #print glmdatlmax50.shape
         write_glm_to_files(glmdatlmax50)        
 
-    get_maps_from_glm(glmdat,redofits=0,makeplots=0)#real,map,pix
+    get_maps_from_glm(glmdat,redofits=1,makeplots=1)#real,map,pix
 
     if 0: #testing calib error map generation/application
         calinfolist=[('gal')]
@@ -92,19 +92,27 @@ def cltest():
 
         #
     if 1:
+        reclist=[]
         includetagsa=['galA_bin0','galA_bin1']
         includetagsb=['galB_bin0','galB_bin1']
         print 'rec ISW with matching cl, default:'
-        iswalmdat=calc_isw_est(cldat,glmdat,includeglm=includetagsa,maptag='galA2bin',getmaps=0,makeplots=1)
-        print 'isw glm shape:',iswalmdat.glm.shape
+        #iswalmdat=calc_isw_est(cldat,glmdat,includeglm=includetagsa,maptag='galA2bin',getmaps=1,makeplots=1)
+        recdatafid=RecData(includetagsa,[],'galA2bin')
+        reclist.append(recdatafid)
 
-        #print 'rec ISW w matching cl, explicitly passed'
+        print 'rec ISW w matching cl, explicitly passed'
         #iswalmdat=calc_isw_est(cldat,glmdat,includeglm=includetagsa,includecl=includetagsa,maptag='galA2bin',rectag='alsofid',getmaps=1,makeplots=1)
-        #print 'isw glm shape:',iswalmdat.glm.shape
+        recdatatwo=RecData(includetagsa,includetagsa,'galA2bin','alsofid')
+        reclist.append(recdatatwo)
 
-        #print 'rec ISW w mismatched cl:'
+        print 'rec ISW w mismatched cl:'
         #iswalmdat=calc_isw_est(cldat,glmdat,includeglm=includetagsa,includecl=includetagsb,maptag='galA2bin',rectag='galB2bin',getmaps=1,makeplots=1)
-        #print 'isw glm shape:',iswalmdat.glm.shape
+        recdatamismatch=RecData(includetagsa,includetagsb,'galA2bin','galB2bin')
+        reclist.append(recdatamismatch)
+
+        #test bundled reconstruction 
+        domany_isw_recs(cldat,glmdat,reclist,outfiletag='iswRECtest',outruntag='runtag',makeplots=True)
+
 
     if 0: #test cl combination
         print 'original',cldat.bintaglist

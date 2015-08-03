@@ -14,6 +14,66 @@ from ClRunUtils import * #classes which keep track of k, lvals, etc
 from genCrossCor import * #classes which compute C_l for sets of maps
 from genMapsfromCor import * #functions which gen g_lm and maps from C_l
 
+###########################################################################
+# RecData - contains info used to make ISW reconstruction
+#   includeglm is list of tuples of (map,mod,mask) to use glm from
+#     if len=1, mod+mask are defaults, if len=2, mask='fullsky'
+#   includecl is list map tags (strings) for which we'll use Cl from 
+#     for rec, if it is empty, use same set as in includeglm;
+#     if not empty, must be the same length as includeglm
+#     -> ISW tag will be added to front automatically
+#   maptag - string which becomes part of maptag for output glmData
+#            should describe simulated maps used for reconstruction
+#   rectag - string which becomes modtag for output glmData
+#   lmin_forrec - integer identifying the lowest ell value of to be used in 
+#                 reconstruction. default is to neglect monopole and dipole
+#   NSIDE - healpix NSIDE for reconstructed map
+#   recmaptag - string or tuple identifying map to be reconstructed
+#             needs to be present in cldat, but not necessarily glmdat
+###########################################################################
+class RecData(object):
+    def __init__(self,includeglm=[],includecl=[],inmaptag='fromLSS',rectag='nonfid',minl_forrec=2,NSIDE=32,zerotag='isw_bin0',maptagprefix='iswREC'):
+        self.Nmap=len(includeglm)
+        self.inmaptag=inmaptag
+        self.maptag=maptagprefix+'.'+inmaptag
+        self.rectag=rectag
+        self.lmin=minl_forrec
+        self.NSIDE=NSIDE
+
+        self.includeglm=includeglm
+        self.includecl=includecl
+
+        self.zerotag=zerotag
+        if type(zerotag)==str: #string, or just one entry; just maptag
+            self.zerotagstr=zerotag
+        else:
+            self.zerotagstr=zerotag[0]#if it is a tuple
+
+        if not includecl:
+            if includeglm:
+                self.set_fidreccl()
+        else:
+            if len(includecl)!=len(includeglm):
+                print "WARNING: includeglm and includecl are not the same lenght!"
+            self.includecl=[self.zerotagstr]+includecl #now len is +1 vs incglm
+
+    def set_includeglm(self,newglmlist):
+        newglmlist.remove(self.zerotagstr)
+        self.includeglm=newglmlist
+        if not self.includecl:
+            self.set_fidreccl()
+        self.Nmap=len(self.includeglm)
+
+    def set_fidreccl(self): #set includecl=includeglm
+        self.rectag='fid'
+        includecl=[]
+        includecl.append(self.zerotagstr)
+        for x in self.includeglm:
+            if type(x)==str and x!=self.zerotagstr:# and x not in bintags:
+                includecl.append(x)
+            elif type(x)==tuple and x[0]!=self.zerotagstr:# and x[0] not in bintags:
+                includecl.append(x[0])
+        self.includecl=includecl
 
 #================================================
 #-------------------------------------------------------------------------
@@ -180,62 +240,32 @@ def get_glm_array_forrec(glmdat,includelist=[],zerotag='isw_bin0'):
 # input:
 #   cldat, glmdat - ClData and glmData objects containing maps
 #                   to be used in reconstructing it (Cl must have isw too)
-#   includeglm is list of tuples of (map,mod,mask) to use glm from
-#     if len=1, mod+mask are defaults, if len=2, mask='fullsky'
-#   includecl is list map tags (strings) for which we'll use Cl from 
-#     for rec, if it is empty, use same set as in includeglm;
-#     if not empty, must be the same length as includeglm
-#     -> ISW tag will be added to front automatically
-#   maptag - string which becomes part of maptag for output glmData
-#            should describe simulated maps used for reconstruction
-#   rectag - string which becomes modtag for output glmData
-#   zerotag - string or tuple identifying map to be reconstructed
-#             needs to be present in cldat, but not necessarily glmdat
+#   recdat- RecData object containing info about what maps, tags, etc to use
 #   writetofile- if True, writes glm to file with glmfiletag rectag_recnote
 #   getmaps - if True, generates fits files of maps corresponding to glms
 #   makeplots - if getmaps==makeplots==True, also generate png plot images
-#   lmin_forrec - integer identifying the lowest ell value of to be used in 
-#                 reconstruction. default is to neglect monopole and dipole
 # output: 
 #   iswrecglm - glmData object containing just ISW reconstructed
 #                also saves to file
 #-------------------------------------------------------------------------
-def calc_isw_est(cldat,glmdat,includeglm=[],includecl=[],maptag='testmap',rectag='nonfid',zerotag='isw_bin0',lmin_forrec=2,writetofile=True,getmaps=True,makeplots=False,NSIDE=32):
-    maptag='iswREC.'+maptag
-
+def calc_isw_est(cldat,glmdat,recdat,writetofile=True,getmaps=True,makeplots=False):
+    maptag=recdat.maptag
+    rectag=recdat.rectag
+    lmin_forrec=recdat.lmin
     print "Computing ISW estimator maptag,rectag:",maptag,rectag
 
-    if type(zerotag)==str: #string, or just one entry; just maptag
-        zerotagstr=zerotag
-    else:
-        zerotagstr=zerotag[0]#if it is a tuple
-    if not includeglm:
-        includeglm=cldat.bintaglist
-        #shouldn't have the map to be reconstructed in it
-        includeglm.remove(zerotagstr)
-    Nmap=len(includeglm)
-
-    if not includecl: #if list of tags not given, maps from includeglm
-        rectag='fid' 
-        includecl.append(zerotagstr)
-        for x in includeglm:
-            if type(x)==str and x!=zerotag:# and x not in bintags:
-                includecl.append(x)
-            elif type(x)==tuple and x[0]!=zerotag:# and x[0] not in bintags:
-                includecl.append(x[0])
-    else: #if includecl is given, 
-        if len(includecl)!=len(includeglm):
-            print "WARNING: includeglm and includecl are not the same lenght!"
-        includecl=[zerotagstr]+includecl #now len is +1 vs incglm
+    if not recdat.includeglm:
+        useglm=cldat.bintaglist
+        rectag.set_includeglm(useglm)
     
     #get D matrix dim Nellx(NLSS+1)x(NLSS+1) 
     #   where NLSS is number of LSS maps being used for rec, 
     #       where +1 is from ISW
-    Dl,dtags=get_Dl_matrix(cldat,includecl,zerotagstr)
+    Dl,dtags=get_Dl_matrix(cldat,recdat.includecl,recdat.zerotagstr)
     Dinv=invert_Dl(Dl)
     #print 'Dinv',Dinv
     #get glmdata with right indices, dim realzxNLSSxNlm
-    glmgrid,dinds=get_glm_array_forrec(glmdat,includeglm,zerotag)
+    glmgrid,dinds=get_glm_array_forrec(glmdat,recdat.includeglm,recdat.zerotag)
 
     #compute estimator; will have same number of realizations as glmdat
     almest=np.zeros((glmgrid.shape[0],1,glmgrid.shape[2]),dtype=np.complex)
@@ -246,43 +276,45 @@ def calc_isw_est(cldat,glmdat,includeglm=[],includecl=[],maptag='testmap',rectag
             #print 'continuing since ell is too small'
             continue
         Nl=1./Dinv[ell,0,0]
-        for i in xrange(0,len(dinds)): #loop through non-isw maps
+        for i in xrange(recdat.Nmap): #loop through non-isw maps
             almest[:,0,lmind]-=Dinv[ell,0,i+1]*glmgrid[:,i,lmind]
             #print 'just added',-1*Dinv[ell,0,i]*glmgrid[:,i,lmind]
         almest[:,0,lmind]*=Nl
 
-    outmaptags=[maptag]
-    outmodtags=[rectag]
+    outmaptags=[recdat.maptag]
+    outmodtags=[recdat.rectag]
     outmasktags=['fullsky']
     almdat=glmData(almest,glmdat.lmax,outmaptags,glmdat.runtag,glmdat.rundir,rlzns=glmdat.rlzns,filetags=[maptag+'.'+rectag],modtaglist=outmodtags,masktaglist=outmasktags)
 
     if writetofile: #might set as false if we want to do several recons
+        print "WRITING ALM DATA TO FILE"
         write_glm_to_files(almdat)
     if getmaps:
-        get_maps_from_glm(almdat,redofits=True,makeplots=makeplots,NSIDE=NSIDE)
+        print "GETTING ISW REC MAPS"
+        get_maps_from_glm(almdat,redofits=True,makeplots=makeplots,NSIDE=recdat.NSIDE)
 
     return almdat
+
 #-------------------------------------------------------------------------
 # domany_isw_recs- run several sets of isw rec, bundle results into one output file
-# input: #WORKING HERE, NEED TO TEST
 #    list of cldata objects - if len=1, use same cl for all
 #           otherwise should be same length as recinfo
+#           also accepts a single ClData object
 #    list of glmdata objects - like list of cl for length
-#    'recinfo' list: should provide for each rec
-#        includeglm - list of tags or tuples describing input sim maps
-#        includecl - list tags describing input rec cl
-#        maptag - string describing input sim maps
-#        rectag - string describing input rec cl
+#    reclist - list of RecData objects
 #    outfiletag, outruntag - to be used in output glm filename 
 #       (runtag will also show up in maps made from glmdat)
 #    writetofile - if True, writes output to file
 #    getmaps - if True, get fits files for maps that go with recs
 #    makeplots - if getmapes and True, also make png files
-#    NSIDE - if maps are made, use this NSIDE value
 #  Assumes all recs have same Nlm and Nreal
-def domany_isw_recs(cldatlist,glmdatlist,reclist,outfiletag='iswREC',outruntag='',writetofile=True,getmaps=True,makeplots=False,NSIDE=32):
+def domany_isw_recs(cldatlist,glmdatlist,reclist,outfiletag='iswREC',outruntag='',writetofile=True,getmaps=True,makeplots=False):
     SameCl=False
     Sameglm=False
+    if type(cldatlist)!=list:#if a clData object is passed
+        cldatlist=[cldatlist]
+    if type(glmdatlist)!=list: #if a glmData object is passed
+        glmdatlist=[glmdatlist]
     if len(cldatlist)==1:
         SameCl=True
     if len(glmdatlist)==1:
@@ -290,10 +322,6 @@ def domany_isw_recs(cldatlist,glmdatlist,reclist,outfiletag='iswREC',outruntag='
     i=0
 
     for rec in reclist:
-        includeglm=rec[0]
-        includecl=rec[1]
-        maptag=rec[2]
-        rectag=rec[3]
         if SameCl:
             cldat=cldatlist[0]
         else:
@@ -302,14 +330,12 @@ def domany_isw_recs(cldatlist,glmdatlist,reclist,outfiletag='iswREC',outruntag='
             glmdat=glmdatlist[0]
         else:
             glmdat=glmdatlist[i]
-        almdat=calc_isw_est(cldat,glmdat,includeglm=includeglm,includecl=includecl,maptag=maptag,rectag=rectag,zerotag='isw_bin0',writetofile=False,getmaps=getmaps,makeplots=makeplots,NSIDE=NSIDE)
+        almdat=calc_isw_est(cldat,glmdat,rec,writetofile=False,getmaps=getmaps,makeplots=makeplots)
         if i==0:
             outalmdat=almdat
         else:
             outalmdat=outalmdat+almdat
         i+=1
-
-
 
     #assign consistent runtag and filetag
     outalmdat.filetag=[outfiletag]

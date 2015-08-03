@@ -237,8 +237,17 @@ class glmData(object):
             return self.filetags[i]
     #------------------------------------------------------
     #given realization int, and index for map (default 0 good for ONEFILE=1)
-    # return name of file where that g_lm data is stored. 
+    # return name of file where that g_lm data is stored
+    #   includes dir and realiation info
     def get_glmfile(self,real=0,mapind=0):
+        if self.ONEFILE: ftag=self.filetags[0]
+        else: ftag=self.filetags[mapind]
+        fbase=self.get_glmfile_base(mapind)
+        return ''.join([self.glmdir(),fbase,'/',fbase,'.r{0:05d}.dat'.format(real)])
+
+    #given index of map, gives base of filename wehre g_lm data is stored
+    # (default 0 good for ONEFILE=1)
+    def get_glmfile_base(self,mapind=0):
         if self.ONEFILE: ftag=self.filetags[0]
         else: ftag=self.filetags[mapind]
         
@@ -248,7 +257,8 @@ class glmData(object):
         if self.runtag: runtag='.'+self.runtag
         else:  runtag=''
         
-        return ''.join([self.glmdir(),'glm',ftagstr,runtag,'.r{0:05d}.dat'.format(real)])
+        return ''.join(['glm',ftagstr,runtag])
+
     #given maptag,modtag,masktag strings and realization int,
     # return name of file where that glm data is stored. 
     def get_glmfile_fortags(self,real,maptag,modtag='unmod',masktag='fullsky'):
@@ -258,22 +268,29 @@ class glmData(object):
     #given realization int, and index for map,
     # return name of file where the corresponding map data goes
     def get_mapfile(self,real=0,mapind=0,ftype='fits'):
-        if self.runtag: 
-            runtagstr='.'+self.runtag
-        else:  
-            runtagstr=''
-        return ''.join([self.mapdir(),self.maptaglist[mapind],'.',self.modtaglist[mapind],'.',self.masktaglist[mapind],runtagstr,'.r{0:05d}.'.format(real),ftype])
+        fbase=self.get_mapfile_base(mapind)
+        return ''.join([self.mapdir(),fbase,'/',fbase,'.r{0:05d}.'.format(real),ftype])
     
     def get_mapfile_fortags(self,real,maptag,modtag='unmod',masktag='fullsky',ftype='fits'):
         n= self.mapdict[(maptag,modtag,masktag)]
         return self.get_mapfile(real,n,ftype)
+
+    def get_mapfile_base(self,mapind=0):
+        if self.runtag: 
+            runtagstr='.'+self.runtag
+        else:  
+            runtagstr=''
+        return ''.join([self.maptaglist[mapind],'.',self.modtaglist[mapind],'.',self.masktaglist[mapind],runtagstr])
+
     #same as above, but doesn't check whether tags are in mapdict
     def get_mapfile_fortags_unchecked(self,real,maptag,modtag='unmod',masktag='fullsky',ftype='fits'):
         if self.runtag: 
             runtagstr='.'+self.runtag
         else:  
             runtagstr=''
-        return ''.join([self.mapdir(),maptag,'.',modtag,'.',masktag,runtagstr,'.r{0:05d}.'.format(real),ftype])
+        fbase=''.join([maptag,'.',modtag,'.',masktag,runtagstr])
+        return ''.join([self.mapdir(),fbase,'/',fbase,'.r{0:05d}.'.format(real),ftype])
+
     #------------------------------------------------------
     # add_newreal: add glm data for new realizations
     #   input: newglm = array of glmdata to add [newreal,map,lm]
@@ -335,8 +352,8 @@ class glmData(object):
     def __add__(self,other):
         if self.lmax==other.lmax and self.Nlm==other.Nlm:
             # if realization numbers are the same, combine along map axis
-            print 'Nreal:',self.Nreal,other.Nreal
-            print 'rlzns.size:',self.rlzns.size,other.rlzns.size
+            #print 'Nreal:',self.Nreal,other.Nreal
+            #print 'rlzns.size:',self.rlzns.size,other.rlzns.size
             if self.Nreal==other.Nreal and self.rlzns.size==other.rlzns.size and np.all(self.rlzns==other.rlzns):
                 print "combining along map axis"
                 Nmaptot = self.Nmap +other.Nmap
@@ -431,7 +448,14 @@ def get_glm(cldata='',rundir='output/',filetag='',runtag='',Nreal=1,rlzns=np.arr
     else:  ftagstr=''
     if runtag: runtagstr='.'+runtag
     else:  runtagstr=''
-    fbase=''.join([rundir+'glm_output/','glm',ftagstr,runtagstr,'.r'])
+    glmdir=rundir+'glm_output/'
+    fbase=''.join(['glm',ftagstr,runtagstr])
+    thisglmdir=glmdir+fbase+'/'
+    #make dir if necesseary
+    if not os.path.isdir(thisglmdir):
+        print "    creating dir",thisglmdir
+        os.mkdir(thisglmdir)
+
     #print 'fbase:',fbase
     
     if overwrite: #generate all these realizations of glm
@@ -442,7 +466,7 @@ def get_glm(cldata='',rundir='output/',filetag='',runtag='',Nreal=1,rlzns=np.arr
     else: #generate glm for the realizations num w/out existing file
         need=[]
         for r in rlzns:
-            if not os.path.isfile(''.join([fbase,'{0:05d}.dat'.format(r)])):
+            if not os.path.isfile(''.join([thisglmdir,fbase,'.r{0:05d}.dat'.format(r)])):
                 need.append(r)
         #compute if need not empty, don't worry about hanging onto result
         if need:
@@ -560,6 +584,13 @@ def write_glm_to_files(glmdata,setnewfiletag=False,newfiletag=''):
     nbarheader = ''.join(['nbar:    ',''.join([' {0:{1}.3e}'.format(glmdata.nbarlist[n],maxlen) for n in xrange(Nmap)]),'\n'])
     colheader = ' {0:>8s} {1:>3s} {2:>3s}'.format('hp.lm','l','m')+''.join([' {0:>18.18s}.real {0:>18.18s}.imag'.format('map{0:<d}'.format(m)) for m in xrange(Nmap)])+'\n'
 
+    #check that output dir exists
+    fbase=glmdata.get_glmfile_base()
+    outdir=glmdata.glmdir()+fbase+'/'
+    if not os.path.isdir(outdir):
+        print "    creating dir",outdir
+        os.mkdir(outdir)
+
     #loop through realizations and write appropriate data to file
     outflist=[]
     #print "writing to files:",glmdata.get_glmfile()[:-9]+'XXXXX.dat'
@@ -570,7 +601,7 @@ def write_glm_to_files(glmdata,setnewfiletag=False,newfiletag=''):
         outflist.append(outf)
         rowlist = [''.join([' {0:8d} {1:3d} {2:3d}'.format(n,hplvals[n],hpmvals[n]),''.join([' {0:+23.16e} {1:+23.16e}'.format(glmdata.glm[r,m,n].real,glmdata.glm[r,m,n].imag) for m in xrange(Nmap)]),'\n']) for n in xrange(Nlm)]
         bodystr=''.join(rowlist)
-        print 'writing to', outf
+        #print 'writing to', outf
         f=open(outf,'w')
         f.write(header0)
         f.write(indheader)
@@ -595,15 +626,16 @@ def read_glm_files(filetag='',runtag='',rundir='output/',Nreal=1,rlzns=np.array(
     else:  ftagstr=''
     if runtag: runtagstr='.'+runtag
     else:  runtagstr=''
-    fbase=''.join([rundir+'glm_output/','glm',ftagstr,runtagstr,'.r'])
+    base=''.join(['glm',ftagstr,runtagstr])
+    fbase=''.join([rundir+'glm_output/',base,'/',base])
 
     #read the first file and get its header data
-    f0= ''.join([fbase,'{0:05d}.dat'.format(rlzns[0])])
+    f0= ''.join([fbase,'.r{0:05d}.dat'.format(rlzns[0])])
     glmdat=read_glm_onefile(f0)
     newglm=np.zeros((Nreal-1,glmdat.Nmap,glmdat.Nlm),dtype=np.complex)
     print "Reading glm from :",f0[:-9]+'XXXXX.dat'
     for r in xrange(1,Nreal):
-        fname=''.join([fbase,'{0:05d}.dat'.format(rlzns[r])])
+        fname=''.join([fbase,'.r{0:05d}.dat'.format(rlzns[r])])
         newglm[r-1,:,:]=read_glm_onefile(fname,False)
     glmdat.add_newreal(newglm,rlzns[1:])
     return glmdat
@@ -667,14 +699,23 @@ def get_maps_from_glm(glmdata,rlzns=np.array([]),redofits=False,makeplots=False,
         rlzns=glmdata.rlzns
     if not rlzns.size:
         rlzns=np.arange(glmdata.Nreal)
+    
+    #check for output directories
+    fbases=[glmdata.get_mapfile_base(i) for i in xrange(glmdata.Nmap)]
+    for i in xrange(glmdata.Nmap):
+        thismapdir=glmdata.mapdir()+fbases[i]+'/'
+        print 'checking for ',thismapdir
+        if not os.path.isdir(thismapdir):
+            print "    creating dir",thismapdir
+            os.mkdir(thismapdir)
 
     mapgrid=[]
     for r in rlzns:
-        mapgrid.append(get_maps_from_glm_1real(glmdata,r,redofits,makeplots,NSIDE))
+        mapgrid.append(get_maps_from_glm_1real(glmdata,r,redofits,makeplots,NSIDE,checkdir=False))
     mapgrid=np.array(mapgrid)
     return mapgrid
 #------------------------------------------------------------------------
-# make_maps_from_glm_1real - uses healpy to get healpix maps for all maps
+# get_maps_from_glm_1real - uses healpy to get healpix maps for all maps
 #      associated with a given realization number
 #    input: glmdat - glmData object
 #           rlz - realization number, int; will check that glmdat has this real.
@@ -685,13 +726,21 @@ def get_maps_from_glm(glmdata,rlzns=np.array([]),redofits=False,makeplots=False,
 #           NSIDE- the healpix Nside parameter. default is 32 here
 #    returns: array of heaplix maps, shape is rlzns,Nmaps,Npix
 #------------------------------------------------------------------------
-def get_maps_from_glm_1real(glmdat,rlz=0,redofits=False,makeplots=False,NSIDE=32):
+def get_maps_from_glm_1real(glmdat,rlz=0,redofits=False,makeplots=False,NSIDE=32,checkdir=True):
     #print 'in get_maps_from_glm_1real, rlz=',rlz
     #check that realization number is actually in glmdat
     if not glmdat.havethisreal(rlz):
         print "***No map! glmData does not contain realization number",rlz
         return
     realind=glmdat.get_realind(rlz)
+
+    if checkdir:
+        fbases=[glmdat.get_mapfile_base(i) for i in xrange(glmdat.Nmap)]
+        for i in xrange(glmdat.Nmap):
+            thismapdir=glmdat.mapdir()+fbases[i]+'/'
+            if not os.path.isdir(thismapdir):
+                print "    creating dir",thismapdir
+                os.mkdir(thismapdir)
     #get file names for the various maps and loop through them
     outflist = [glmdat.get_mapfile(rlz,i,'fits') for i in xrange(glmdat.Nmap)]
     hpmaplist=[]
@@ -809,13 +858,17 @@ def get_fixedvar_errors_formaps(glmdat,cdatalist=[],overwrite=False,NSIDE=32):
         #loop through maps and realizations, generating calib maps
         for m in dothesemaps:
             outtuplelist.append((m,modtag)) #for now, assumes no mask
+            outbase='caliberror.{0:s}.for_{1:s}'.format(modtag,m)  
+            thisoutdir=outdir+outbase+'/'
+            if not os.path.isdir(thisoutdir):
+                os.mkdir(thisoutdir)
             for r in dothesereal:
-                outname='caliberror.{0:s}.for_{1:s}.r{2:05d}.fits'.format(modtag,m,r)        
+                outname=outbase+'.r{0:05d}.fits'.format(r)        
                 #only bother generating map if overwrite or file nonexistant
-                if overwrite or not os.path.isfile(outdir+outname):
+                if overwrite or not os.path.isfile(thisoutdir+outname):
                     cmap=gen_error_map_fixedvar(cvar,clmax,NSIDE)
                     #write to file
-                    hp.write_map(outdir+outname,cmap)
+                    hp.write_map(thisoutdir+outname,cmap)
     #return list of map/mod/mask tuples 
     # which can be given to apply_caliberror_toglm
     #print 'outtuplelist',outtuplelis
