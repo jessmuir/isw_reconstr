@@ -1,5 +1,5 @@
 import numpy as np
-import os,  shutil
+import os,  shutil, copy_reg, types
 from CosmParams import Cosmology
 #Classes which will be useful for computing Cl's
 
@@ -189,4 +189,4 @@ def _unpickle_method(func_name, obj, cls):
             break
     return func.__get__(obj, cls)
 
-#copy_reg.pickle(types.MethodType, _pickle_method, _unpickle_method)
+copy_reg.pickle(types.MethodType, _pickle_method, _unpickle_method)
