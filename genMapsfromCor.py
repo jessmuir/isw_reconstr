@@ -63,15 +63,17 @@ from genCrossCor import *
 ###########################################################################
 class glmData(object):
     def __init__(self,glm=np.array([]),lmax=0,maptaglist=[],runtag='',rundir='output/',nbarlist=[],modtaglist=[],masktaglist=[],rlzns=np.array([]),filetags=[]):
+        self.isdummy=False
         if not glm.size: #dummy empty array; use if we just want filenames
-            self.glm=np.zeros((max(1,rlzns.size),1,1))
+            self.glm=np.zeros((1,len(maptaglist),hp.sphtfunc.Alm.getsize(lmax)))
+            self.isdummy=True
         elif len(glm.shape)==2: #only one realization here
             self.glm=glm.reshape((1,glm.shape[0],glm.shape[1]))
         else:
             self.glm=glm
 
         #data about realizations
-        self.Nreal = self.glm.shape[0]
+        self.Nreal = self.glm.shape[0]*(not self.isdummy) #0 if dummy
         if rlzns.size and rlzns.size!=self.Nreal:
             print "WARNING! mismatch: rlzns.size!=Nreal. defaulting to arange(Nreal)"
             self.rlzns=np.array([])
@@ -407,14 +409,27 @@ class glmData(object):
 
     #------------------------------------------------------
     # Return an instance of glmData with identical properties
+    #  can change lmax; if made larger, empty spaces fill w 0
+    #  If Nreal passed, the new glm will have the first Nreal real 
     #------------------------------------------------------
-    def copy(self,lmax=0):
+    def copy(self,lmax=0,Nreal=-1):
         if lmax>0 and lmax!=self.lmax:
             outglm=self.get_glmgrid(lmax=lmax)
             outlmax=lmax
-            return glmData(outglm,outlmax,self.maptaglist,self.runtag,self.rundir,self.nbarlist,self.modtaglist,self.masktaglist,self.rlzns,self.filetags)
+            outdat= glmData(outglm,outlmax,self.maptaglist,self.runtag,self.rundir,self.nbarlist,self.modtaglist,self.masktaglist,self.rlzns,self.filetags)
         else:
-            return glmData(self.glm,self.lmax,self.maptaglist,self.runtag,self.rundir,self.nbarlist,self.modtaglist,self.masktaglist,self.rlzns,self.filetags)
+            outdat=glmData(self.glm,self.lmax,self.maptaglist,self.runtag,self.rundir,self.nbarlist,self.modtaglist,self.masktaglist,self.rlzns,self.filetags)
+        if Nreal>=0:
+            outdat.glm=outdat.glm[:Nreal,:,:]
+            outdat.Nreal=Nreal
+            if outdat.rlzns.size:
+                outdat.rlzns=outdat.rlzns[:Nreal]
+        elif Nreal==0: #return dummy glm
+            outdat.glm=np.zeros((1,len(outdat.maptaglist),outdat.Nlm))
+            outdat.Nreal=0
+            outdat.isdummy=1
+            
+        return outdat
     
 ###########################################################################
 #================================================
@@ -426,6 +441,8 @@ class glmData(object):
 #            but if not, generate need glm from Cl data
 #    ->If cldata left as an empty string, can read in but not generate
 #          glm data.
+#    ->If Nreal==0, return dummy glmData object w empty glm array, 
+#          might just want this for filename info
 #    if array of realization numbers are given, get those
 #    otherwise get the Nreal, just starting from rlz=0
 #    overwrite - if False, read in glm file if it exists, compute only if needed
@@ -456,8 +473,11 @@ def get_glm(cldata='',rundir='output/',filetag='',runtag='',Nreal=1,rlzns=np.arr
         print "    creating dir",thisglmdir
         os.mkdir(thisglmdir)
 
-    #print 'fbase:',fbase
-    
+    # if Nreal, return dummy glmdat; no glm data, just filenames needed
+    if Nreal==0:
+        glmdat=glmData(glm=np.array([]),lmax=cldata.rundat.lmax,maptaglist=cldata.bintaglist,runtag=runtag,rundir=cldata.rundat.rundir,filetags=[filetag],nbarlist=cldata.nbar)
+        return glmdat
+
     if overwrite: #generate all these realizations of glm
         if cldata:
             glmdat=generate_many_glm_fromcl(cldata,Nreal,rlzns,filetag=filetag,matchClruntag=matchClruntag,runtag=runtag)

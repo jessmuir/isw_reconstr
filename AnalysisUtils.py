@@ -32,7 +32,7 @@ from genMapsfromCor import * #functions which gen g_lm and maps from C_l
 #             needs to be present in cldat, but not necessarily glmdat
 ###########################################################################
 class RecData(object):
-    def __init__(self,includeglm=[],includecl=[],inmaptag='fromLSS',rectag='nonfid',minl_forrec=2,NSIDE=32,zerotag='isw_bin0',maptagprefix='iswREC'):
+    def __init__(self,includeglm=[],includecl=[],inmaptag='fromLSS',rectag='nonfid',minl_forrec=1,NSIDE=32,zerotag='isw_bin0',maptagprefix='iswREC'):
         self.Nmap=len(includeglm)
         self.inmaptag=inmaptag
         self.maptag=maptagprefix+'.'+inmaptag
@@ -236,7 +236,7 @@ def get_glm_array_forrec(glmdat,includelist=[],zerotag='isw_bin0'):
 #   iswrecglm - glmData object containing just ISW reconstructed
 #                also saves to file
 #-------------------------------------------------------------------------
-def calc_isw_est(cldat,glmdat,recdat,writetofile=True,getmaps=True,makeplots=False):
+def calc_isw_est(cldat,glmdat,recdat,writetofile=True,getmaps=True,redofits=True,makeplots=False,dorho=False):
     maptag=recdat.maptag
     rectag=recdat.rectag
     lmin_forrec=recdat.lmin
@@ -279,18 +279,20 @@ def calc_isw_est(cldat,glmdat,recdat,writetofile=True,getmaps=True,makeplots=Fal
         write_glm_to_files(almdat)
     if getmaps:
         #print "GETTING ISW REC MAPS"
-        get_maps_from_glm(almdat,redofits=True,makeplots=makeplots,NSIDE=recdat.NSIDE)
+        get_maps_from_glm(almdat,redofits=redofits,makeplots=makeplots,NSIDE=recdat.NSIDE)
 
         #compute rho
-        truemapf=glmdat.get_mapfile_fortags(0,recdat.zerotagstr)
-        truemapbase=truemapf[:truemapf.rfind('.r')]
-        recmapf=almdat.get_mapfile(0,0,'fits')
-        recmapbase=recmapf[:recmapf.rfind('.r')]
-        if almdat.rlzns.size:
-            rlzns=almdat.rlzns
-        else:
-            rlzns=np.arange(almdat.Nreal)
-        rhovals=rho_manyreal(truemapbase,recmapbase,rlzns=rlzns)
+        if dorho:
+            print "Computing rho statistics"
+            truemapf=glmdat.get_mapfile_fortags(0,recdat.zerotagstr)
+            truemapbase=truemapf[:truemapf.rfind('.r')]
+            recmapf=almdat.get_mapfile(0,0,'fits')
+            recmapbase=recmapf[:recmapf.rfind('.r')]
+            if almdat.rlzns.size:
+                rlzns=almdat.rlzns
+            else:
+                rlzns=np.arange(almdat.Nreal)
+            rhovals=rho_manyreal(truemapbase,recmapbase,rlzns=rlzns)
 
     return almdat
 
@@ -307,7 +309,7 @@ def calc_isw_est(cldat,glmdat,recdat,writetofile=True,getmaps=True,makeplots=Fal
 #    getmaps - if True, get fits files for maps that go with recs
 #    makeplots - if getmapes and True, also make png files
 #  Assumes all recs have same Nlm and Nreal
-def domany_isw_recs(cldatlist,glmdatlist,reclist,outfiletag='iswREC',outruntag='',writetofile=True,getmaps=True,makeplots=False):
+def domany_isw_recs(cldatlist,glmdatlist,reclist,outfiletag='iswREC',outruntag='',writetofile=True,getmaps=True,redofits=True,makeplots=False,dorho=True):
     SameCl=False
     Sameglm=False
     if type(cldatlist)!=list:#if a clData object is passed
@@ -329,9 +331,7 @@ def domany_isw_recs(cldatlist,glmdatlist,reclist,outfiletag='iswREC',outruntag='
             glmdat=glmdatlist[0]
         else:
             glmdat=glmdatlist[i]
-        almdat=calc_isw_est(cldat,glmdat,rec,writetofile=False,getmaps=getmaps,makeplots=makeplots)
-
-
+        almdat=calc_isw_est(cldat,glmdat,rec,writetofile=False,getmaps=getmaps,redofits=redofits,makeplots=makeplots,dorho=dorho)
 
         if i==0:
             outalmdat=almdat
@@ -344,7 +344,25 @@ def domany_isw_recs(cldatlist,glmdatlist,reclist,outfiletag='iswREC',outruntag='
     outalmdat.runtag=outruntag
     if writetofile:
         write_glm_to_files(outalmdat,setnewfiletag=True,newfiletag=outfiletag)
-    
+    return outalmdat
+#-------------------------------------------------------------------------   
+# get_dummy_recalmdat - returns dummy glmdat object with nreal=0
+#     with map/mod/mask lists set up to give the filenames of rec mas which 
+#     would be created by feeding the same args into domany_isw_recs
+#   input:
+#      glmdat - some glmdata object with desired rundir, lmax
+def get_dummy_recalmdat(glmdat,reclist,outfiletag='iswREC',outruntag=''):
+    outmaptags=[]
+    outmodtags=[]
+    outmasktags=[]
+    for rec in reclist:
+        outmaptags.append(rec.maptag)
+        outmodtags.append(rec.rectag)
+        outmasktags.append('fullsky')
+    #in domany_isw_rec, the runtag is only set by first glmdat?
+    almdat=glmData(np.array([]),glmdat.lmax,outmaptags,outruntag,glmdat.rundir,filetags=[outfiletag],modtaglist=outmodtags,masktaglist=outmasktags)
+
+    return almdat
 
 #-------------------------------------------------------------------------
 # rho_mapcorr: compute rho (cross corr) between pixels of two maps
@@ -365,13 +383,107 @@ def rho_onereal(map1,map2):
     rho= avgprod/(sig1*sig2)
     #print 'rho=',rho
     return rho
+
 #-------------------------------------------------------------------------
+# The glm files take up a lot of space in memory;
+# this function is meant to bundle together:
+#  -given Cl, generate glm for simulated maps
+#  -perform some isw reconstructions (maybe for a few lmin?)
+#  -only save glm data for Nglm realizations (make plots for these too)
+def getmaps_fromCl(cldat,Nreal=1,rlzns=np.array([]),reclist=[],Nglm=1,block=100,glmfiletag='',almfiletag='iswREC',rhofiletag='',justgetrho=False):
+    #block=3
+    arangereal=not rlzns.size
+    if rlzns.size:
+        Nreal=rlzns.size
+
+    #to avoid having giant glm arrays, run in batches, 100ish should be fine
+    Nblock=Nreal/block
+    remainder=Nreal%block
+    
+    #rhogrid will hold rho values
+    #first index dientifies which recdata, second is block
+    rhogrid=[] #will have indices [block][rec][real]
+    truemapbases=['' for i in xrange(len(reclist))]
+    recmapbases=['' for i in xrange(len(reclist))]
+
+    NEWRHOFILE=(not rlzns.size) or np.all(rlzns==np.arange(rlzns.size))
+
+    #generate maps!
+    for n in xrange(Nblock+1):
+        rmin=n*block
+        if n==Nblock:
+            rmax=rmin+remainder
+        else:
+            rmax=(n+1)*block
+
+        if arangereal:
+            nrlzns=np.arange(rmin,rmax)
+        else:
+            nrlzns=rlzns[rmin:rmax]#np.arange(rmin,rmax)
+        #print nrlzns
+        
+        if Nglm>rmax:
+            thisNglm=rmax-rmin-1
+            Nglm-=thisNglm
+        else:
+            thisNglm=Nglm
+            Nglm=0
+        print "Making maps for rlzns {0:d}-{1:d}".format(nrlzns[0],nrlzns[-1])
+        #print "   thisNglm=",thisNglm
+
+        if not justgetrho:
+            glmdat=generate_many_glm_fromcl(cldat,rlzns=nrlzns,savedat=False)
+            almdat=domany_isw_recs(cldat,glmdat,reclist,writetofile=False,getmaps=True,makeplots=False,outruntag=glmdat.runtag,dorho=False)
+            get_maps_from_glm(glmdat,redofits=True,makeplots=False)
+            if thisNglm:
+                saveglm=glmdat.copy(Nreal=thisNglm) #save glm for these
+                saveglm= write_glm_to_files(saveglm,setnewfiletag=True,newfiletag=glmfiletag)
+                get_maps_from_glm(saveglm,redofits=False,makeplots=True)
+
+                savealm=almdat.copy(Nreal=thisNglm)
+                savealm=write_glm_to_files(savealm,setnewfiletag=True,newfiletag=almfiletag)
+                get_maps_from_glm(savealm,redofits=False,makeplots=True)
+        else:
+            #need to get almdat and glmdat for filenames
+            glmdat=get_glm(cldat,filetag=glmfiletag,Nreal=0,runtag=cldat.rundat.tag)
+            almdat=get_dummy_recalmdat(glmdat,reclist,outruntag=glmdat.runtag)
+        #for each list, get rho
+        print "   Computing and saving rho statistics"
+        calc_rho_forreclist(glmdat,almdat,reclist,nrlzns,rhofiletag=rhofiletag,overwrite=NEWRHOFILE) #start new file for first block, then add to it
+        
+        NEWRHOFILE=False
+    for recdat in reclist:
+        print get_rho_filename(recdat,almdat,filetag=rhofiletag)
+
+#------------------------------------------------------------------------
+# calc_rho_forreclist - given glmdat, almdat (can be dummy) plus reclist
+#                  return 2d array of [rec][real] of rho values
+#      if savedat, writes rho values to file
+#          if overwrite, will makenew rho output file
+#          otherwise, will add rho data to that in existing file
+def calc_rho_forreclist(glmdat,almdat,reclist,rlzns,savedat=True,overwrite=False,rhofiletag=''):
+    #print "Computing rho statistics"
+    rhogrid=[]
+    for i in xrange(len(reclist)):
+        truemapf=glmdat.get_mapfile_fortags(0,reclist[i].zerotagstr)
+        truemapbase=truemapf[:truemapf.rfind('.r')]
+        recmapf=almdat.get_mapfile(0,i,'fits')
+        recmapbase=recmapf[:recmapf.rfind('.r')]
+
+        rhovals=rho_manyreal(truemapbase,recmapbase,rlzns=rlzns,savedat=False)
+        rhogrid.append(rhovals)
+        if savedat:
+            save_rhodat(rhovals,rlzns,truemapbase,recmapbase,overwrite=overwrite,filetag=rhofiletag)
+        
+    return np.array(rhogrid)
+    
+#------------------------------------------------------------------------
 # rho_manyreal -  find correlations between pairs of maps for many realizations
 #  input: mapdir -  directory where the maps are 
 #        filebases - filename of maps, up to but not including '.rXXXXX.fits'
 #        rlzns, Nreal - if rlzns is empty, rlzns=np.arange(Nreal), otherwise Nreal=rlzns.size
 
-def rho_manyreal(truefilebase,recfilebase,Nreal=1,rlzns=np.array([]),savedat=True):
+def rho_manyreal(truefilebase,recfilebase,Nreal=1,rlzns=np.array([]),savedat=False,overwrite=False,rhofiletag=''):
     if rlzns.size:
         Nreal=rlzns.size
     else:
@@ -386,34 +498,95 @@ def rho_manyreal(truefilebase,recfilebase,Nreal=1,rlzns=np.array([]),savedat=Tru
         #compute cross correlations and store the value
         rhovals[r]=rho_onereal(map1,map2)
     if savedat:
-        save_rhodat(rhovals,rlzns,truefilebase,recfilebase)
+        save_rhodat(rhovals,rlzns,truefilebase,recfilebase,overwrite=overwrite,filetag='')
     return rhovals
 
 #------------------------------------------------------------------------------
 # save_rhodat - save rho data to file
-def save_rhodat(rhovals,rlzns,truefilebase,recfilebase,filetag=''):
+def save_rhodat(rhovals,rlzns,truefilebase,recfilebase,overwrite=False,filetag=''):
     if filetag:
         tagstr='_'+filetag
     else:
         tagstr=''
-    outf=''.join([recfilebase,'_rhovals',tagstr,'.dat'])
-
     truestr=truefilebase[truefilebase.rfind('/')+1:]
     recstr=recfilebase[recfilebase.rfind('/')+1:]
 
-    Nreal=len(rhovals)
-    f=open(outf,'w')
-    f.write('Correlation coefficent rho between true and rec maps\n')
-    f.write('true isw: '+truestr+'\n')
-    f.write('rec isw:  '+recstr+'\n')
-    f.write('NReal: '+str(Nreal)+'\n')
-    f.write('mean: '+str(np.mean(rhovals))+'\n')
-    f.write('{0:5s} {1:s}\n'.format('rlzn','rho'))
-    bodystr=''.join(['{0:05d} {1:0.3f}\n'.format(rlzns[i],rhovals[i])\
+    outf=''.join([recfilebase.replace('/'+recstr+'/','/'),tagstr,'.rho.dat'])
+    #if overwrite, or if no file exists, write, otherwise append
+    NEWFILE=overwrite or not os.path.isfile(outf)
+    
+    if not NEWFILE: #read in existing data, make sure realizations don't overlap
+        dat=np.loadtxt(outf,skiprows=6)
+        oldrlzns=dat[:,0]
+        oldrho=dat[:,1]
+        #check for overlaps bewteen realizations
+        duplicates=np.intersect1d(oldrlzns,rlzns)
+        Ndup=duplicates.size
+        if Ndup:
+            NEWFILE=True #we'll combine old and new w/out duplicateds
+            # for each duplicated real,store where they are in oldrlzns, rlzns
+            overlap=np.array([\
+                          [np.where(oldrlzns==r)[0][0],np.where(rlzns==r)[0][0]]\
+                          for r in duplicates])
+
+            newdat=np.zeros((oldrlzns.size+rlzns.size - Ndup,2))
+            newdat[:oldrlzns.size,0]=oldrlzns
+            newdat[:oldrlzns.size,1]=oldrho
+            #overwrite duplicates
+            for d in xrange(Ndup):
+                whereold=overlap[d,0]
+                wherenew=overlap[d,1]
+                newdat[whereold,:]=np.array([rlzns[wherenew],rhovals[wherenew]])
+            #delete overlaps from input data, add to newdat
+            rhovals=np.delete(rhovals,overlap[:,1],0)
+            rlzns=np.delete(rlzns,overlap[:,1],0)
+            newdat[oldrlzns.size:,0]=rlzns
+            newdat[oldrlzns.size:,1]=rhovals
+            #sort in to order arrays
+            newdat.sort(axis=0)
+            #change labels to get ready to write to file
+            rlzns=newdat[:,0]
+            rhovals=newdat[:,1]
+
+    if NEWFILE: #write header and data
+        truestr=truefilebase[truefilebase.rfind('/')+1:]
+        recstr=recfilebase[recfilebase.rfind('/')+1:]
+        Nreal=len(rhovals)
+        f=open(outf,'w')
+        f.write('Correlation coefficent rho between true and rec maps\n')
+        f.write('true isw: '+truestr+'\n')
+        f.write('rec isw:  '+recstr+'\n')
+        f.write('NReal: '+str(Nreal)+'\n')
+        f.write('mean: {0:0.3f}\n'.format(np.mean(rhovals)))
+        f.write('{0:5s} {1:s}\n'.format('rlzn','rho'))
+    else:
+        f=open(outf,'a') #just add data to end
+
+    bodystr=''.join(['{0:05d} {1:0.3f}\n'.format(int(rlzns[i]),rhovals[i])\
                          for i in xrange(Nreal)])
     f.write(bodystr)
     f.close()
 
+def get_rho_filename(recdat,recalmdat,filetag=''):
+    if filetag:
+        tagstr='_'+filetag
+    else:
+        tagstr=''
+    #recalmdat.get_mapfile(0,0,'fits')
+    real0file=recalmdat.get_mapfile_fortags(0,recdat.maptag,recdat.rectag)
+    recind=recalmdat.get_mapind_fromtags(recdat.maptag,recdat.rectag)
+    filebase=recalmdat.get_mapfile_base(recind)
+    outf=real0file.replace('/'+filebase+'/','/')
+    outf=outf[:outf.rfind('.r')]
+    outf=outf+tagstr+'.rho.dat'
+    return outf
+
+def read_rhodat(recdat,recalmdat,filetag=''):
+    f=get_rho_filename(recdat,recalmdata,filetag)
+    dat=np.loadtxt(f,skiprows=6)
+    rlzns=dat[:,0]
+    rho=dat[:,1]
+    return rho
 
 ###########################################################################
 # plotting functions
@@ -474,8 +647,8 @@ def plot_Tin_Trec(iswmapfiles,recmapfiles,reclabels):
     plotdir='output/plots_forposter/'
     plotname='TrecTisw_scatter_variousRECs'
     print 'saving',plotdir+plotname
-    plt.savefig(plotdir+plotname+'.png',dpi=300)
-    #plt.savefig(plotdir+plotname+'.png',dpi=900)
+    plt.savefig(plotdir+plotname+'.png')
+
 
 
 
