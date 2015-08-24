@@ -412,6 +412,8 @@ def getmaps_fromCl(cldat,Nreal=1,rlzns=np.array([]),reclist=[],Nglm=1,block=100,
     for n in xrange(Nblock+1):
         rmin=n*block
         if n==Nblock:
+            if not remainder:
+                continue #nothing left!
             rmax=rmin+remainder
         else:
             rmax=(n+1)*block
@@ -428,6 +430,7 @@ def getmaps_fromCl(cldat,Nreal=1,rlzns=np.array([]),reclist=[],Nglm=1,block=100,
         else:
             thisNglm=Nglm
             Nglm=0
+        
         print "Making maps for rlzns {0:d}-{1:d}".format(nrlzns[0],nrlzns[-1])
         #print "   thisNglm=",thisNglm
 
@@ -547,11 +550,10 @@ def save_rhodat(rhovals,rlzns,truefilebase,recfilebase,overwrite=False,filetag='
             #change labels to get ready to write to file
             rlzns=newdat[:,0]
             rhovals=newdat[:,1]
-
+    Nreal=len(rhovals)
     if NEWFILE: #write header and data
         truestr=truefilebase[truefilebase.rfind('/')+1:]
         recstr=recfilebase[recfilebase.rfind('/')+1:]
-        Nreal=len(rhovals)
         f=open(outf,'w')
         f.write('Correlation coefficent rho between true and rec maps\n')
         f.write('true isw: '+truestr+'\n')
@@ -587,6 +589,35 @@ def read_rhodat(recdat,recalmdat,filetag=''):
     rlzns=dat[:,0]
     rho=dat[:,1]
     return rho
+
+def read_rhodat_wfile(filename):
+    print 'reading',filename
+    dat=np.loadtxt(filename,skiprows=6)
+    rlzns=dat[:,0]
+    rho=dat[:,1]
+    return rho
+
+#compute the expected value of rho, given theoretical Cl
+def compute_rho_cl(cldat):
+    pass
+    #working here
+
+def rho_sampledist(r,rho,NSIDE=32,Nsample=0): #here rho is the expected mean
+    #result=np.fabs(r)<=1 WORKING HERE, need to check
+    #if np.fabs(r)>1:
+    #    return 0.
+    isnonzero=np.fabs(r)<1
+    if Nsample: #WORKING HERE
+        N=Nsample
+    else:
+        N=hp.nside2npix(NSIDE)
+    logarg=(1+r)*(1-rho)/(1-r)/(1+rho)
+    logsq=np.log(logarg)**2
+    exparg=logsq*(3.-N)/3
+    expval=np.exp(exparg)
+    coef = np.sqrt((N-3.)/(2.*np.pi))
+    result= isnonzero*coef*expval/(1.-r**2)
+    return result
 
 ###########################################################################
 # plotting functions

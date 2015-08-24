@@ -1357,7 +1357,7 @@ def testLimber():
     desmaps=get_DESlike_SurveyType(.05,'desphoto').binmaps#[:1]
     maps=desmaps+iswmaps
     #cldat=getCl(maps,rundat,dopairs=[('all')],DoNotOverwrite=False,redoAllCl=True) #for computing
-    cldat=getCl(maps,rundat,dopairs=[('all')],DoNotOverwrite=True,redoAllCl=False) #for plotting
+    #cldat=getCl(maps,rundat,dopairs=[('all')],DoNotOverwrite=True,redoAllCl=False) #for plotting
     print 'resulting shape:',cldat.cl.shape
 
     refruntag='desphoto6bin' #non-limber Cl here
@@ -1448,6 +1448,20 @@ def plotLimbercomp_Cl(outname,limcl,nolimcl,crosslist,labellist,title=''):
     #plt.legend()
     plt.savefig(outname,bbox_inches='tight')
     plt.close()
+
+def testClcomp():
+    outdir = 'test_output/Ilktests/'
+    runtag='quicktest'
+    cosmfile='testparam.cosm'
+    kdat=KData(kmin=1.e-3,kmax=1,nperlogk=10,krcutadd=10)
+    rundat=ClRunData(tag=runtag,rundir=outdir,cosmpfile=cosmfile,limberl=3,lmax=5,zmax=2.)
+    #rundat=ClRunData(tag=runtag,rundir=outdir,cosmpfile=cosmfile,lmax=2,zmax=10.5,limberl=0)
+    desmaps=get_DESlike_SurveyType(.05,'desphoto').binmaps#[:1]
+    maps=desmaps[:2]#+iswmaps
+    cldat=getCl(maps,rundat,dopairs=[('all')],DoNotOverwrite=False,redoIlk=True) #for computing
+    print 'resulting shape:',cldat.cl.shape
+
+
 #################################################################
 if __name__=="__main__":
     #test_cosm_tabs()
@@ -1475,4 +1489,5 @@ if __name__=="__main__":
     #test_misc_error()
     #plot_ISW_Ilk_integrand()
 
-    testLimber()
+    #testLimber()
+    testClcomp()

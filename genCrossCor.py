@@ -3,8 +3,8 @@ from scipy.integrate import quad
 from scipy.special import jv
 from scipy.optimize import brentq
 from scipy.interpolate import interp1d
-import os, subprocess,copy
-from multiprocessing import Pool, Manager,cpu_count
+import os, subprocess,copy,copy_reg,types
+from multiprocessing import Pool, Manager
 import itertools
 import matplotlib.pyplot as plt
 
@@ -209,8 +209,7 @@ def getIlk_for_binmap(binmap,rundata,redo=False,DoNotOverwrite=False):
 #-------------------------------------------------------------------------
 def computeIlk(binmap,rundata):
     DOPARALLEL=1
-    print "Computing Ilk for ",binmap.tag
-    #print "number of cores available:",cpu_count()
+    print "Computing Ilk for ",binmap.tag,'DOPARALLEL=',DOPARALLEL
     #set up arrays
     kvals = rundata.kdata.karray
     Nk = kvals.size
@@ -258,20 +257,14 @@ def computeIlk(binmap,rundata):
             kind=np.where(kvals==kval)[0][0]
             Ival=Iintwrapper(argtuple)
             Ivals[lind,kind]=Ival
-    #COMMENTED OUT 6/2/15, MOVED INSIDE INTEGRAL
-    # that way the k^2 doesn't do funny things w intergral tolerance
-    # #multiply appropriate prefactors
-    # if binmap.isISW:
-    #     H02 = (100.)**2 #h^2km^2/Mpc^2/s^2 
-    #     Ivals*= 3.*H02/cosm.c**2 #h^2/Mpc^2 
-    #     Ivals = Ivals/(kvals**2) #unitless
-    
+ 
     #save result to file
     writeIlk(Ivals,binmap,rundata)
     return Ivals
 #--------------------------------------------------
 #wrapper function for integral, so multithreading works
 def Iintwrapper(argtuple):#(l,kval,rmin,rmax,cosm,binmap,zintlim=10000):
+    #print "in Iintwrapper"
     lk,rmin,rmax,cosm,binmap,krcutadd,krcutmult,zintlim,epsilon,zeropostcut,besselxmincut = argtuple
     l,kval=lk
     dr=rmax-rmin
@@ -283,23 +276,24 @@ def Iintwrapper(argtuple):#(l,kval,rmin,rmax,cosm,binmap,zintlim=10000):
         rmin=max(rmin,xmin/kval) #ADDED 5/19
         if rmin>=rmax:
             return 0.
-
+    #print '   reading binmap info'
     window =binmap.window #function with args i,z
     isISW=binmap.isISW
+    #print '   readin cosm info'
     co_r = cosm.co_r #function with arg z
     z_from_cor = cosm.z_from_cor #function with arg r
     hubble = cosm.hub #functionw ith arg z 
     D = cosm.growth #function with arg z
     f = cosm.growthrate #function with arg z
     c = cosm.c
-
+    #print '   computing prefactor'
     #get appropriate prefactors
     prefactor=1.
     if binmap.isISW:
         H02 = (100.)**2 #h^2km^2/Mpc^2/s^2 
         prefactor= 3.*H02/cosm.c**2 #h^2/Mpc^2 
         prefactor=prefactor/(kval**2) #unitless
-
+    #print '   looking at pre/post cut division'
     #find r where we want to switch from full bessel to approx
     ALLPRECUT=False
     ALLPOSTCUT=False
@@ -318,6 +312,7 @@ def Iintwrapper(argtuple):#(l,kval,rmin,rmax,cosm,binmap,zintlim=10000):
         r_atkrcut=rmax
         ALLPRECUT=True
 
+    #print '   doing integrals'
     #print 'krcutmult=',krcutmult,'krcutadd',krcutadd
     #print "r-atkrcut=",r_atkrcut,'ALLPRECUT=',ALLPRECUT,"ALLPOSTCUT=",ALLPOSTCUT
     #calculate!
@@ -451,7 +446,6 @@ def readIlk_file(binmap,rundata):
 # functions for computing, tabulating,and using cross corr functions
 ###########################################################################
 
-         
 #-------------------------------------------------------------------------
 # getCl - returns desired cross corr for given list of binmaps
 #     Checks for existing Cl file,  checks that all maps wanted are in it
@@ -1243,3 +1237,6 @@ def combineCl_binlist(cldat,taglist,combotag,newruntag='',keeporig=True):
         taglist=taglist[1:]
         taglist[0]=combotag
     return outcldat
+
+
+
