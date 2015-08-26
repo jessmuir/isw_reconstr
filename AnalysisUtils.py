@@ -598,25 +598,81 @@ def read_rhodat_wfile(filename):
     return rho
 
 #compute the expected value of rho, given theoretical Cl
-def compute_rho_cl(cldat):
-    pass
-    #working here
+def compute_rho_fromcl(cldat,recdat):
+    #Dl is a matrix of Cls, with isw at zero index
+    #  and other maps in order specified by recdat.includecl
+    lmin=recdat.lmin
+    Dl,dtags=get_Dl_matrix(cldat,recdat.includecl,recdat.zerotagstr)
+    Dinv=invert_Dl(Dl)
+    Nell=Dinv.shape[0]
+    lvals=np.arange(Nell)
+    Nl=np.zeros(Nell)
+    for l in xrange(Nell):
+        if Dinv[l,0,0]!=0:
+            Nl[l]=1/Dinv[l,0,0]
 
+    includel=(lvals>=lmin)
+    NLSS=recdat.Nmap
+    
+    #for each l sum over LSS maps for numerator, the sum over l
+    numell = np.zeros(lvals.size)
+    for i in xrange(NLSS):
+        numell+=Dinv[:,0,i+1]*Dl[:,0,i+1]
+    numell*=-1*includel*Nl*(2.*lvals+1)
+    numerator=np.sum(numell)
+
+    #for sigisw, just sum over l
+    sig2iswl=includel*(2.*lvals+1)*Dl[:,0,0]
+    sig2isw=np.sum(sig2iswl)
+
+    #for sigrec, sum over LSS maps 2x (ij), then l
+    sig2recl=np.zeros(lvals.size)
+    for i in xrange(NLSS):
+        sig2recli=np.zeros(lvals.size)
+        for j in xrange(NLSS):
+            sig2recli+=-1*Nl*Dinv[:,0,j+1]*Dl[:,j+1,i+1]
+        sig2recl+=sig2recli*-1*Nl*Dinv[:,0,i+1]
+    sig2recl*=includel*(2.*lvals+1)
+    sig2rec=np.sum(sig2recl)
+    
+    denom=np.sqrt(sig2isw*sig2rec)
+    result=numerator/denom
+    return result
+    
 def rho_sampledist(r,rho,NSIDE=32,Nsample=0): #here rho is the expected mean
-    #result=np.fabs(r)<=1 WORKING HERE, need to check
-    #if np.fabs(r)>1:
-    #    return 0.
-    isnonzero=np.fabs(r)<1
-    if Nsample: #WORKING HERE
-        N=Nsample
+    # doesn't integrate to 1 and Nsample=NSIDE seems way too big
+    if type(r)!=np.ndarray:
+        rarray=np.array([r])
+        ISARRAY=False
     else:
-        N=hp.nside2npix(NSIDE)
-    logarg=(1+r)*(1-rho)/(1-r)/(1+rho)
-    logsq=np.log(logarg)**2
-    exparg=logsq*(3.-N)/3
-    expval=np.exp(exparg)
-    coef = np.sqrt((N-3.)/(2.*np.pi))
-    result= isnonzero*coef*expval/(1.-r**2)
+        rarray=r
+        ISARRAY=True
+    result=np.zeros_like(rarray)
+    i=0
+    #print 'rarray size',rarray.size
+    for r in rarray:
+        #print i
+        if np.fabs(r)>=1:
+            result[i]=0.
+        else:
+            if Nsample: #WORKING HERE
+                N=Nsample
+            else:
+                N=hp.nside2npix(NSIDE)
+            if N<-3:
+                result[i]=-10000000000
+                i+=1
+                continue
+            logarg=(1+r)*(1-rho)/(1-r)/(1+rho)
+            logsq=np.log(logarg)**2
+            exparg=-1*logsq*(N-3.)/8
+            expval=np.exp(exparg)
+            coef = np.sqrt((N-3.)/(2.*np.pi))
+            result[i]= coef*expval/(1.-r**2)
+        i+=1
+
+    if not ISARRAY:
+        result=result[0]
     return result
 
 ###########################################################################

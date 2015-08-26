@@ -62,7 +62,7 @@ def depthtest_get_Cl(justread=True,z0vals = np.array([.3,.6,.7,.8])):
 # Make maps and run reconstructions
 #----------------------------------------------------------------
 # get list of RecData objects descrbing isw reconstructions to do
-def depththest_get_reclist(z0vals=np.array([.3,.6,.7,.8])):
+def depthtest_get_reclist(z0vals=np.array([.3,.6,.7,.8])):
     bins=depthtest_get_binmaps(z0vals)
     reclist=[]
     for i in xrange(len(bins)):
@@ -72,11 +72,12 @@ def depththest_get_reclist(z0vals=np.array([.3,.6,.7,.8])):
             inmaptag=bintag[:bintag.rfind('_bin0')]
             recdat=RecData(includeglm=includeglm,inmaptag=inmaptag)
             reclist.append(recdat)
+    return reclist
 
 #use cldat to generate glm, alm, and maps; saves maps but not alm
 def depthtest_get_glm_and_rec(Nreal=1,z0vals=np.array([.3,.6,.7,.8]),minreal=0,justgetrho=0):
     t0=time.time()
-    cldat=depthtest_get_Cl(justread=True)
+    cldat=depthtest_get_Cl(justread=True,z0vals=z0vals)
     makeplots=Nreal==1
     rlzns=np.arange(minreal,minreal+Nreal)
     reclist=depththest_get_reclist(z0vals)
@@ -169,6 +170,41 @@ def depthtest_plot_rhohist(z0vals=np.array([.3,.6,.7,.8]),plotsampledist=True,rh
     plt.close()
 #rho_sampledist(r,rho,NSIDE=32)
 
+#testing or knowledge of predicted rho and distribution
+def depthtest_rho_tests(z0vals=np.array([0.7])):
+    cldat=depthtest_get_Cl(z0vals=z0vals)
+    reclist=depthtest_get_reclist(z0vals)
+    rhopred=compute_rho_fromcl(cldat,reclist[0])
+    print "predicted rho:",rhopred
+    rhogrid=depthtest_read_rho_wfiles(z0vals)
+    Nrho=rhogrid.shape[1]
+    rhomean=np.mean(rhogrid[0,:])
+    print "mean rho:",rhomean
+    #get histogram data
+    nvals,evals,patches=plt.hist(rhogrid[0,:],bins=100,range=(-.4,1),histtype='stepfilled')
+    bincenters=np.array([.5*(evals[i]+evals[i+1]) for i in xrange(len(nvals))])
+    binwidth=evals[1]-evals[0]
+    plt.figure()
+    
+    from scipy.optimize import leastsq
+    distfit=lambda x,n:rho_sampledist(x,rhopred,Nsample=n)*Nrho*binwidth
+    p0=np.array([12])
+    errfunc=lambda n,x,y:distfit(x,n)-y
+    n0=100 #initial guess
+    n1,success=leastsq(errfunc,n0,args=(bincenters,nvals))
+    
+    print 'best fit N:',n1
+    rvals=-1+np.arange(201)*.01
+    distvals=distfit(rvals,n1)
+    plt.plot(rvals,distvals,label='fitted function')
+    plt.plot(bincenters,nvals,label='histogram points',linestyle='None',marker='o')
+    plt.xlim(-.4,1)
+    plt.title("Pearson sampling distribution fit to hist for depth z0=0.7")
+    plt.xlabel('r')
+    plt.ylabel('counts')
+    plt.legend(loc='upper left')
+    plt.show()
+    
 #================================================================
 # binning test - vary binning strategy of fiducial Euclid like survey
 #================================================================
@@ -208,7 +244,7 @@ if __name__=="__main__":
         depthtest_get_glm_and_rec(Nreal=10000,z0vals=depthtestz0,justgetrho=0,minreal=0)
     if 1: 
         #depthtest_plot_zwindowfuncs(depthtestz0)
-        depthtest_plot_rhohist(depthtestz0,True)
+        #depthtest_plot_rhohist(depthtestz0,True)
         #WORKING HERE: tomorrow make plots of expected rec variance
 
-    
+        depthtest_rho_tests()
