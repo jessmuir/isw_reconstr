@@ -129,11 +129,8 @@ def depthtest_plot_zwindowfuncs(z0vals=np.array([.3,.6,.7,.8])):
     plt.savefig(outname)
     plt.close()
 
-def depthtest_plot_rhohist(z0vals=np.array([.3,.6,.7,.8]),plotsampledist=True,rhocl=np.array([])):
+def depthtest_plot_rhohist(z0vals=np.array([.3,.6,.7,.8]),plotsampledist=True,getrhopred=True):
     #if plotsampledist, plot curve of expected sample distribution
-    #  if rhocl.size=z0vals.size, use those as input for rho in the sample dist
-    #             otherwise just use mean
-
     plotdir='output/depthtest/plots/'
     Nrecs=z0vals.size
     Nbins=100
@@ -143,6 +140,10 @@ def depthtest_plot_rhohist(z0vals=np.array([.3,.6,.7,.8]),plotsampledist=True,rh
     minrho=np.min(rhogrid)
     rholim=(minrho,maxrho)
     #rholim=(0.,maxrho)
+
+    if getrhopred:
+        rhopred=depthtest_get_expected_rho(z0vals)
+    
     colors=['#1b9e77','#d95f02','#7570b3','#e7298a','#66a61e','#e6ab02']
     plt.figure(0)
     plt.title(r'Depth test: correlation coef. $\rho$ for {0:g} rlzns'.format(Nreal))
@@ -151,17 +152,21 @@ def depthtest_plot_rhohist(z0vals=np.array([.3,.6,.7,.8]),plotsampledist=True,rh
     for i in xrange(Nrecs):
         mean=np.mean(rhogrid[i,:])
         sigma=np.std(rhogrid[i,:])
-        label=r'$z_0={0:0.1f}$: $\bar{{\rho}}={1:0.3f}$, $\sigma={2:0.3f}$'.format(z0vals[i],mean,sigma)
         colstr=colors[i%len(colors)]
+        if getrhopred:
+            rhoval=rhopred[i]
+            plt.axvline(rhoval,linestyle='-',color=colstr)
+            label=r'$z_0={0:0.1f}$: $\langle\rho\rangle={3:0.3f}$; $\bar{{\rho}}={1:0.3f}$, $\sigma={2:0.3f}$'.format(z0vals[i],mean,sigma,rhoval)
+        else:
+            label=r'$z_0={0:0.1f}$: $\bar{{\rho}}={1:0.3f}$, $\sigma={2:0.3f}$'.format(z0vals[i],mean,sigma)
+        plt.axvline(mean,linestyle='--',color=colstr)
         nvals,evals,patches=plt.hist(rhogrid[i,:],bins=Nbins,range=rholim,histtype='stepfilled',label=label)
-        plt.setp(patches,'facecolor',colstr,'alpha',0.7)
-        if plotsampledist:
-            if rhocl.size==Nrecs:
-                rhoval=rhocl[i]
-            else:
-                rhoval=mean
-            Pr=rho_sampledist(evals,rhoval)
-            plt.plot(evals,Pr,color=colstr,linestyle='--')
+        plt.setp(patches,'facecolor',colstr,'alpha',0.6)
+
+    if getrhopred:
+        plt.plot(np.array([]),np.array([]),linestyle='--',color='black',label='mean from sample')
+        plt.plot(np.array([]),np.array([]),linestyle='-',color='black',label='expectation value')
+
     plt.legend(loc='upper left')
     plotname='depthtest_rhohist_r{0:05d}'.format(Nreal)
     outname=plotdir+plotname+'.png'
@@ -170,6 +175,14 @@ def depthtest_plot_rhohist(z0vals=np.array([.3,.6,.7,.8]),plotsampledist=True,rh
     plt.close()
 #rho_sampledist(r,rho,NSIDE=32)
 
+def depthtest_get_expected_rho(z0vals=np.array([0.3,0.6,0.7,0.8])):
+    cldat=depthtest_get_Cl(z0vals=z0vals)
+    reclist=depthtest_get_reclist(z0vals)
+    rhopred=np.zeros_like(z0vals)
+    for i in xrange(z0vals.size):
+        rhopred[i]=compute_rho_fromcl(cldat,reclist[i])
+    return rhopred
+    
 #testing or knowledge of predicted rho and distribution
 def depthtest_rho_tests(z0vals=np.array([0.7])):
     cldat=depthtest_get_Cl(z0vals=z0vals)
@@ -204,6 +217,97 @@ def depthtest_rho_tests(z0vals=np.array([0.7])):
     plt.ylabel('counts')
     plt.legend(loc='upper left')
     plt.show()
+
+#do Tisw-Trec scatter plot for a given realization r
+def depthtest_TTscatter(r=0, z0vals=np.array([0.3,0.6,0.7,0.8]),savepngmaps=True):
+    plotdir='output/depthtest/plots/'
+    colors=['#1b9e77','#d95f02','#7570b3','#e7298a','#66a61e','#e6ab02']
+    Nrec=z0vals.size
+    #get map names and read in maps
+    recmaps=[]
+    iswmaps=[]
+    #get dummy glm and alm for filenames
+    cldat=depthtest_get_Cl(z0vals=z0vals)
+    reclist=depthtest_get_reclist(z0vals)
+    glmdat=get_glm(cldat,Nreal=0,runtag=cldat.rundat.tag)
+    almdat=get_dummy_recalmdat(glmdat,reclist,outruntag=glmdat.runtag)
+    for i in xrange(Nrec):
+        truemapf=glmdat.get_mapfile_fortags(r,reclist[i].zerotagstr)
+        truemap=hp.read_map(truemapf,verbose=False)
+        iswmaps.append(truemap)
+        recmapf=almdat.get_mapfile(r,i,'fits')
+        recmap=hp.read_map(recmapf,verbose=False)
+        recmaps.append(recmap)
+        if savepngmaps:
+            #set up color scheme for lss map
+            mono_cm=matplotlib.cm.Greys_r
+            mono_cm.set_under("w") #set background to white
+            lssmapfs=[]
+            for glmstr in reclist[i].includeglm: #assumes default mod and mask
+                lssmapfs.append(glmdat.get_mapfile_fortags(r,glmstr))
+            for lssf in lssmapfs:
+                lssm=hp.read_map(lssf,verbose=False)
+                plotmax=0.7*np.max(np.fabs(lssm))
+                lssfbase=lssf[lssf.rfind('/')+1:lssf.rfind('.fits')]
+                hp.mollview(lssm,title=lssfbase,unit=r' $\delta\rho/\rho$',max=plotmax,min=-1*plotmax,cmap=mono_cm)
+                plt.savefig(plotdir+'mapplot_'+lssfbase+'.png')
+            maxtemp=np.max(truemap)
+            maxtemp=max(maxtemp,np.max(recmap))
+            plotmax=0.7*maxtemp
+            truefbase=truemapf[truemapf.rfind('/')+1:truemapf.rfind('.fits')]
+            hp.mollview(truemap,title=truefbase,unit='K',max=plotmax,min=-1*plotmax)
+            plt.savefig(plotdir+'mapplot_'+truefbase+'.png')
+            recfbase=recmapf[recmapf.rfind('/')+1:recmapf.rfind('.fits')]
+            hp.mollview(recmap,title=recfbase,unit='K',max=plotmax,min=-1*plotmax)
+            plt.savefig(plotdir+'mapplot_'+recfbase+'.png')
+
+            
+    #compute rho (could also read from file but this seams simplest)
+    rhovals=[rho_onereal(iswmaps[n],recmaps[n]) for n in xrange(Nrec)]
+    reclabels=['z0={0:0.1f}'.format(z0) for z0 in z0vals]
+
+    #set up plot
+    plt.figure(1,figsize=(10,8))
+    plt.title('Pixel-by-pixel scatterplot')
+    plt.rcParams['axes.linewidth'] =2
+    ax=plt.subplot()
+    plt.xlabel(r'$\rm{T}^{\rm ISW}_{\rm input}$  $(10^{-5}\rm{K})$',fontsize=20)
+    plt.ylabel(r'$\rm{T}^{\rm ISW}_{\rm rec}$  $(10^{-5}\rm{K})$',fontsize=20)
+    #plt.ticklabel_format(style='sci', axis='both', scilimits=(1,0))
+    ax.yaxis.set_major_formatter(mtick.FormatStrFormatter('%.0f'))
+    ax.xaxis.set_major_formatter(mtick.FormatStrFormatter('%.0f'))
+    ax.tick_params(axis='both', labelsize=18)
+    ax.set_aspect('equal')#make it square
+    xmax=np.max(np.fabs(iswmaps))
+    plt.xlim(-1.0*xmax,1.8*xmax) 
+    plt.ylim(-1.2*xmax,1.2*xmax)
+    for i in xrange(len(recmaps)):
+        rhoi=rhovals[i]
+        coli=colors[i]
+        labeli=reclabels[i]+'\n$\\rho={0:0.2f}$'.format(rhoi)
+        mrec=recmaps[i]
+        misw=iswmaps[i]
+        plt.plot(misw,mrec,linestyle='None',marker='o',alpha=1,label=labeli,markersize=4.,color=coli,markeredgecolor='None')#markerfacecolor='None',markeredgecolor=coli
+    plt.plot(10*np.array([-xmax,xmax]),10*np.array([-xmax,xmax]),linestyle='--',linewidth=4.,color='grey')
+
+    #set up plot labels
+    startboxes=.7
+    totlines=19
+    fperline=1/25. #estimate by eye
+    startheight=startboxes
+    for i in range(Nrec)[::-1]:
+        li=reclabels[i]+'\n$\\rho={0:0.3f}$'.format(rhovals[i])
+        Nline=li.count('\n')+1
+        leftside=.975#.69
+        textbox=ax.text(leftside, startheight, li, transform=ax.transAxes, fontsize=15,verticalalignment='top', ha='right',multialignment      = 'left',bbox={'boxstyle':'round,pad=.3','alpha':1.,'facecolor':'none','edgecolor':colors[i],'linewidth':4})
+        startheight-=Nline*fperline+.03
+    
+    #plt.show()
+
+    plotname='TrecTisw_scatter_depthtest.r{0:05d}'.format(r)
+    print 'saving',plotdir+plotname
+    plt.savefig(plotdir+plotname+'.png')
+    plt.close()
     
 #================================================================
 # binning test - vary binning strategy of fiducial Euclid like survey
@@ -242,9 +346,8 @@ if __name__=="__main__":
         print "time:",str(t1-t0),"sec"
     if 0:
         depthtest_get_glm_and_rec(Nreal=10000,z0vals=depthtestz0,justgetrho=0,minreal=0)
-    if 1: 
+    if 1:
+        depthtest_TTscatter(23,np.array([0.3]))
         #depthtest_plot_zwindowfuncs(depthtestz0)
         #depthtest_plot_rhohist(depthtestz0,True)
-        #WORKING HERE: tomorrow make plots of expected rec variance
-
-        depthtest_rho_tests()
+        #depthtest_rho_tests()
