@@ -1,5 +1,6 @@
 import numpy as np
 import matplotlib.pyplot as plt
+from itertools import permutations
 from MapParams import *
 from ClRunUtils import *
 from genCrossCor import *
@@ -224,7 +225,9 @@ def depthtest_TTscatter(r=0, z0vals=np.array([0.3,0.6,0.7,0.8]),savepngmaps=True
     colors=['#1b9e77','#d95f02','#7570b3','#e7298a','#66a61e','#e6ab02']
     Nrec=z0vals.size
     #get map names and read in maps
+    recmapfiles=[]
     recmaps=[]
+    iswmapfiles=[]
     iswmaps=[]
     #get dummy glm and alm for filenames
     cldat=depthtest_get_Cl(z0vals=z0vals)
@@ -234,9 +237,11 @@ def depthtest_TTscatter(r=0, z0vals=np.array([0.3,0.6,0.7,0.8]),savepngmaps=True
     for i in xrange(Nrec):
         truemapf=glmdat.get_mapfile_fortags(r,reclist[i].zerotagstr)
         truemap=hp.read_map(truemapf,verbose=False)
+        iswmapfiles.append(truemapf)
         iswmaps.append(truemap)
         recmapf=almdat.get_mapfile(r,i,'fits')
         recmap=hp.read_map(recmapf,verbose=False)
+        recmapfiles.append(recmapf)
         recmaps.append(recmap)
         if savepngmaps:
             #set up color scheme for lss map
@@ -267,57 +272,116 @@ def depthtest_TTscatter(r=0, z0vals=np.array([0.3,0.6,0.7,0.8]),savepngmaps=True
     reclabels=['z0={0:0.1f}'.format(z0) for z0 in z0vals]
 
     #set up plot
-    plt.figure(1,figsize=(10,8))
-    plt.title('Pixel-by-pixel scatterplot')
-    plt.rcParams['axes.linewidth'] =2
-    ax=plt.subplot()
-    plt.xlabel(r'$\rm{T}^{\rm ISW}_{\rm input}$  $(10^{-5}\rm{K})$',fontsize=20)
-    plt.ylabel(r'$\rm{T}^{\rm ISW}_{\rm rec}$  $(10^{-5}\rm{K})$',fontsize=20)
-    #plt.ticklabel_format(style='sci', axis='both', scilimits=(1,0))
-    ax.yaxis.set_major_formatter(mtick.FormatStrFormatter('%.0f'))
-    ax.xaxis.set_major_formatter(mtick.FormatStrFormatter('%.0f'))
-    ax.tick_params(axis='both', labelsize=18)
-    ax.set_aspect('equal')#make it square
-    xmax=np.max(np.fabs(iswmaps))
-    plt.xlim(-1.0*xmax,1.8*xmax) 
-    plt.ylim(-1.2*xmax,1.2*xmax)
-    for i in xrange(len(recmaps)):
-        rhoi=rhovals[i]
-        coli=colors[i]
-        labeli=reclabels[i]+'\n$\\rho={0:0.2f}$'.format(rhoi)
-        mrec=recmaps[i]
-        misw=iswmaps[i]
-        plt.plot(misw,mrec,linestyle='None',marker='o',alpha=1,label=labeli,markersize=4.,color=coli,markeredgecolor='None')#markerfacecolor='None',markeredgecolor=coli
-    plt.plot(10*np.array([-xmax,xmax]),10*np.array([-xmax,xmax]),linestyle='--',linewidth=4.,color='grey')
-
-    #set up plot labels
-    startboxes=.7
-    totlines=19
-    fperline=1/25. #estimate by eye
-    startheight=startboxes
-    for i in range(Nrec)[::-1]:
-        li=reclabels[i]+'\n$\\rho={0:0.3f}$'.format(rhovals[i])
-        Nline=li.count('\n')+1
-        leftside=.975#.69
-        textbox=ax.text(leftside, startheight, li, transform=ax.transAxes, fontsize=15,verticalalignment='top', ha='right',multialignment      = 'left',bbox={'boxstyle':'round,pad=.3','alpha':1.,'facecolor':'none','edgecolor':colors[i],'linewidth':4})
-        startheight-=Nline*fperline+.03
-    
-    #plt.show()
-
     plotname='TrecTisw_scatter_depthtest.r{0:05d}'.format(r)
-    print 'saving',plotdir+plotname
-    plt.savefig(plotdir+plotname+'.png')
-    plt.close()
+    plot_Tin_Trec(iswmapfiles,recmapfiles,reclabels,plotdir,plotname,colors)
+    
     
 #================================================================
 # binning test - vary binning strategy of fiducial Euclid like survey
 #================================================================
 # Generate Cl
 #----------------------------------------------------------------
+# finestN - finest division of bins to use
+#            last bin is always from z=2-5*z0 (tail of distrib)
+#            the rest of the bins are evenly distributed in z=0-2
+# getdivs - list of strings describing divisions (see label info below)
+#           'all' means all possible divisions
+#           'equal' means all possible div with equal zbins
+# label map types like eucNbindivXXX
+#    where N=finestN, XXX specifies how its divided
+#       eg. six individual bins: euc6bindiv111111
+#           six bins w first 2, last four combined: euc6bindiv24
+#
+#-----
+#get z edges for finest division of z bins
+def bintest_get_finest_zedges(finestN=6,z0=0.7):
+    zedges=np.zeros(finestN+1)
+    zedges[-1]=5.*z0
+    zedges[-2]=2.
+    dz=2./(finestN-1)
+    for n in xrange(finestN-1):
+        zedges[n]=dz*n
+    zedges[0]=.01 #don't take integrals all the way to zero
+    return zedges
+
+def bintest_get_divstr_equal(finestN=6):
+    #WORKIGN HERE
+    pass
+
+def get_sumperm(n,N):
+    #get all ordered combos of n numbers which add up to N
+    if n>N: #no combos
+        return []
+    #will be recursive
+    #print 'called: n,N=',n,N
+    outlist=[]
+    maxval=N-n+1
+    #print '1 maxval',maxval
+    nlist=np.ones(n,dtype=int)
+    nlist[0]=maxval
+    outlist.append(np.array(nlist))
+    while maxval>1 and n>1:
+        maxval-=1
+        #print '2 maxval',maxval
+        sublists=get_sumperm(n-1,N-maxval)
+        #print 'sublists',sublists
+        for s in sublists:
+            newlist=np.array([maxval]+list(s))
+            outlist.append(newlist)
+    return outlist
+    
+def bintest_get_divstr_all(finestN=6):
+    slist=[]
+    N=finestN
+    Nslot=N-1
+    for d in xrange(N): #d= number of divisions to place
+        #get sets of d+1 numbers which add up to n
+        perm=get_sumperm(d+1,N)
+        for p in perm:
+            slist.append(''.join([str(n) for n in p]))
+    return slist
+
+
+    
+
+def bintest_get_zedgeslist(zedges,getdivs=['equal']):
+    DOLIST=False
+    DOEQ=False
+    DOALL=False
+    if len(getdivs)==1:
+        if getdivs[0]=='equal':
+            DOEQ=True
+        elif getdivs[0]=='all':
+            DOALL=True
+        else:
+            DOLIST=True
+    else:
+        DOLIST=True
+    #WORKING HERE
+    
+
+def bintest_get_maptypelist(finestN=6,getdivs=['equal'],z0=0.7):
+    #get zedges
+    zedges=bintest_get_finest_zedges(finestN,z0)
+    maptypes=[] #list of maptype objects, put finest div first
+    #WORKING HERE
+    return maptypes
+
+# Generate Cl for 6 bins
+def bintest_get_Clvals(justread=True):
+    pass
+    #just do integrals for finest division,
+    # combine bins to get Cl for other divisions
+    #WORKING HERE
+
 
 #----------------------------------------------------------------
 # Make maps and run reconstructions
 #----------------------------------------------------------------
+
+#note that we can really just save maps for the finest division
+# and then do some adding to get stats on combined bins
+#  will need to add glm to do reconstructions though
 
 #----------------------------------------------------------------
 # Analysis: make plots
@@ -347,7 +411,7 @@ if __name__=="__main__":
     if 0:
         depthtest_get_glm_and_rec(Nreal=10000,z0vals=depthtestz0,justgetrho=0,minreal=0)
     if 1:
-        depthtest_TTscatter(23,np.array([0.3]))
+        depthtest_TTscatter(0,depthtestz0,False)
         #depthtest_plot_zwindowfuncs(depthtestz0)
         #depthtest_plot_rhohist(depthtestz0,True)
         #depthtest_rho_tests()

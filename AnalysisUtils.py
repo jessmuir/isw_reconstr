@@ -680,8 +680,11 @@ def rho_sampledist(r,rho,NSIDE=32,Nsample=0): #here rho is the expected mean
 ###########################################################################
 #------------------------------------------------------------------------------
 #plot_Tin_Trec  - make scatter plot comparing true to reconstructed isw
-def plot_Tin_Trec(iswmapfiles,recmapfiles,reclabels):
-    colors=['#404040','#c51b8a','#0571b0','#66a61e','#ffa319','#d7191c']
+def plot_Tin_Trec(iswmapfiles,recmapfiles,reclabels,plotdir='output/',plotname='',colorlist=[]):
+    if not colorlist:
+        colors=['#404040','#c51b8a','#0571b0','#66a61e','#ffa319','#d7191c']
+    else:
+        colors=colorlist
     Nmap=len(recmapfiles)
     recmaps=[]
     iswmaps=[]
@@ -692,8 +695,8 @@ def plot_Tin_Trec(iswmapfiles,recmapfiles,reclabels):
         misw=hp.read_map(f)*1.e5
         iswmaps.append(misw)
     rhovals=[rho_onereal(iswmaps[n],recmaps[n]) for n in xrange(Nmap)]
-    print rhovals
     plt.figure(1,figsize=(10,8))
+    plt.title('Pixel-by-pixel scatterplot',fontsize=20)
     plt.rcParams['axes.linewidth'] =2
     ax=plt.subplot()
     plt.xlabel(r'$\rm{T}^{\rm ISW}_{\rm input}$  $(10^{-5}\rm{K})$',fontsize=20)
@@ -701,9 +704,9 @@ def plot_Tin_Trec(iswmapfiles,recmapfiles,reclabels):
     #plt.ticklabel_format(style='sci', axis='both', scilimits=(1,0))
     ax.yaxis.set_major_formatter(mtick.FormatStrFormatter('%.0f'))
     ax.xaxis.set_major_formatter(mtick.FormatStrFormatter('%.0f'))
-    ax.tick_params(axis='both', labelsize=18)
+    ax.tick_params(axis='both', labelsize=16)
     ax.set_aspect('equal')#make it square
-
+    
     xmax=np.max(np.fabs(iswmaps))
     plt.xlim(-1.0*xmax,1.8*xmax) 
     plt.ylim(-1.2*xmax,1.2*xmax)
@@ -718,23 +721,25 @@ def plot_Tin_Trec(iswmapfiles,recmapfiles,reclabels):
 
     # try doing text boxes instead of legends?
     startboxes=.7
-    totlines=19
-    fperline=1/25. #estimate by eye
+    totlines=3*len(recmaps)
+    fperline=1/20. #estimate by eye
     startheight=startboxes
     for i in range(Nmap)[::-1]:
         li=reclabels[i]+'\n$\\rho={0:0.3f}$'.format(rhovals[i])
-        Nline=li.count('\n')+1
+        Nline=li.count('\n')+1#.5
         leftside=.975#.69
         textbox=ax.text(leftside, startheight, li, transform=ax.transAxes, fontsize=15,verticalalignment='top', ha='right',multialignment      = 'left',bbox={'boxstyle':'round,pad=.3','alpha':1.,'facecolor':'none','edgecolor':colors[i],'linewidth':4})
-        #bb=textbox.get_bbox_patch()
-        #bb.set_edgewidth(4.)
         startheight-=Nline*fperline+.03
     
     #plt.show()
-    plotdir='output/plots_forposter/'
-    plotname='TrecTisw_scatter_variousRECs'
-    print 'saving',plotdir+plotname
+    #plt.gcf().subplots_adjust(bottom=0.15) #keep x label from being cut off
+        
+    #plotdir='output/plots_forposter/'
+    if not plotname:
+        plotname='TrecTisw_scatter_variousRECs'
+    print 'saving',plotdir+plotname+'.png'
     plt.savefig(plotdir+plotname+'.png')
+    plt.close()
 
 
 
