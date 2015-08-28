@@ -93,6 +93,7 @@ class RunData(object):
 # tag: used to label C_l data
 # ilktag: used to label Ilk data files. If not passed, set equal to tag
 #         unless noilktag=True; then ilktag is an empty string
+# iswilktag: used to label isw Ilk data file, if not there, uses ilktag or tag
 # rundir: where output will be put
 # cosmpfile: file containing cosmological parameters
 # kdata: KData object; if left as default zero, will use default init
@@ -117,7 +118,7 @@ class RunData(object):
 class ClRunData(RunData):
     zintlim=10000
     kintlim=10000
-    def __init__(self,tag='',ilktag='',rundir='output/',cosmpfile='testparam.cosm',kdata=0,lmax=0,lvals=np.array([]),zmax=2.,limberl=20,epsilon=1.e-10,cosm_zrhgf_bkgrd=np.array([]),pk_ext=np.array([]),sharpkcut=False,besselxmincut=True,noilktag=False,nperz=200.):
+    def __init__(self,tag='',ilktag='',iswilktag='',rundir='output/',cosmpfile='testparam.cosm',kdata=0,lmax=0,lvals=np.array([]),zmax=2.,limberl=20,epsilon=1.e-10,cosm_zrhgf_bkgrd=np.array([]),pk_ext=np.array([]),sharpkcut=False,besselxmincut=True,noilktag=False,nperz=200.):
         RunData.__init__(self,tag,rundir,cosmpfile,lmax,lvals,clrundat=True)
         self.limberl=limberl
         self.epsilon=epsilon #used to set tolerance on integrals
@@ -126,6 +127,10 @@ class ClRunData(RunData):
             self.ilktag=ilktag
         else:
             self.ilktag=tag
+        if iswilktag:
+            self.iswilktag=iswilktag
+        else:
+            self.iswilktag=ilktag
         self.zmax=zmax #max z for H(z),D(z) etc tabulation
 
         # read in data for desired k and l values
@@ -150,8 +155,12 @@ class ClRunData(RunData):
             ilkstr=' (ilk:{0:s})'.format(self.ilktag)
         else:
             ilkstr=''
-            
-        self.infostr='runtag {0:s}{1:s}, {2:s}, eps={3:0.1e},besselmincut={4:b}, besselmaxcut={5:b}\n{6:s}\nk-data: {7:s}'.format(self.tag,ilkstr,ellstr,epsilon,besselxmincut,sharpkcut,cosminfo,kinfo)
+        if self.iswilktag != self.ilktag:
+            iswilkstr=' (iswilk:{0:s})'.format(self.iswilktag)
+        else:
+            iswilkstr=''
+                
+        self.infostr='runtag {0:s}{1:s}{8:s}, {2:s}, eps={3:0.1e},besselmincut={4:b}, besselmaxcut={5:b}\n{6:s}\nk-data: {7:s}'.format(self.tag,ilkstr,ellstr,epsilon,besselxmincut,sharpkcut,cosminfo,kinfo,iswilkstr)
         
     def equivRunData(self):
         #returns a MapRunData object with equivalent properties

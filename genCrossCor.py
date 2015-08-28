@@ -191,8 +191,12 @@ def getIlk_for_binmap(binmap,rundata,redo=False,DoNotOverwrite=False):
     needIlk=True
     if not redo:
         #check if file w appropriate name exists
-        if rundata.ilktag: runtag = '.'+rundata.ilktag
-        else: runtag=''
+        if binmap.isISW:
+            if rundata.iswilktag: runtag='.'+rundata.iswilktag
+            else: runtag=''
+        else:
+            if rundata.ilktag: runtag = '.'+rundata.ilktag
+            else: runtag=''
         f = ''.join([rundata.ilkdir,binmap.tag,'_Ilk',runtag,'.dat'])
         if os.path.isfile(f):
             #read it in, check that ell and k vals are good
@@ -364,8 +368,12 @@ def Iintegrand_postcut(r,l,k,window,z_from_cor,hubble,growth,growthrate,isISW=Fa
     return dI*prefactor
 #-------------------------------------------------------------------------
 def writeIlk(Ilkarray,binmap,rundata):
-    if rundata.ilktag: runtag = '.'+rundata.ilktag
-    else: runtag=''
+    if binmap.isISW:
+        if rundata.iswilktag: runtag = '.'+rundata.iswilktag
+        else: runtag=''
+    else:
+        if rundata.ilktag: runtag = '.'+rundata.ilktag
+        else: runtag=''
     outfile = ''.join([rundata.ilkdir,binmap.tag,'_Ilk',runtag,'.dat'])
 
     print 'Writing Ilk data to ',outfile
@@ -391,8 +399,13 @@ def writeIlk(Ilkarray,binmap,rundata):
 #-------------------------------------------------------------------------
 # read in file containing Ilk for given map bin, resturn Ilk array,lvals, kvals
 def readIlk_file(binmap,rundata):
-    if rundata.ilktag: runtag = '.'+rundata.ilktag
-    else: runtag=''
+    if binmap.isISW:
+        if rundata.iswilktag: runtag = '.'+rundata.iswilktag
+        else: runtag=''
+    else:
+        if rundata.ilktag: runtag = '.'+rundata.ilktag
+        else: runtag=''
+    
     infile=''.join([rundata.ilkdir,binmap.tag,'_Ilk',runtag,'.dat'])
     print "Reading Ilk from file",infile
     x = np.loadtxt(infile,skiprows=6)
