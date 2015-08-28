@@ -300,7 +300,7 @@ def bintest_get_finest_zedges(finestN=6,z0=0.7):
     dz=2./(finestN-1)
     for n in xrange(finestN-1):
         zedges[n]=dz*n
-    zedges[0]=.01 #don't take integrals all the way to zero
+    zedges[0]=.01 #don't go down all the way to zero
     return zedges
 #-----
 # get string tags for divisions for option "equal"
@@ -319,20 +319,16 @@ def get_sumperm(n,N):
     if n>N: #no combos
         return []
     #will be recursive
-    #print 'called: n,N=',n,N
     outlist=[]
-    maxval=N-n+1
-    #print '1 maxval',maxval
+    firstval=N-n+1
     nlist=np.ones(n,dtype=int)
-    nlist[0]=maxval
+    nlist[0]=firstval
     outlist.append(np.array(nlist))
-    while maxval>1 and n>1:
-        maxval-=1
-        #print '2 maxval',maxval
-        sublists=get_sumperm(n-1,N-maxval)
-        #print 'sublists',sublists
+    while firstval>1 and n>1:
+        firstval-=1
+        sublists=get_sumperm(n-1,N-firstval)
         for s in sublists:
-            newlist=np.array([maxval]+list(s))
+            newlist=np.array([firstval]+list(s))
             outlist.append(newlist)
     return outlist
     
@@ -346,7 +342,7 @@ def bintest_get_divstr_all(finestN=6):
             slist.append(''.join([str(n) for n in p]))
     return slist
 
-def bintest_get_zedgeslist(zedges,getdivs=['equal']):
+def bintest_get_zedgeslist(zedges,getdivs=['equal'],returnstr=True):
     Nmax=zedges.size-1
     slist=getdivs
     if len(getdivs)==1:
@@ -357,30 +353,104 @@ def bintest_get_zedgeslist(zedges,getdivs=['equal']):
     zedgelist=[]#will be list of arrays, one for each binning strategy
     for s in slist:
         nlist=[int(x) for x in s]
+        if np.sum(nlist)!=Nmax:
+            print "wrong number of bins:sum(",s,")!=",Nmax
+            continue
         zlist=[zedges[0]]
         zind=0
         for n in nlist:
             zind+=n
             zlist.append(zedges[zind])
         zedgelist.append(np.array(zlist))
-    return zedgelist
+    if returnstr:
+        return zedgelist,slist
+    else:
+        return zedgelist
 
 #----------------------------------------------------------------    
 # Generate Cl
 #----------------------------------------------------------------
-def bintest_get_maptypelist(finestN=6,getdivs=['equal'],z0=0.7):
+def bintest_get_maptypelist(finestN=6,getdivs=['all'],z0=0.7,includeisw=True):
     #get zedges
-    zedges=bintest_get_finest_zedges(finestN,z0)
+    zedges0=bintest_get_finest_zedges(finestN,z0) #for finest division
+    zedges,divstr=bintest_get_zedgeslist(zedges0,getdivs,True) 
+    Ntypes=len(zedges)
     maptypes=[] #list of maptype objects, put finest div first
-    #WORKING HERE
+    maintag='euc{0:d}bindiv'.format(finestN)
+    if includeisw:
+        iswmaptype=get_fullISW_MapType(zmax=10)
+        maptypes.append(iswmaptype)
+    for i in xrange(Ntypes):
+        print 'getting survey for zedges=',zedges[i]
+        tag=maintag+divstr[i]
+        survey=get_Euclidlike_SurveyType(z0=0.7,tag=tag,zedges=zedges[i])
+        maptypes.append(survey)
     return maptypes
 
-# Generate Cl for 6 bins
-def bintest_get_Clvals(justread=True):
-    pass
-    #just do integrals for finest division,
+def bintest_get_binmaps(finestN=6,getdivs=['all'],z0=0.7,includeisw=True,justfinest=False):
+    if justfinest:
+        getdivs=['1'*finestN]
+    maptypes=bintest_get_maptypelist(finestN,getdivs,z0,includeisw)
+    binmaps,bintags=get_binmaplist(maptypes)
+    return binmaps
+
+#given surveytype tag or binmap tag, extract the XXX part of the divXXX label
+def bintest_divstr_from_maptag(maptag):
+    isbin='_bin' in maptag
+    startind=maptag.rfind('bindiv')+6
+    endind=maptag.rfind('_bin')*isbin + (not isbin)*len(maptag)
+    return maptag[startind:endind]
+
+#given maptypetag with divXXX, return indices which tell you which of initial
+# bins to combine
+def bintest_combinewhich(divstr,baseN=6):
+    outlists=[]
+    innum=np.array([int(char) for char in divstr])
+    if np.sum(innum)!=baseN or np.all(innum==1):
+        return outlists
+    else:
+        bincounter=0
+        for n in innum:
+            combo=range(bincounter,bincounter+n)
+            outlists.append(combo)
+            bincounter+=n
+    return outlists
+
+# Get/generate Cl for 6 (or largest number of) bins
+def bintest_get_baseClvals(finestN=6,z0=0.7,justread=True):
+    binmaps=bintest_get_binmaps(finestN,z0=z0,justfinest=True)
+    zmax=max(m.zmax for m in binmaps)
+    rundat = ClRunData(tag='eucbintest{0:d}'.format(finestN),iswilktag='eucbintest',rundir='output/eucbintest/',lmax=95,zmax=zmax)
+    return getCl(binmapss,rundat,dopairs=['all'],DoNotOverwrite=justread)
+# 
+def bintest_get_Clvals(finestN=6,z0=0.7,justread=True):
+    #NEED TO TEST
+    #get info for isw and finest binned division, calculate cls
+    basecl=get_get_baseClvals(finestN,z0,justread)
+    basemaptype=bintest_get_maptypelist(finestN,['1'*finestN],z0,includeisw=False)[0]
+    basemaptag=basemaptype.tag
+    maptypes=bintest_get_maptypelist(finestN,['all'],z0,includeisw=False)
+    
     # combine bins to get Cl for other divisions
-    #WORKING HERE
+    FIRST=True
+    for mt in maptypes:
+        t=mt.tag
+        if t!=basemaptag: #if it's not the base map type
+            divstr=bintest_divstr_from_maptag(t)
+            combinebins=bintest_combinewhich(divstr,finestN)
+            for i in len(combinebins):
+                combolist=combinebins[i]
+                intags=[''.join([basemaptag,'_bin',str(x)]) for x in combolist]
+                outtag=''.join([t,'_bin',str(i)])
+                if FIRST:
+                    nextcl=combineCl_binlist(basecl,intags,combotag=outtag,newruntag=basecl.rundata.tag+'all')
+                    FIRST=False
+                else:
+                    nextcl=combineCl_binlist(nextcl,intags,combotag=outtag)
+    #write to file
+    writeCl_file(nextcl)
+    return nextcl
+
 
 
 #----------------------------------------------------------------

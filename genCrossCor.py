@@ -1242,9 +1242,9 @@ def combineCl_binlist(cldat,taglist,combotag,newruntag='',keeporig=True):
         tag2=taglist[1]
         keep1=keep2=False
         if tag1 in origtaglist:
-            keep1=True
+            keep1=keeporig
         if tag2 in origtaglist:
-            keep2=True
+            keep2=keeporig
         #print 'tag1,2=',tag1,tag2
         outcldat=combineCl_twobin(outcldat,tag1,tag2,combotag,outruntag,keep1,keep2)
         taglist=taglist[1:]
