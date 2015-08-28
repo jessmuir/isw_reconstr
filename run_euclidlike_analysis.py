@@ -279,7 +279,7 @@ def depthtest_TTscatter(r=0, z0vals=np.array([0.3,0.6,0.7,0.8]),savepngmaps=True
 #================================================================
 # binning test - vary binning strategy of fiducial Euclid like survey
 #================================================================
-# Generate Cl
+# binning and labeling utils
 #----------------------------------------------------------------
 # finestN - finest division of bins to use
 #            last bin is always from z=2-5*z0 (tail of distrib)
@@ -291,7 +291,6 @@ def depthtest_TTscatter(r=0, z0vals=np.array([0.3,0.6,0.7,0.8]),savepngmaps=True
 #    where N=finestN, XXX specifies how its divided
 #       eg. six individual bins: euc6bindiv111111
 #           six bins w first 2, last four combined: euc6bindiv24
-#
 #-----
 #get z edges for finest division of z bins
 def bintest_get_finest_zedges(finestN=6,z0=0.7):
@@ -303,10 +302,17 @@ def bintest_get_finest_zedges(finestN=6,z0=0.7):
         zedges[n]=dz*n
     zedges[0]=.01 #don't take integrals all the way to zero
     return zedges
-
+#-----
+# get string tags for divisions for option "equal"
 def bintest_get_divstr_equal(finestN=6):
-    #WORKIGN HERE
-    pass
+    N=finestN
+    slist=[]
+    for d in xrange(N):#d=number of internal dividers
+        bins=d+1
+        if N%bins==0: #evenly divisible
+            s=str(N/bins)*bins
+            slist.append(s)
+    return slist
 
 def get_sumperm(n,N):
     #get all ordered combos of n numbers which add up to N
@@ -333,7 +339,6 @@ def get_sumperm(n,N):
 def bintest_get_divstr_all(finestN=6):
     slist=[]
     N=finestN
-    Nslot=N-1
     for d in xrange(N): #d= number of divisions to place
         #get sets of d+1 numbers which add up to n
         perm=get_sumperm(d+1,N)
@@ -341,25 +346,28 @@ def bintest_get_divstr_all(finestN=6):
             slist.append(''.join([str(n) for n in p]))
     return slist
 
-
-    
-
 def bintest_get_zedgeslist(zedges,getdivs=['equal']):
-    DOLIST=False
-    DOEQ=False
-    DOALL=False
+    Nmax=zedges.size-1
+    slist=getdivs
     if len(getdivs)==1:
         if getdivs[0]=='equal':
-            DOEQ=True
+            slist=bintest_get_divstr_equal(Nmax)
         elif getdivs[0]=='all':
-            DOALL=True
-        else:
-            DOLIST=True
-    else:
-        DOLIST=True
-    #WORKING HERE
-    
+            slist=bintest_get_divstr_all(Nmax)
+    zedgelist=[]#will be list of arrays, one for each binning strategy
+    for s in slist:
+        nlist=[int(x) for x in s]
+        zlist=[zedges[0]]
+        zind=0
+        for n in nlist:
+            zind+=n
+            zlist.append(zedges[zind])
+        zedgelist.append(np.array(zlist))
+    return zedgelist
 
+#----------------------------------------------------------------    
+# Generate Cl
+#----------------------------------------------------------------
 def bintest_get_maptypelist(finestN=6,getdivs=['equal'],z0=0.7):
     #get zedges
     zedges=bintest_get_finest_zedges(finestN,z0)
