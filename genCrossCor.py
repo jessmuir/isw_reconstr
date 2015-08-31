@@ -53,7 +53,7 @@ class ClData(object):
         else: #minus one means no nbar given for map at that index
             self.nbar=-1*np.ones(self.Nmap)
         
-        #keep noise contrib to C_l in separate array #NEED TO TEST
+        #keep noise contrib to C_l in separate array
         self.noisecl = np.zeros((self.Ncross,self.Nell))
         for i in xrange(self.Nmap):
             if self.nbar[i]!=-1: #assumes -1 for no noise or isw
@@ -561,6 +561,7 @@ def getCl(binmaplist,rundata,dopairs=[],redoAllCl=False,redoTheseCl=False,redoAu
             # just get dummy ClData object
             if newdocross:
                 print "***WARNING. Need new Cl data have set READONLY."
+                #print newdocross
             newcl= computeCl(binmaplist,rundata,docrossind=np.array([]),redoIlk=False)
         
         if np.any(newcl.cl!=0):
@@ -1222,33 +1223,108 @@ def combineCl_twobin(cldat,tag1,tag2,combotag,newruntag='',keept1=False,keept2=F
     if newruntag:
         outcldat.rundat.tag=newruntag
     return outcldat
+
+#=========================================================================
+# renameCl_binmap:
+#   given input cldat containing map with tag intag, rename that bin to newtag
+#   keeporig - if False, intag just gets renamed, otherwise, it is copied
+#   newtag- binmap tag to be associated with new map made from combo
+#        note that it should have _bin# in order to be id's as a binmap tag
+#  ouptut: clData object with new bin label
+def renameCl_binmap(cldat,intag,newtag,newruntag='',keeporig=True):
+    inmapind=cldat.tagdict[intag]
+    if not keeporig:#just change name in place
+        #need to change bintaglist, tagdict
+        newbintaglist=cldat.bintaglist[:]
+        newbintaglist[inmapind]=newtag
+        newtagdict=cldat.tagdict.copy()
+        newtagdict.pop(intag)
+        newtagdict[newtag]=cldat.tagdict[intag]
+        #just copy over other data
+        clgrid=cldat.cl[:,:]
+        newdocross=cldat.docross[:]
+        newnbarlist=cldat.nbarlist[:]
+    else:
+        newNmap=cldat.Nmap+keeporig
+        innbar=cldat.nbar[inmapind]
+        xind11=cldat.crossinds[inmapind,inmapind]#autopower of in map
+        if innbar<0:
+            print "***WARNING, no nbar info map to be copied!"
+            return
+        # gather info needed to make a new clData object
+        newbintaglist=[]
+        newnbarlist=[]
+        newdocross=[]
+        for m in xrange(cldat.Nmap):
+            newbintaglist.append(cldat.bintaglist[m])
+            newnbarlist.append(cldat.nbar[m])
+        newbintaglist.append(newtag)
+        newnbarlist.append(innbar)
+        newmapind=newNmap-1 #map index of copied map (last entry)
     
+        #set up structures for new output dat 
+        newNcross=newNmap*(newNmap+1)/2
+        newcl=np.zeros((newNcross,cldat.Nell))
+        newxpairs,newxinds=get_index_pairs(newNmap)
+        #fill in values appropriately. Ref: Hu's lensing tomography paper
+        for n in xrange(newNcross):
+            i,j=newxpairs[n] #in new map index bases
+            if i==newmapind and j==newmapind: #both are the new copied map
+                newcl[n,:]=cldat.cl[xind11,:]
+            elif i==newmapind or j==newmapind: #just 1 is new copied map
+                if i==newmapind:
+                    k=j #the map that's not the copy, in new basis
+                else:
+                    k=i
+                oldmapind=cldat.tagdict[newbintaglist[k]] #in old map basis
+                xind1k=cldat.crossinds[inmapind,oldmapind]
+                newcl[n,:]=cldat.cl[xind1k,:]
+            else: #nether are combined map, just translate indices
+                oldi=cldat.tagdict[newbintaglist[i]]
+                oldj=cldat.tagdict[newbintaglist[j]]
+                oldxind=cldat.crossinds[oldi,oldj]
+                newcl[n,:]=cldat.cl[oldxind,:]
+            if np.any(newcl[n,:]): #not strictly accurate for combo bin; will mark
+                #  xind as computed even if only one of the constituent bins were
+                newdocross.append(n)
+
+    #construct clData object and return it
+    outcldat=ClData(copy.deepcopy(cldat.rundat),newbintaglist,clgrid=newcl,addauto=False,docrossind=newdocross,nbarlist=newnbarlist)
+    if newruntag:
+        outcldat.rundat.tag=newruntag
+    return outcldat
+
 #----------------------------------------------------------
 # combineCl_binlist:
 #   given input cldat, merge all bins in taglist
 #           ->taglist bins must be in cldat, and must have nbar!=-1
 #   newmaptag- binmap tag to be associated with new map made from combo
 #   keeporig - if True, original bins kept, if false, any combined bins dropped
+#   renamesingle - if len(taglist)==1 and combotag is passed, rename that bin
+#               or, if keeporig, make a copy of that bin with a new name
 #  ouptut: clData object with one less map bin.
-def combineCl_binlist(cldat,taglist,combotag,newruntag='',keeporig=True):
+def combineCl_binlist(cldat,taglist,combotag,newruntag='',keeporig=True,renamesingle=False):
     outcldat=cldat
     origtaglist=taglist[:]
     if newruntag:
         outruntag=newruntag
     else:
         outruntag=cldat.rundat.tag
-    while len(taglist)>1:
-        tag1=taglist[0]
-        tag2=taglist[1]
-        keep1=keep2=False
-        if tag1 in origtaglist:
-            keep1=keeporig
-        if tag2 in origtaglist:
-            keep2=keeporig
-        #print 'tag1,2=',tag1,tag2
-        outcldat=combineCl_twobin(outcldat,tag1,tag2,combotag,outruntag,keep1,keep2)
-        taglist=taglist[1:]
-        taglist[0]=combotag
+    if len(taglist)>1:
+        while len(taglist)>1:
+            tag1=taglist[0]
+            tag2=taglist[1]
+            keep1=keep2=False
+            if tag1 in origtaglist:
+                keep1=keeporig
+            if tag2 in origtaglist:
+                keep2=keeporig
+            #print 'tag1,2=',tag1,tag2
+            outcldat=combineCl_twobin(outcldat,tag1,tag2,combotag,outruntag,keep1,keep2)
+            taglist=taglist[1:]
+            taglist[0]=combotag
+    elif renamesingle and combotag:#add a copied version of input binmap
+        outcldat=renameCl_binmap(outcldat,taglist[0],combotag,outruntag,keeporig)
     return outcldat
 
 

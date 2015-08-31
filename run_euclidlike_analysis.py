@@ -342,7 +342,7 @@ def bintest_get_divstr_all(finestN=6):
             slist.append(''.join([str(n) for n in p]))
     return slist
 
-def bintest_get_zedgeslist(zedges,getdivs=['equal'],returnstr=True):
+def bintest_get_zedgeslist(zedges,getdivs=['all'],returnstr=True):
     Nmax=zedges.size-1
     slist=getdivs
     if len(getdivs)==1:
@@ -381,7 +381,7 @@ def bintest_get_maptypelist(finestN=6,getdivs=['all'],z0=0.7,includeisw=True):
         iswmaptype=get_fullISW_MapType(zmax=10)
         maptypes.append(iswmaptype)
     for i in xrange(Ntypes):
-        print 'getting survey for zedges=',zedges[i]
+        #print 'getting survey for zedges=',zedges[i]
         tag=maintag+divstr[i]
         survey=get_Euclidlike_SurveyType(z0=0.7,tag=tag,zedges=zedges[i])
         maptypes.append(survey)
@@ -421,13 +421,12 @@ def bintest_get_baseClvals(finestN=6,z0=0.7,justread=True):
     binmaps=bintest_get_binmaps(finestN,z0=z0,justfinest=True)
     zmax=max(m.zmax for m in binmaps)
     rundat = ClRunData(tag='eucbintest{0:d}'.format(finestN),iswilktag='eucbintest',rundir='output/eucbintest/',lmax=95,zmax=zmax)
-    return getCl(binmapss,rundat,dopairs=['all'],DoNotOverwrite=justread)
+    return getCl(binmaps,rundat,dopairs=['all'],DoNotOverwrite=justread)
 # 
 def bintest_get_Clvals(finestN=6,z0=0.7,justread=True):
-    #NEED TO TEST
     #get info for isw and finest binned division, calculate cls
     if not justread:
-        basecl=get_get_baseClvals(finestN,z0,justread)
+        basecl=bintest_get_baseClvals(finestN,z0,justread)
         basemaptype=bintest_get_maptypelist(finestN,['1'*finestN],z0,includeisw=False)[0]
         basemaptag=basemaptype.tag
         maptypes=bintest_get_maptypelist(finestN,['all'],z0,includeisw=False)
@@ -436,18 +435,25 @@ def bintest_get_Clvals(finestN=6,z0=0.7,justread=True):
         FIRST=True
         for mt in maptypes:
             t=mt.tag
+            print 'on maptype',t,'------'
             if t!=basemaptag: #if it's not the base map type
                 divstr=bintest_divstr_from_maptag(t)
                 combinebins=bintest_combinewhich(divstr,finestN)
-                for i in len(combinebins):
+                print ' combinebins=',combinebins
+                #print 'combinebins',combinebins
+                for i in xrange(len(combinebins)):
                     combolist=combinebins[i]
                     intags=[''.join([basemaptag,'_bin',str(x)]) for x in combolist]
                     outtag=''.join([t,'_bin',str(i)])
+                    print '   combining',intags
+                    print '      to get',outtag
                     if FIRST:
-                        nextcl=combineCl_binlist(basecl,intags,combotag=outtag,newruntag=basecl.rundata.tag+'all')
+                        nextcl=combineCl_binlist(basecl,intags,combotag=outtag,newruntag=basecl.rundat.tag+'all',renamesingle=True)
                         FIRST=False
                     else:
-                        nextcl=combineCl_binlist(nextcl,intags,combotag=outtag)
+                        nextcl=combineCl_binlist(nextcl,intags,combotag=outtag,renamesingle=True)
+                    print '   nextcl.Nmap',nextcl.Nmap,'nextcl.Ncross',nextcl.Ncross
+                    print '   len(nextcl.docross)',len(nextcl.docross)
         #write to file
         writeCl_file(nextcl)
     else:
@@ -455,15 +461,74 @@ def bintest_get_Clvals(finestN=6,z0=0.7,justread=True):
         binmaps=bintest_get_binmaps(finestN,z0=z0)
         zmax=max(m.zmax for m in binmaps)
         rundat = ClRunData(tag='eucbintest{0:d}all'.format(finestN),iswilktag='eucbintest',rundir='output/eucbintest/',lmax=95,zmax=zmax)
-        nextcl= getCl(binmapss,rundat,dopairs=['all'],DoNotOverwrite=True)
-# 
+        nextcl= getCl(binmaps,rundat,dopairs=['all'],DoNotOverwrite=True)
+        print 'nextcl.Ncross',nextcl.Ncross
+        print 'nextcl.docross.size',len(nextcl.docross)
     return nextcl
+
+#Return list of RecData objects, one per binning scheme
+def bintest_get_reclist(finestN=6,z0=0.7,getdivs=['all']):
+    #get binmaps
+    maptypes= bintest_get_maptypelist(finestN,getdivs,z0,includeisw=False)
+    Nrec=len(maptypes)
+    reclist=[]
+    for i in xrange(Nrec):
+        mtype=maptypes[i]
+        inmaptag=mtype.tag #label in output glmdat
+        includeglm=[b.tag for b in mtype.binmaps]
+        recdat=RecData(includeglm=includeglm,inmaptag=inmaptag)
+        reclist.append(recdat)
+    return reclist
+
+#get cl for all bin combos (assumes they're already computed)
+# and computes expectation values for rho, saving that data to file
+# if overwrite==False and that file exists, just read it in
+def bintest_get_rhoexp(finestN=6,z0=0.7,overwrite=False,doplot=True):
+    outdir = 'output/eucbintest/plots/'
+    datfile='eucbintest_rhoexp.dat'
+    if not overwrite and os.path.isfile(outdir+datfile): #file exists
+        x=np.loadtxt(outdir+datfile)
+        divstr=[str(int(x[i,0])) for i in xrange(x.shape[1])]
+        rhoarray=x[:,1]
+    else:
+        #get cl
+        cldat=bintest_get_Clvals(finestN,z0,justread=True)
+        #set up recdata objects for each bin combo
+        reclist=bintest_get_reclist(finestN,z0) #NEED TO WRITE THIS FN
+        Nrec=len(reclist)
+        rhoarray=np.zeros(Nrec)
+        divstr=bintest_get_divstr_all(finestN) #string div labels
+        for r in xrange(Nrec):
+            rhoarray[r]=compute_rho_fromcl(cldat,reclist[r])
+        #write rhoarray to file
+        f=open(outdir+datfile,'w')
+        f.write(''.join(['{0:8s} {1:8.3f}\n'.format(divstr[i],rhoarray[i]) for i in xrange(Nrec)]))
+        f.close()
+
+    if doplot:
+        zedges0=bintest_get_finest_zedges(finestN,z0)
+        allzedges=bintest_get_zedgeslist(zedges0,['all'],False)
+        bintest_rhoexpplot(allzedges,divstr,rhoarray)
+        
+    return divstr,rhoarray
+
+#----------------------------------------------------------------
+# Make maps and run reconstructions
+#----------------------------------------------------------------
+
+#note that we can really just save maps for the finest division
+# and then do some adding to get stats on combined bins
+#  will need to add glm to do reconstructions though
+
+#----------------------------------------------------------------
+# Analysis: make plots
+#----------------------------------------------------------------
 
 #plot expectation value of rho for different binning strategy
 # with illustrative y axis
 def bintest_rhoexpplot(allzedges,labels,rhoarray):
     plotdir='output/eucbintest/plots/'
-    outname='bintest_rhoexp.png'
+    outname='eucbintest_rhoexp.png'
     colors=['#1b9e77','#d95f02','#7570b3','#e7298a','#66a61e','#e6ab02']
     Npoints=len(labels)
     yvals=np.arange(Npoints)
@@ -514,21 +579,64 @@ def bintest_rhoexpplot(allzedges,labels,rhoarray):
     ax2.scatter(rhoarray,yvals)
     plt.setp(ax2.get_yticklabels(), visible=False)
     plt.setp(ax2.get_xticklabels()[0], visible=False)#don't show number at first label
-
+    print 'Saving plot to ',plotdir+outname
     plt.savefig(plotdir+outname)
 
+#----------------
+def bintest_plot_zwindowfuncs(finestN=6,z0=0.7,doiswkernel=True):
+    bins=bintest_get_binmaps(finestN,z0=0.7,includeisw=False,justfinest=True)#just gal maps
+    sigz0=bins[0].sigz0
+    plotdir='output/eucbintest/plots/'
+    plotname='eucbintest_zbins'
+    
+    Nbins=len(bins)
+    zmax=3.
+    nperz=100
+    zgrid=np.arange(nperz*zmax)/float(nperz)
+    if doiswkernel:
+        cosmparamfile='testparam.cosm'
+        plotname=plotname+'_iswkernel'
+        cosm=Cosmology(cosmparamfile)
+        cosm.tabulateZdep(zmax,nperz=nperz)
+        cosmz=cosm.z_array
+        kernel=(1.-cosm.f_array)*cosm.g_array #isw kernel, stripped of prefactor
+        
+    colors=['#1b9e77','#d95f02','#7570b3','#e7298a','#66a61e','#e6ab02']
+    plt.figure(0)
+    plt.rcParams['axes.linewidth'] =2
+    ax=plt.subplot()
+    ax.set_yticklabels([])
+    plt.title(r'Bin test: redshift distributions',fontsize=16)
+    plt.xlabel('Redshift z',fontsize=16)
+    plt.ylabel('Source distribution (arbitrary units)',fontsize=16)
+    ymax=4.
+    plt.ylim(0,ymax)
+    plt.xlim(0,zmax)
+    ax.tick_params(axis='x', labelsize=18)
+    
+    for n in xrange(Nbins):
+        m=bins[n]
+        wgrid=m.window(zgrid)#*m.nbar/1.e9
+        colstr=colors[n%len(colors)]
+        #plt.fill_between(zgrid,0,wgrid, facecolor=colstr,edgecolor='none',linewidth=2, alpha=0.3)
+        plt.plot(zgrid,wgrid,color=colstr,linestyle='-',linewidth=2)
 
-#----------------------------------------------------------------
-# Make maps and run reconstructions
-#----------------------------------------------------------------
+    if doiswkernel:
+        kernelmax=np.max(kernel)
+        wantmax=.8*ymax
+        scaleby=wantmax/kernelmax
+        plt.plot(cosmz,kernel*scaleby,color='grey',label='ISW kernel',linewidth=2,linestyle='--')
+        plt.legend(loc='upper right',fancybox=False, framealpha=0.,prop={'size':16},handlelength=3.5)
+        
+    eqstr='$\\frac{{dn}}{{dz}} \\propto \\,z^2 e^{{-\\left(z/z_0\\right)^{{1.5}}}}$\n $z_0={0:0.1f}$, $\\sigma_z={1:0.2f}(1+z)$'.format(z0,sigz0)
+    #eqstr='$\frac{{dn}}{{dz}} \propto \,z^2 e^{{-\left(z/z_0\right)^{{1.5}}}}$\n $z_0={0:0.1f}$, $\sigma_z={1:0.2f}(1+z)$'.format(z0,sigz0)
 
-#note that we can really just save maps for the finest division
-# and then do some adding to get stats on combined bins
-#  will need to add glm to do reconstructions though
+    textbox=ax.text(1.7, 3.5, eqstr,fontsize=16,verticalalignment='top',ha='left')#, transform=ax.transAxes, fontsize=15,verticalalignment='top', ha='right',multialignment      = 'left',bbox={'facecolor':'none','edgecolor':'none'))
 
-#----------------------------------------------------------------
-# Analysis: make plots
-#----------------------------------------------------------------
+    outname=plotdir+plotname+'.png'
+    print 'saving',outname
+    plt.savefig(outname)
+    plt.close()
 
 #================================================================
 # smoothing test - vary photoz uncertainty for fid Euclid like survey
@@ -561,9 +669,7 @@ if __name__=="__main__":
 
     if 1:
         #compute cl
-        #compute and save rhoexp
-        #plot rho exp
-        bincldat=bintest_get_Clvals(finestN=6,z0=0.7,justread=0)
-        
-        #bintest_rhoexpplot(allzedges,labels,rhoarray)
-        
+        #bincldat=bintest_get_Clvals(finestN=6,z0=0.7,justread=0)
+        #compute and save expectation values for rho
+        #bintest_get_rhoexp(finestN=6,z0=0.7,overwrite=False,doplot=True)
+        bintest_plot_zwindowfuncs()
