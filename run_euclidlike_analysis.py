@@ -370,34 +370,34 @@ def bintest_get_zedgeslist(zedges,getdivs=['all'],returnstr=True):
 #----------------------------------------------------------------    
 # Generate Cl
 #----------------------------------------------------------------
-def bintest_get_maptypelist(finestN=6,getdivs=['all'],z0=0.7,includeisw=True):
+def bintest_get_maptypelist(finestN=6,getdivs=['all'],z0=0.7,sigz=0.05,includeisw=True):
     #get zedges
     zedges0=bintest_get_finest_zedges(finestN,z0) #for finest division
     zedges,divstr=bintest_get_zedgeslist(zedges0,getdivs,True) 
     Ntypes=len(zedges)
     maptypes=[] #list of maptype objects, put finest div first
-    maintag='euc{0:d}bindiv'.format(finestN)
+    maintag='euc{0:d}bins{1:02d}div'.format(finestN,int(100*sigz))
     if includeisw:
         iswmaptype=get_fullISW_MapType(zmax=10)
         maptypes.append(iswmaptype)
     for i in xrange(Ntypes):
         #print 'getting survey for zedges=',zedges[i]
         tag=maintag+divstr[i]
-        survey=get_Euclidlike_SurveyType(z0=0.7,tag=tag,zedges=zedges[i])
+        survey=get_Euclidlike_SurveyType(sigz=sigz,z0=0.7,tag=tag,zedges=zedges[i])
         maptypes.append(survey)
     return maptypes
 
-def bintest_get_binmaps(finestN=6,getdivs=['all'],z0=0.7,includeisw=True,justfinest=False):
+def bintest_get_binmaps(finestN=6,getdivs=['all'],z0=0.7,sigz=0.05,includeisw=True,justfinest=False):
     if justfinest:
         getdivs=['1'*finestN]
-    maptypes=bintest_get_maptypelist(finestN,getdivs,z0,includeisw)
+    maptypes=bintest_get_maptypelist(finestN,getdivs,z0,sigz,includeisw)
     binmaps,bintags=get_binmaplist(maptypes)
     return binmaps
 
 #given surveytype tag or binmap tag, extract the XXX part of the divXXX label
 def bintest_divstr_from_maptag(maptag):
     isbin='_bin' in maptag
-    startind=maptag.rfind('bindiv')+6
+    startind=maptag.rfind('div')+3
     endind=maptag.rfind('_bin')*isbin + (not isbin)*len(maptag)
     return maptag[startind:endind]
 
@@ -417,20 +417,19 @@ def bintest_combinewhich(divstr,baseN=6):
     return outlists
 
 # Get/generate Cl for 6 (or largest number of) bins
-def bintest_get_baseClvals(finestN=6,z0=0.7,justread=True):
-    binmaps=bintest_get_binmaps(finestN,z0=z0,justfinest=True)
+def bintest_get_baseClvals(finestN=6,z0=0.7,sigz=0.05,justread=True):
+    binmaps=bintest_get_binmaps(finestN,z0=z0,sigz=sigz,justfinest=True)
     zmax=max(m.zmax for m in binmaps)
-    rundat = ClRunData(tag='eucbintest{0:d}'.format(finestN),iswilktag='eucbintest',rundir='output/eucbintest/',lmax=95,zmax=zmax)
+    rundat = ClRunData(tag='eucbintest{0:d}s{1:02d}'.format(finestN,int(100*sigz)),iswilktag='eucbintest',rundir='output/eucbintest/',lmax=95,zmax=zmax)
     return getCl(binmaps,rundat,dopairs=['all'],DoNotOverwrite=justread)
 # 
-def bintest_get_Clvals(finestN=6,z0=0.7,justread=True):
+def bintest_get_Clvals(finestN=6,z0=0.7,sigz=0.05,justread=True):
     #get info for isw and finest binned division, calculate cls
     if not justread:
-        basecl=bintest_get_baseClvals(finestN,z0,justread)
-        basemaptype=bintest_get_maptypelist(finestN,['1'*finestN],z0,includeisw=False)[0]
+        basecl=bintest_get_baseClvals(finestN,z0,sigz,justread)
+        basemaptype=bintest_get_maptypelist(finestN,['1'*finestN],z0,sigz,includeisw=False)[0]
         basemaptag=basemaptype.tag
-        maptypes=bintest_get_maptypelist(finestN,['all'],z0,includeisw=False)
-    
+        maptypes=bintest_get_maptypelist(finestN,['all'],z0,sigz,includeisw=False)    
         # combine bins to get Cl for other divisions
         FIRST=True
         for mt in maptypes:
@@ -467,9 +466,9 @@ def bintest_get_Clvals(finestN=6,z0=0.7,justread=True):
     return nextcl
 
 #Return list of RecData objects, one per binning scheme
-def bintest_get_reclist(finestN=6,z0=0.7,getdivs=['all']):
+def bintest_get_reclist(finestN=6,z0=0.7,sigz=0.05,getdivs=['all']):
     #get binmaps
-    maptypes= bintest_get_maptypelist(finestN,getdivs,z0,includeisw=False)
+    maptypes= bintest_get_maptypelist(finestN,getdivs,z0,sigz,includeisw=False)
     Nrec=len(maptypes)
     reclist=[]
     for i in xrange(Nrec):
@@ -483,18 +482,19 @@ def bintest_get_reclist(finestN=6,z0=0.7,getdivs=['all']):
 #get cl for all bin combos (assumes they're already computed)
 # and computes expectation values for rho, saving that data to file
 # if overwrite==False and that file exists, just read it in
-def bintest_get_rhoexp(finestN=6,z0=0.7,overwrite=False,doplot=True):
+def bintest_get_rhoexp(finestN=6,z0=0.7,sigz=0.05,overwrite=False,doplot=True):
     outdir = 'output/eucbintest/plots/'
-    datfile='eucbintest_rhoexp.dat'
+    datfile='eucbintest{0:02d}_rhoexp.dat'.format(int(100*sigz))
+    print datfile
     if not overwrite and os.path.isfile(outdir+datfile): #file exists
         x=np.loadtxt(outdir+datfile)
-        divstr=[str(int(x[i,0])) for i in xrange(x.shape[1])]
+        divstr=[str(int(x[i,0])) for i in xrange(x.shape[0])]
         rhoarray=x[:,1]
     else:
         #get cl
-        cldat=bintest_get_Clvals(finestN,z0,justread=True)
+        cldat=bintest_get_Clvals(finestN,z0,sigz,justread=True)
         #set up recdata objects for each bin combo
-        reclist=bintest_get_reclist(finestN,z0) #NEED TO WRITE THIS FN
+        reclist=bintest_get_reclist(finestN,z0,sigz) #NEED TO WRITE THIS FN
         Nrec=len(reclist)
         rhoarray=np.zeros(Nrec)
         divstr=bintest_get_divstr_all(finestN) #string div labels
@@ -509,8 +509,19 @@ def bintest_get_rhoexp(finestN=6,z0=0.7,overwrite=False,doplot=True):
         zedges0=bintest_get_finest_zedges(finestN,z0)
         allzedges=bintest_get_zedgeslist(zedges0,['all'],False)
         bintest_rhoexpplot(allzedges,divstr,rhoarray)
-        
     return divstr,rhoarray
+
+#if we've computed Cl stuff for multiple values of sigz0, compare them
+def bintest_rhoexp_comparesigs(finestN=6,z0=0.7,sigzlist=[0.03,0.05]):
+    outname='eucbintest_rhoexp.png'
+    rholist=[]
+    for s in sigzlist:
+        divstr,rho=(finestN,z0,s,overwrite=False,doplot=False)[1]
+        rholist.append(rho)
+    labellist=['$\\sigma_z(0)={0:0.2f}$'.format(s) for s in sigzlist]
+    zedges0=bintest_get_finest_zedges(finestN,z0)
+    allzedges=bintest_get_zedgeslist(zedges0,['all'],False)
+    bintest_rhoexplot(allzedges,divstr,rholist,labellist,outname)
 
 #----------------------------------------------------------------
 # Make maps and run reconstructions
@@ -526,9 +537,12 @@ def bintest_get_rhoexp(finestN=6,z0=0.7,overwrite=False,doplot=True):
 
 #plot expectation value of rho for different binning strategy
 # with illustrative y axis
-def bintest_rhoexpplot(allzedges,labels,rhoarray):
+def bintest_rhoexpplot(allzedges,labels,rhoarraylist,labellist=[],outname=''):
+    if type(rhoarraylist[0])!=np.ndarray: #just one array passed,not list of arr
+        rhoarraylist=[rhoarraylist]
     plotdir='output/eucbintest/plots/'
-    outname='eucbintest_rhoexp.png'
+    if not outname:
+        outname='eucbintest_rhoexp.png'
     colors=['#1b9e77','#d95f02','#7570b3','#e7298a','#66a61e','#e6ab02']
     Npoints=len(labels)
     yvals=np.arange(Npoints)
@@ -576,7 +590,12 @@ def bintest_rhoexpplot(allzedges,labels,rhoarray):
     ax2.xaxis.set_ticks_position('bottom')
     ax2.set_xlabel(r'$\langle \rho \rangle$')
     ax2.grid(True)
-    ax2.scatter(rhoarray,yvals)
+    for i in xrange(len(rhoarraylist)):
+        rhoarray=rhoarraylist[i]
+        if labellist:
+            ax2.scatter(rhoarray,yvals,label=labellist[i])
+        else:
+            ax2.scatter(rhoarray,yvals)
     plt.setp(ax2.get_yticklabels(), visible=False)
     plt.setp(ax2.get_xticklabels()[0], visible=False)#don't show number at first label
     print 'Saving plot to ',plotdir+outname
@@ -669,7 +688,9 @@ if __name__=="__main__":
 
     if 1:
         #compute cl
-        #bincldat=bintest_get_Clvals(finestN=6,z0=0.7,justread=0)
+        #cldat05=bintest_get_Clvals(finestN=6,z0=0.7,sigz=0.05,justread=0)
         #compute and save expectation values for rho
-        #bintest_get_rhoexp(finestN=6,z0=0.7,overwrite=False,doplot=True)
-        bintest_plot_zwindowfuncs()
+        d05,rho05=bintest_get_rhoexp(finestN=6,z0=0.7,sigz=0.05,overwrite=False,doplot=True)
+        #WORKING HERE: COMBPARE SIG=0.03 and 0.05 tomorrow
+        #bintest_rhoexp_comparesigs(finestN=6,z0=0.7,sigzlist=[0.03,0.05])
+        #bintest_plot_zwindowfuncs()
