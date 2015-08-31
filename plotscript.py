@@ -36,13 +36,16 @@ def bintest_rhoexpplot(allzedges,labels,rhoarray):
     zinddict={zvals[i]:i for i in xrange(Nz)}
 
     #divide fiture up into two vertical pieces
-    plt.figure(0)
-    fig,(ax1,ax2)=plt.subplots(1,2,sharey=True)
-    plt.title(r'Expected correlation between $T^{{\rm ISW}}$ and $T^{{\rm rec}}$')
+    fig=plt.figure(0)
+    plt.suptitle(r'Expected correlation coef. between $T^{{\rm ISW}}$ and $T^{{\rm rec}}$', size=18)
+    ax1 = plt.subplot(1,3,1)
+    ax2 = plt.subplot(1,3,(2,3),sharey=ax1)
+    fig.subplots_adjust(hspace=0, wspace=0) #put them right next to eachother
+
     #left side has illustration of binning strategy
     plt.sca(ax1)
     plt.ylim((-1,Npoints))
-    plt.xlim((0,6))
+    plt.xlim((0,6.1))#at 6, plots butt up against each other
     plt.xlabel(r'Redshift bin edges $z$')
     ax1.xaxis.set_ticks_position('bottom')
     plt.yticks(yvals, labels)
@@ -58,45 +61,25 @@ def bintest_rhoexpplot(allzedges,labels,rhoarray):
     ax1.spines['right'].set_visible(False)
     ax1.spines['bottom'].set_visible(False)
     ax1.spines['left'].set_visible(False)
-    ax2.spines['left'].set_visible(False)
-    ax2.spines['right'].set_visible(False)
 
     #ax1.yaxis.ticks.set_visible(False)
     for i in xrange(Npoints):
-        #figure out how to plot bars instead of poiints
         Nbins=len(allzedges[i])-1
         xvalsi=[zinddict[allzedges[i][j]] for j in xrange(Nbins+1)]
-        print i,',',labels[i],':',xvalsi
         yvalsi=i*np.ones(len(allzedges[i]))
-        ax1.barh(yvalsi,xvalsi[::-1],color=colors[Nbins-1],edgecolor='white',linewidth=2)
+        ax1.barh(yvalsi-.5,xvalsi[::-1],color=colors[Nbins-1],edgecolor='white',linewidth=2)
 
     #right side has the expectation values for rho plotted
-    #ax2=plt.subplot(121, sharey=ax1)
     plt.sca(ax2)
+    ax2.yaxis.set_ticks_position('left')
+    ax2.xaxis.set_ticks_position('bottom')
     ax2.set_xlabel(r'$\langle \rho \rangle$')
     ax2.grid(True)
     ax2.scatter(rhoarray,yvals)
+    plt.setp(ax2.get_yticklabels(), visible=False)
+    plt.setp(ax2.get_xticklabels()[0], visible=False)#don't show number at first label
 
-
-    plt.subplots_adjust(hspace=0)#space between plots
-    plt.tight_layout()
     plt.savefig(plotdir+outname)
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 
 
 #################################################################

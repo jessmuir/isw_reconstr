@@ -426,31 +426,96 @@ def bintest_get_baseClvals(finestN=6,z0=0.7,justread=True):
 def bintest_get_Clvals(finestN=6,z0=0.7,justread=True):
     #NEED TO TEST
     #get info for isw and finest binned division, calculate cls
-    basecl=get_get_baseClvals(finestN,z0,justread)
-    basemaptype=bintest_get_maptypelist(finestN,['1'*finestN],z0,includeisw=False)[0]
-    basemaptag=basemaptype.tag
-    maptypes=bintest_get_maptypelist(finestN,['all'],z0,includeisw=False)
+    if not justread:
+        basecl=get_get_baseClvals(finestN,z0,justread)
+        basemaptype=bintest_get_maptypelist(finestN,['1'*finestN],z0,includeisw=False)[0]
+        basemaptag=basemaptype.tag
+        maptypes=bintest_get_maptypelist(finestN,['all'],z0,includeisw=False)
     
-    # combine bins to get Cl for other divisions
-    FIRST=True
-    for mt in maptypes:
-        t=mt.tag
-        if t!=basemaptag: #if it's not the base map type
-            divstr=bintest_divstr_from_maptag(t)
-            combinebins=bintest_combinewhich(divstr,finestN)
-            for i in len(combinebins):
-                combolist=combinebins[i]
-                intags=[''.join([basemaptag,'_bin',str(x)]) for x in combolist]
-                outtag=''.join([t,'_bin',str(i)])
-                if FIRST:
-                    nextcl=combineCl_binlist(basecl,intags,combotag=outtag,newruntag=basecl.rundata.tag+'all')
-                    FIRST=False
-                else:
-                    nextcl=combineCl_binlist(nextcl,intags,combotag=outtag)
-    #write to file
-    writeCl_file(nextcl)
+        # combine bins to get Cl for other divisions
+        FIRST=True
+        for mt in maptypes:
+            t=mt.tag
+            if t!=basemaptag: #if it's not the base map type
+                divstr=bintest_divstr_from_maptag(t)
+                combinebins=bintest_combinewhich(divstr,finestN)
+                for i in len(combinebins):
+                    combolist=combinebins[i]
+                    intags=[''.join([basemaptag,'_bin',str(x)]) for x in combolist]
+                    outtag=''.join([t,'_bin',str(i)])
+                    if FIRST:
+                        nextcl=combineCl_binlist(basecl,intags,combotag=outtag,newruntag=basecl.rundata.tag+'all')
+                        FIRST=False
+                    else:
+                        nextcl=combineCl_binlist(nextcl,intags,combotag=outtag)
+        #write to file
+        writeCl_file(nextcl)
+    else:
+        #read in data that has already been combined
+        binmaps=bintest_get_binmaps(finestN,z0=z0)
+        zmax=max(m.zmax for m in binmaps)
+        rundat = ClRunData(tag='eucbintest{0:d}all'.format(finestN),iswilktag='eucbintest',rundir='output/eucbintest/',lmax=95,zmax=zmax)
+        nextcl= getCl(binmapss,rundat,dopairs=['all'],DoNotOverwrite=True)
+# 
     return nextcl
 
+#plot expectation value of rho for different binning strategy
+# with illustrative y axis
+def bintest_rhoexpplot(allzedges,labels,rhoarray):
+    plotdir='output/eucbintest/plots/'
+    outname='bintest_rhoexp.png'
+    colors=['#1b9e77','#d95f02','#7570b3','#e7298a','#66a61e','#e6ab02']
+    Npoints=len(labels)
+    yvals=np.arange(Npoints)
+    zvals=allzedges[-1] #should be base value
+    Nz=zvals.size
+    zinddict={zvals[i]:i for i in xrange(Nz)}
+
+    #divide fiture up into two vertical pieces
+    fig=plt.figure(0)
+    plt.suptitle(r'Expected correlation coef. between $T^{{\rm ISW}}$ and $T^{{\rm rec}}$', size=18)
+    ax1 = plt.subplot(1,3,1)
+    ax2 = plt.subplot(1,3,(2,3),sharey=ax1)
+    fig.subplots_adjust(hspace=0, wspace=0) #put them right next to eachother
+
+    #left side has illustration of binning strategy
+    plt.sca(ax1)
+    plt.ylim((-1,Npoints))
+    plt.xlim((0,6.1))#at 6, plots butt up against each other
+    plt.xlabel(r'Redshift bin edges $z$')
+    ax1.xaxis.set_ticks_position('bottom')
+    plt.yticks(yvals, labels)
+    plt.xticks(np.arange(Nz),['{0:0.1f}'.format(z) for z in zvals])
+    plt.tick_params(
+        axis='y',          # changes apply to the x-axis
+        which='both',      # both major and minor ticks are affected
+        left='off',      # ticks along the left edge are off
+        right='off')         # ticks along the right edge are off
+
+    #hide border
+    ax1.spines['top'].set_visible(False)
+    ax1.spines['right'].set_visible(False)
+    ax1.spines['bottom'].set_visible(False)
+    ax1.spines['left'].set_visible(False)
+
+    #ax1.yaxis.ticks.set_visible(False)
+    for i in xrange(Npoints):
+        Nbins=len(allzedges[i])-1
+        xvalsi=[zinddict[allzedges[i][j]] for j in xrange(Nbins+1)]
+        yvalsi=i*np.ones(len(allzedges[i]))
+        ax1.barh(yvalsi-.5,xvalsi[::-1],color=colors[Nbins-1],edgecolor='white',linewidth=2)
+
+    #right side has the expectation values for rho plotted
+    plt.sca(ax2)
+    ax2.yaxis.set_ticks_position('left')
+    ax2.xaxis.set_ticks_position('bottom')
+    ax2.set_xlabel(r'$\langle \rho \rangle$')
+    ax2.grid(True)
+    ax2.scatter(rhoarray,yvals)
+    plt.setp(ax2.get_yticklabels(), visible=False)
+    plt.setp(ax2.get_xticklabels()[0], visible=False)#don't show number at first label
+
+    plt.savefig(plotdir+outname)
 
 
 #----------------------------------------------------------------
@@ -488,8 +553,17 @@ if __name__=="__main__":
         print "time:",str(t1-t0),"sec"
     if 0:
         depthtest_get_glm_and_rec(Nreal=10000,z0vals=depthtestz0,justgetrho=0,minreal=0)
-    if 1:
+    if 0:
         depthtest_TTscatter(0,depthtestz0,False)
         #depthtest_plot_zwindowfuncs(depthtestz0)
         #depthtest_plot_rhohist(depthtestz0,True)
         #depthtest_rho_tests()
+
+    if 1:
+        #compute cl
+        #compute and save rhoexp
+        #plot rho exp
+        bincldat=bintest_get_Clvals(finestN=6,z0=0.7,justread=0)
+        
+        #bintest_rhoexpplot(allzedges,labels,rhoarray)
+        
