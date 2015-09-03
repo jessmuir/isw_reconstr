@@ -376,7 +376,7 @@ def bintest_get_maptypelist(finestN=6,getdivs=['all'],z0=0.7,sigz=0.05,includeis
     zedges,divstr=bintest_get_zedgeslist(zedges0,getdivs,True) 
     Ntypes=len(zedges)
     maptypes=[] #list of maptype objects, put finest div first
-    maintag='euc{0:d}bins{1:02d}div'.format(finestN,int(100*sigz))
+    maintag='euc{0:d}bins{1:03d}div'.format(finestN,int(1000*sigz))
     if includeisw:
         iswmaptype=get_fullISW_MapType(zmax=10)
         maptypes.append(iswmaptype)
@@ -420,7 +420,7 @@ def bintest_combinewhich(divstr,baseN=6):
 def bintest_get_baseClvals(finestN=6,z0=0.7,sigz=0.05,justread=True):
     binmaps=bintest_get_binmaps(finestN,z0=z0,sigz=sigz,justfinest=True)
     zmax=max(m.zmax for m in binmaps)
-    rundat = ClRunData(tag='eucbintest{0:d}s{1:02d}'.format(finestN,int(100*sigz)),iswilktag='eucbintest',rundir='output/eucbintest/',lmax=95,zmax=zmax)
+    rundat = ClRunData(tag='eucbintest{0:d}s{1:03d}'.format(finestN,int(1000*sigz)),iswilktag='eucbintest',rundir='output/eucbintest/',lmax=95,zmax=zmax)
     return getCl(binmaps,rundat,dopairs=['all'],DoNotOverwrite=justread)
 # 
 def bintest_get_Clvals(finestN=6,z0=0.7,sigz=0.05,justread=True):
@@ -457,9 +457,9 @@ def bintest_get_Clvals(finestN=6,z0=0.7,sigz=0.05,justread=True):
         writeCl_file(nextcl)
     else:
         #read in data that has already been combined
-        binmaps=bintest_get_binmaps(finestN,z0=z0)
+        binmaps=bintest_get_binmaps(finestN,z0=z0,sigz=sigz)
         zmax=max(m.zmax for m in binmaps)
-        rundat = ClRunData(tag='eucbintest{0:d}all'.format(finestN),iswilktag='eucbintest',rundir='output/eucbintest/',lmax=95,zmax=zmax)
+        rundat = ClRunData(tag='eucbintest{0:d}s{1:03d}all'.format(finestN,int(1000*sigz)),iswilktag='eucbintest',rundir='output/eucbintest/',lmax=95,zmax=zmax)
         nextcl= getCl(binmaps,rundat,dopairs=['all'],DoNotOverwrite=True)
         print 'nextcl.Ncross',nextcl.Ncross
         print 'nextcl.docross.size',len(nextcl.docross)
@@ -482,9 +482,13 @@ def bintest_get_reclist(finestN=6,z0=0.7,sigz=0.05,getdivs=['all']):
 #get cl for all bin combos (assumes they're already computed)
 # and computes expectation values for rho, saving that data to file
 # if overwrite==False and that file exists, just read it in
-def bintest_get_rhoexp(finestN=6,z0=0.7,sigz=0.05,overwrite=False,doplot=True):
+def bintest_get_rhoexp(finestN=6,z0=0.7,sigz=0.05,overwrite=False,doplot=True,Nneighb=-1):
     outdir = 'output/eucbintest/plots/'
-    datfile='eucbintest{0:02d}_rhoexp.dat'.format(int(100*sigz))
+    if Nneighb>-1:
+        datfile='eucbintest{0:03d}_rhoexp_neighb{1:1d}.dat'.format(int(1000*sigz),Nneighb)
+    else:
+        datfile='eucbintest{0:03d}_rhoexp.dat'.format(int(1000*sigz))
+    
     print datfile
     if not overwrite and os.path.isfile(outdir+datfile): #file exists
         x=np.loadtxt(outdir+datfile)
@@ -499,7 +503,7 @@ def bintest_get_rhoexp(finestN=6,z0=0.7,sigz=0.05,overwrite=False,doplot=True):
         rhoarray=np.zeros(Nrec)
         divstr=bintest_get_divstr_all(finestN) #string div labels
         for r in xrange(Nrec):
-            rhoarray[r]=compute_rho_fromcl(cldat,reclist[r])
+            rhoarray[r]=compute_rho_fromcl(cldat,reclist[r],Nneighb)
         #write rhoarray to file
         f=open(outdir+datfile,'w')
         f.write(''.join(['{0:8s} {1:8.3f}\n'.format(divstr[i],rhoarray[i]) for i in xrange(Nrec)]))
@@ -512,16 +516,37 @@ def bintest_get_rhoexp(finestN=6,z0=0.7,sigz=0.05,overwrite=False,doplot=True):
     return divstr,rhoarray
 
 #if we've computed Cl stuff for multiple values of sigz0, compare them
-def bintest_rhoexp_comparesigs(finestN=6,z0=0.7,sigzlist=[0.03,0.05]):
-    outname='eucbintest_rhoexp.png'
+def bintest_rhoexp_comparesigs(finestN=6,z0=0.7,sigzlist=[0.03,0.05],checkautoonly=True):
     rholist=[]
     for s in sigzlist:
-        divstr,rho=(finestN,z0,s,overwrite=False,doplot=False)[1]
+        divstr,rho=bintest_get_rhoexp(finestN,z0,s,overwrite=False,doplot=False)
         rholist.append(rho)
-    labellist=['$\\sigma_z(0)={0:0.2f}$'.format(s) for s in sigzlist]
+    legtitle='$\\sigma_z(z)*(1+z)^{{-1}}$'
+    labellist=['${0:0.3f}$'.format(s) for s in sigzlist]
     zedges0=bintest_get_finest_zedges(finestN,z0)
     allzedges=bintest_get_zedgeslist(zedges0,['all'],False)
-    bintest_rhoexplot(allzedges,divstr,rholist,labellist,outname)
+    markerlist=[]
+    colorlist=[]
+    outtag=''
+    if checkautoonly: #see what happens if cross bin power info not included
+        outtag='_varyneighb'
+        scattercolors=['#e41a1c','#377eb8','#4daf4a','#984ea3','#ff7f00','#ffff33','#a65628','#f781bf']
+        colorlist=scattercolors[:len(labellist)]
+        markerlist=['o']*len(labellist)
+        marks=['x','+']
+        for n in [0,1]:
+            i=0
+            for s in sigzlist:
+                divstr,rho=bintest_get_rhoexp(finestN,z0,s,overwrite=False,doplot=False,Nneighb=n)
+                rholist.append(rho)
+                markerlist.append(marks[n])
+                labellist.append('${0:0.3f}$,{1:1d}nb'.format(s,n))
+                colorlist.append(scattercolors[i])
+                i+=1
+    outname='eucbintest_rhoexp'+outtag+'.png'
+    bintest_rhoexpplot(allzedges,divstr,rholist,labellist,outname,legtitle,markerlist,colorlist,outtag)
+
+
 
 #----------------------------------------------------------------
 # Make maps and run reconstructions
@@ -537,13 +562,14 @@ def bintest_rhoexp_comparesigs(finestN=6,z0=0.7,sigzlist=[0.03,0.05]):
 
 #plot expectation value of rho for different binning strategy
 # with illustrative y axis
-def bintest_rhoexpplot(allzedges,labels,rhoarraylist,labellist=[],outname=''):
+def bintest_rhoexpplot(allzedges,labels,rhoarraylist,labellist=[],outname='',legtitle='',markerlist=[],colorlist=[],outtag=''):
     if type(rhoarraylist[0])!=np.ndarray: #just one array passed,not list of arr
         rhoarraylist=[rhoarraylist]
     plotdir='output/eucbintest/plots/'
     if not outname:
-        outname='eucbintest_rhoexp.png'
+        outname='eucbintest_rhoexp'+outtag+'.png'
     colors=['#1b9e77','#d95f02','#7570b3','#e7298a','#66a61e','#e6ab02']
+    scattercolors=['#e41a1c','#377eb8','#4daf4a','#984ea3','#ff7f00','#ffff33','#a65628','#f781bf']
     Npoints=len(labels)
     yvals=np.arange(Npoints)
     zvals=allzedges[-1] #should be base value
@@ -590,23 +616,35 @@ def bintest_rhoexpplot(allzedges,labels,rhoarraylist,labellist=[],outname=''):
     ax2.xaxis.set_ticks_position('bottom')
     ax2.set_xlabel(r'$\langle \rho \rangle$')
     ax2.grid(True)
+    if not markerlist:
+        markerlist=['o']*len(labellist)
+    if not colorlist:
+        colorlist=scattercolors
     for i in xrange(len(rhoarraylist)):
         rhoarray=rhoarraylist[i]
+        m=markerlist[i]
         if labellist:
-            ax2.scatter(rhoarray,yvals,label=labellist[i])
+            if m=='o':
+                ax2.scatter(rhoarray,yvals,label=labellist[i],color=colorlist[i],marker=m,edgecolor='black')
+            else:
+                ax2.scatter(rhoarray,yvals,label=labellist[i],color=colorlist[i],marker=m)
         else:
-            ax2.scatter(rhoarray,yvals)
+            ax2.scatter(rhoarray,yvals,color=colorlist[i],marker=m)
+
+    if labellist:
+        plt.legend(loc='upper left',fontsize=12,title=legtitle)
     plt.setp(ax2.get_yticklabels(), visible=False)
     plt.setp(ax2.get_xticklabels()[0], visible=False)#don't show number at first label
     print 'Saving plot to ',plotdir+outname
     plt.savefig(plotdir+outname)
+    plt.close()
 
 #----------------
-def bintest_plot_zwindowfuncs(finestN=6,z0=0.7,doiswkernel=True):
-    bins=bintest_get_binmaps(finestN,z0=0.7,includeisw=False,justfinest=True)#just gal maps
-    sigz0=bins[0].sigz0
+def bintest_plot_zwindowfuncs(finestN=6,z0=0.7,sigz=0.05,doiswkernel=True):
+    bins=bintest_get_binmaps(finestN,z0=0.7,sigz=sigz,includeisw=False,justfinest=True)#just gal maps
+    sigz0=sigz
     plotdir='output/eucbintest/plots/'
-    plotname='eucbintest_zbins'
+    plotname='eucbintest_zbins_s{0:03d}'.format(int(1000*sigz))
     
     Nbins=len(bins)
     zmax=3.
@@ -628,14 +666,14 @@ def bintest_plot_zwindowfuncs(finestN=6,z0=0.7,doiswkernel=True):
     plt.title(r'Bin test: redshift distributions',fontsize=16)
     plt.xlabel('Redshift z',fontsize=16)
     plt.ylabel('Source distribution (arbitrary units)',fontsize=16)
-    ymax=4.
+    ymax=0.3
     plt.ylim(0,ymax)
     plt.xlim(0,zmax)
     ax.tick_params(axis='x', labelsize=18)
     
     for n in xrange(Nbins):
         m=bins[n]
-        wgrid=m.window(zgrid)#*m.nbar/1.e9
+        wgrid=m.window(zgrid)*m.nbar/1.e9
         colstr=colors[n%len(colors)]
         #plt.fill_between(zgrid,0,wgrid, facecolor=colstr,edgecolor='none',linewidth=2, alpha=0.3)
         plt.plot(zgrid,wgrid,color=colstr,linestyle='-',linewidth=2)
@@ -647,16 +685,100 @@ def bintest_plot_zwindowfuncs(finestN=6,z0=0.7,doiswkernel=True):
         plt.plot(cosmz,kernel*scaleby,color='grey',label='ISW kernel',linewidth=2,linestyle='--')
         plt.legend(loc='upper right',fancybox=False, framealpha=0.,prop={'size':16},handlelength=3.5)
         
-    eqstr='$\\frac{{dn}}{{dz}} \\propto \\,z^2 e^{{-\\left(z/z_0\\right)^{{1.5}}}}$\n $z_0={0:0.1f}$, $\\sigma_z={1:0.2f}(1+z)$'.format(z0,sigz0)
+    eqstr='$\\frac{{dn}}{{dz}} \\propto \\,z^2 e^{{-\\left(z/z_0\\right)^{{1.5}}}}$\n $z_0={0:0.1f}$, $\\sigma_z={1:0.3f}(1+z)$'.format(z0,sigz0)
     #eqstr='$\frac{{dn}}{{dz}} \propto \,z^2 e^{{-\left(z/z_0\right)^{{1.5}}}}$\n $z_0={0:0.1f}$, $\sigma_z={1:0.2f}(1+z)$'.format(z0,sigz0)
 
-    textbox=ax.text(1.7, 3.5, eqstr,fontsize=16,verticalalignment='top',ha='left')#, transform=ax.transAxes, fontsize=15,verticalalignment='top', ha='right',multialignment      = 'left',bbox={'facecolor':'none','edgecolor':'none'))
+    textbox=ax.text(1.7, .25, eqstr,fontsize=16,verticalalignment='top',ha='left')#, transform=ax.transAxes, fontsize=15,verticalalignment='top', ha='right',multialignment      = 'left',bbox={'facecolor':'none','edgecolor':'none'))
 
     outname=plotdir+plotname+'.png'
     print 'saving',outname
     plt.savefig(outname)
     plt.close()
 
+#----------------
+#look at how correlated differnt base-bins are with one another and ISW
+def bintest_plot_cl_vals(finestN=6,z0=0.7,sigz=0.05):
+    outdir='output/eucbintest/plots/'
+    outname='clvals_eucbintest{0:d}s{1:03d}.png'.format(finestN,int(1000*sigz))
+    title='$C_{{\\ell}}^{{XY}}$ for Euclid-like survey with {0:d} bins, $\\sigma_z={1:0.3f}$'.format(finestN,sigz)
+    cldat=bintest_get_baseClvals(finestN,z0,sigz,justread=True)
+    ell=cldat.rundat.lvals
+    
+    #get shortened label names
+    labellist=[]
+    counter=0
+    for b in cldat.bintaglist:
+        if 'isw' in b:
+            labellist.append('ISW')
+            iswind=counter
+        else:
+            labellist.append(b[b.rfind('bin'):])#just 'bin0' 'bin1',etc
+        counter+=1
+    Nbins=cldat.Nmap
+        
+    #set up plots
+    plt.figure(0,figsize=(7.5,10))#letter size paper?
+    plt.suptitle(title,size=14)
+    colorlist=['#1f78b4', '#33a02c','#e31a1c', '#ff7f00','#cab2d6', '#6a3d9a', '#b15928','#a6cee3','#b2df8a','#fb9a99','#fdbf6f']
+    
+    #plot auto power vs ell
+    autocrosslist=[cldat.crossinds[i,i] for i in xrange(Nbins)]#crossinds to include
+    ax1=plt.subplot(311)
+    #plt.title('Auto-power, X=Y')
+    plt.grid(True)
+    plt.ylabel(r'$\ell(\ell+1)|C_{\ell}^{XX}|/(2\pi)$')
+    plt.ylim(1.e-12,1.e-2)
+    for n in xrange(Nbins):
+        if n==iswind: col='grey'
+        else: col=colorlist[(n-(n>iswind))%len(colorlist)]
+        plt.loglog(ell,ell*(ell+1)*np.fabs(cldat.cl[autocrosslist[n],:])/(2*np.pi),color=col,label=labellist[n])
+    plt.legend(title='Auto-power, X=Y',prop={'size':8},ncol=2,loc='center right')
+ 
+    #plot x-corr between maps and ISW
+    iswcrosslist=[]
+    for i in xrange(Nbins):
+        if i!=iswind:
+            iswcrosslist.append(cldat.crossinds[i,iswind])
+    ax2=plt.subplot(312, sharex=ax1)
+    #plt.title('Cross power with ISW')
+    plt.grid(True)
+    plt.ylabel(r'$\ell(\ell+1)|C_{\ell}^{X-{\rm ISW}}|/(2\pi)$')
+    plt.ylim(1.e-10,1.e-6)
+    for n in xrange(Nbins):
+        if n==iswind: continue
+        else:
+            #print 'colind',(n-(n>iswind))%len(colorlist)
+            col=colorlist[(n-(n>iswind))%len(colorlist)]
+            plt.loglog(ell,ell*(ell+1)*np.fabs(cldat.cl[iswcrosslist[n-(n>iswind)],:])/(2*np.pi),color=col,label=labellist[n])
+    plt.legend(title='Cross-power w ISW',prop={'size':8},ncol=2,loc='lower right')
+    
+    #plot x-corr between neighboring bins
+    Nnei=2 #number of neibhors to include
+    n1crosslist=[]
+    n1labellist=[]
+    for nn in xrange(1,Nnei+1):
+        for n in xrange(Nbins-1-nn):
+            if i!=iswind and (i+nn)!=iswind: #assumes isw is at ind 0 or -1
+                n1crosslist.append(cldat.crossinds[n,n+nn])
+                n1labellist.append(labellist[n]+'-'+labellist[n+nn])
+    ax2=plt.subplot(313, sharex=ax1)
+    #plt.title('Cross power with neighboring bins')
+    plt.grid(True)
+    plt.ylabel(r'$\ell(\ell+1)|C_{\ell}^{XY}|/(2\pi)$')
+    plt.ylim(1.e-9,1.e-2)
+    plt.xlabel(r'Multipole $\ell$')
+    for n in xrange(len(n1crosslist)):
+        if n==iswind: continue
+        else:
+            col=colorlist[n%len(colorlist)]
+            plt.loglog(ell,ell*(ell+1)*np.fabs(cldat.cl[n1crosslist[n],:])/(2*np.pi),color=col,label=n1labellist[n])
+    plt.legend(title='Cross-power w neighbors',prop={'size':8},ncol=2,loc='upper left')
+    
+    #save output
+    print "Saving plot to ",outdir+outname
+    plt.savefig(outdir+outname)
+    plt.close()
+    
 #================================================================
 # smoothing test - vary photoz uncertainty for fid Euclid like survey
 #                  with a set number of bins
@@ -689,8 +811,15 @@ if __name__=="__main__":
     if 1:
         #compute cl
         #cldat05=bintest_get_Clvals(finestN=6,z0=0.7,sigz=0.05,justread=0)
+        #cldat03=bintest_get_Clvals(finestN=6,z0=0.7,sigz=0.03,justread=0)
+        #cldat001=bintest_get_Clvals(finestN=6,z0=0.7,sigz=0.001,justread=0)
+        
         #compute and save expectation values for rho
-        d05,rho05=bintest_get_rhoexp(finestN=6,z0=0.7,sigz=0.05,overwrite=False,doplot=True)
-        #WORKING HERE: COMBPARE SIG=0.03 and 0.05 tomorrow
-        #bintest_rhoexp_comparesigs(finestN=6,z0=0.7,sigzlist=[0.03,0.05])
-        #bintest_plot_zwindowfuncs()
+        #bintest_rhoexp_comparesigs(finestN=6,z0=0.7,sigzlist=[0.001,0.03,0.05],checkautoonly=True)
+
+        for s in [0.001,0.03,0.05,0.1]:
+            #bintest_plot_cl_vals(finestN=6,z0=0.7,sigz=s)
+            #bintest_plot_zwindowfuncs(sigz=s)
+            pass
+        #TOMORROW: add sig=0.01 to rho plot whent hat finishes running
+        # look at cl values using plt_cl_vals

@@ -598,9 +598,33 @@ def read_rhodat_wfile(filename):
     return rho
 
 #compute the expected value of rho, given theoretical Cl
-def compute_rho_fromcl(cldat,recdat):
+# If Nneighbors=-1, use all available data in Cl
+#     if it is 0: set everything that's not bin-isw or bin-auto to zero
+#     if it is 1: use only bin-isw, bin-auto, and bin-nearest neighbor
+#                 etc.
+def compute_rho_fromcl(cldat,recdat,Nneighbors=-1):
     #Dl is a matrix of Cls, with isw at zero index
     #  and other maps in order specified by recdat.includecl
+    if Nneighbors>-1:
+        oldcl=cldat.cl[:,:]#deep copy, hang onto original info
+        maptypes=[]
+        binnums=[]
+        for i in xrange(cldat.Nmap):
+            b=cldat.bintaglist[i]
+            if 'isw' in b:
+                iswind=i
+            maptypes.append(b[:b.rfind('_bin')])
+            binnums.append(int(b[b.rfind('_bin')+4:]))
+        for n in xrange(cldat.Ncross):
+            i,j=cldat.crosspairs[n]
+            keepthisn=False
+            if maptypes[i]==maptypes[j] and np.fabs(binnums[i]-binnums[j])<=Nneighbors:
+                keepthisn=True#keep Nneibhors neighboring bins
+            elif i==iswind or j==iswind: #keep cross power with isw
+                keepthisn=True
+            if not keepthisn:#go through and set unnoted cross power to zero
+                cldat.cl[n,:]=np.zeros(cldat.Nell)
+        
     lmin=recdat.lmin
     Dl,dtags=get_Dl_matrix(cldat,recdat.includecl,recdat.zerotagstr)
     Dinv=invert_Dl(Dl)
@@ -637,6 +661,8 @@ def compute_rho_fromcl(cldat,recdat):
     
     denom=np.sqrt(sig2isw*sig2rec)
     result=numerator/denom
+    if Nneighbors>-1: #set Cl back to original values
+        cldat.cl=oldcl
     return result
     
 def rho_sampledist(r,rho,NSIDE=32,Nsample=0): #here rho is the expected mean
@@ -670,7 +696,6 @@ def rho_sampledist(r,rho,NSIDE=32,Nsample=0): #here rho is the expected mean
             coef = np.sqrt((N-3.)/(2.*np.pi))
             result[i]= coef*expval/(1.-r**2)
         i+=1
-
     if not ISARRAY:
         result=result[0]
     return result
