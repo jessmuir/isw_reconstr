@@ -813,9 +813,10 @@ if __name__=="__main__":
         #cldat05=bintest_get_Clvals(finestN=6,z0=0.7,sigz=0.05,justread=0)
         #cldat03=bintest_get_Clvals(finestN=6,z0=0.7,sigz=0.03,justread=0)
         #cldat001=bintest_get_Clvals(finestN=6,z0=0.7,sigz=0.001,justread=0)
+        #cldat100=bintest_get_Clvals(finestN=6,z0=0.7,sigz=0.1,justread=0)
         
         #compute and save expectation values for rho
-        #bintest_rhoexp_comparesigs(finestN=6,z0=0.7,sigzlist=[0.001,0.03,0.05],checkautoonly=True)
+        #bintest_rhoexp_comparesigs(finestN=6,z0=0.7,sigzlist=[0.001,0.03,0.05,0.1],checkautoonly=False)
 
         for s in [0.001,0.03,0.05,0.1]:
             #bintest_plot_cl_vals(finestN=6,z0=0.7,sigz=s)
