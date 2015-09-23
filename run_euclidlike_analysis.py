@@ -81,7 +81,7 @@ def depthtest_get_glm_and_rec(Nreal=1,z0vals=np.array([.3,.6,.7,.8]),minreal=0,j
     cldat=depthtest_get_Cl(justread=True,z0vals=z0vals)
     makeplots=Nreal==1
     rlzns=np.arange(minreal,minreal+Nreal)
-    reclist=depththest_get_reclist(z0vals)
+    reclist=depthtest_get_reclist(z0vals)
     getmaps_fromCl(cldat,rlzns=rlzns,reclist=reclist,justgetrho=justgetrho)
     t1=time.time()
     print "total time for Nreal",Nreal,": ",t1-t0,'sec'
@@ -498,7 +498,7 @@ def bintest_get_rhoexp(finestN=6,z0=0.7,sigz=0.05,overwrite=False,doplot=True,Nn
         #get cl
         cldat=bintest_get_Clvals(finestN,z0,sigz,justread=True)
         #set up recdata objects for each bin combo
-        reclist=bintest_get_reclist(finestN,z0,sigz) #NEED TO WRITE THIS FN
+        reclist=bintest_get_reclist(finestN,z0,sigz) 
         Nrec=len(reclist)
         rhoarray=np.zeros(Nrec)
         divstr=bintest_get_divstr_all(finestN) #string div labels
@@ -532,12 +532,13 @@ def bintest_rhoexp_comparesigs(finestN=6,z0=0.7,sigzlist=[0.03,0.05],checkautoon
         outtag='_varyneighb'
         scattercolors=['#e41a1c','#377eb8','#4daf4a','#984ea3','#ff7f00','#ffff33','#a65628','#f781bf']
         colorlist=scattercolors[:len(labellist)]
-        markerlist=['o']*len(labellist)
-        marks=['x','+']
-        for n in [0,1]:
+        markerlist=['D']*len(labellist)
+        marks=['x','*']
+        for n in [1,0]:
             i=0
             for s in sigzlist:
                 divstr,rho=bintest_get_rhoexp(finestN,z0,s,overwrite=False,doplot=False,Nneighb=n)
+                #print divstr,rho
                 rholist.append(rho)
                 markerlist.append(marks[n])
                 labellist.append('${0:0.3f}$,{1:1d}nb'.format(s,n))
@@ -546,8 +547,33 @@ def bintest_rhoexp_comparesigs(finestN=6,z0=0.7,sigzlist=[0.03,0.05],checkautoon
     outname='eucbintest_rhoexp'+outtag+'.png'
     bintest_rhoexpplot(allzedges,divstr,rholist,labellist,outname,legtitle,markerlist,colorlist,outtag)
 
-
-
+#--------------------
+def bintest_test_rhoexp():
+    Nneighb=0
+    finestN=6
+    z0=0.7
+    sigzlist=[0.1]
+    Nsig=len(sigzlist)
+    divstrlist=['6','111111']
+    Ndiv=len(divstrlist)
+    #get cl
+    cldatlist=[]
+    recgrid=[]#sigz,divstr
+    rhogrid=np.zeros((Nsig,Ndiv))#sigz,divstr
+    for s in xrange(Nsig):
+        cldat=bintest_get_Clvals(finestN,z0,sigzlist[s],justread=True)
+        cldatlist.append(cldat)
+    for s in xrange(Nsig):
+        print 'sigma=',sigzlist[s],'============'
+        cldat=cldatlist[s]
+        reclist=bintest_get_reclist(finestN,z0,sigzlist[s],divstrlist) 
+        recgrid.append(reclist)
+        for r in xrange(Ndiv):
+            print '  div:',divstrlist[r],'----------'
+            rhogrid[s,r]=compute_rho_fromcl(cldat,reclist[r],Nneighb)
+            print '    rho=',rhogrid[s,r]
+    
+    
 #----------------------------------------------------------------
 # Make maps and run reconstructions
 #----------------------------------------------------------------
@@ -555,6 +581,36 @@ def bintest_rhoexp_comparesigs(finestN=6,z0=0.7,sigzlist=[0.03,0.05],checkautoon
 #note that we can really just save maps for the finest division
 # and then do some adding to get stats on combined bins
 #  will need to add glm to do reconstructions though
+
+#use cldat to generate glm, alm, and maps; saves maps but not alm #NEED TO TEST
+def bintest_get_glm_and_rec(Nreal=1,divlist=['6','222','111111'],minreal=0,justgetrho=0):
+    t0=time.time()
+    allcldat=bintest_get_Clvals(justread=True) #default finestN,z0,sigz
+    makeplots=Nreal==1
+    rlzns=np.arange(minreal,minreal+Nreal)
+    reclist=bintest_get_reclist(getdivs=divlist)
+    #get reduced cl with only desired divlist maps in it; 
+    maptypes=bintest_get_maptypelist(finestN=6,getdivs=divlist,z0=0.7,sigz=0.05,includeisw=True)
+    mapsfor=[mt.tag for mt in maptypes] #tags for maps we want to make
+    cldat=get_reduced_cldata(allcldat,dothesemaps=mapsfor)
+    print '--------cldat info-----------------'
+    print 'nmaps',cldat.Nmap
+    print 'ncross',cldat.Ncross
+    print cldat.bintaglist
+    print 'shape',cldat.cl.shape
+    print '-----------------------------------'
+    
+    getmaps_fromCl(cldat,rlzns=rlzns,reclist=reclist,justgetrho=justgetrho)
+    t1=time.time()
+    print "total time for Nreal",Nreal,": ",t1-t0,'sec'
+
+#get arrays of rho saved in .rho.dat files #TEST
+def bintest_read_rho_wfiles(divlist=['6','222','111111'],sigz=0.05):
+    mapdir='output/eucbintest/map_output/'
+    files=['iswREC.euc6bins{0:03d}div{1:s}.fid.fullsky.eucbintest6s{0:03d}all.rho.dat'.format(int(1000*sigz,d)) for d in divlist]
+    rhogrid=np.array([read_rhodat_wfile(mapdir+f) for f in files])
+    return rhogrid
+
 
 #----------------------------------------------------------------
 # Analysis: make plots
@@ -617,15 +673,15 @@ def bintest_rhoexpplot(allzedges,labels,rhoarraylist,labellist=[],outname='',leg
     ax2.set_xlabel(r'$\langle \rho \rangle$')
     ax2.grid(True)
     if not markerlist:
-        markerlist=['o']*len(labellist)
+        markerlist=['D']*len(labellist)
     if not colorlist:
         colorlist=scattercolors
     for i in xrange(len(rhoarraylist)):
         rhoarray=rhoarraylist[i]
         m=markerlist[i]
         if labellist:
-            if m=='o':
-                ax2.scatter(rhoarray,yvals,label=labellist[i],color=colorlist[i],marker=m,edgecolor='black')
+            if m=='D':
+                ax2.scatter(rhoarray,yvals,label=labellist[i],color=colorlist[i],marker=m)#,edgecolor='black')
             else:
                 ax2.scatter(rhoarray,yvals,label=labellist[i],color=colorlist[i],marker=m)
         else:
@@ -670,10 +726,11 @@ def bintest_plot_zwindowfuncs(finestN=6,z0=0.7,sigz=0.05,doiswkernel=True):
     plt.ylim(0,ymax)
     plt.xlim(0,zmax)
     ax.tick_params(axis='x', labelsize=18)
-    
+    nbartot=0
     for n in xrange(Nbins):
         m=bins[n]
         wgrid=m.window(zgrid)*m.nbar/1.e9
+        nbartot+=m.nbar
         colstr=colors[n%len(colors)]
         #plt.fill_between(zgrid,0,wgrid, facecolor=colstr,edgecolor='none',linewidth=2, alpha=0.3)
         plt.plot(zgrid,wgrid,color=colstr,linestyle='-',linewidth=2)
@@ -685,7 +742,7 @@ def bintest_plot_zwindowfuncs(finestN=6,z0=0.7,sigz=0.05,doiswkernel=True):
         plt.plot(cosmz,kernel*scaleby,color='grey',label='ISW kernel',linewidth=2,linestyle='--')
         plt.legend(loc='upper right',fancybox=False, framealpha=0.,prop={'size':16},handlelength=3.5)
         
-    eqstr='$\\frac{{dn}}{{dz}} \\propto \\,z^2 e^{{-\\left(z/z_0\\right)^{{1.5}}}}$\n $z_0={0:0.1f}$, $\\sigma_z={1:0.3f}(1+z)$'.format(z0,sigz0)
+    eqstr='$\\frac{{dn}}{{dz}} \\propto \\,z^2 e^{{-\\left(z/z_0\\right)^{{1.5}}}}$\n $z_0={0:0.1f}$, $\\sigma_z={1:0.3f}(1+z)$\n $\\bar{{n}}_{{\\rm tot}}={2:g}$'.format(z0,sigz0,nbartot)
     #eqstr='$\frac{{dn}}{{dz}} \propto \,z^2 e^{{-\left(z/z_0\right)^{{1.5}}}}$\n $z_0={0:0.1f}$, $\sigma_z={1:0.2f}(1+z)$'.format(z0,sigz0)
 
     textbox=ax.text(1.7, .25, eqstr,fontsize=16,verticalalignment='top',ha='left')#, transform=ax.transAxes, fontsize=15,verticalalignment='top', ha='right',multialignment      = 'left',bbox={'facecolor':'none','edgecolor':'none'))
@@ -800,27 +857,28 @@ if __name__=="__main__":
         depthtest_get_Cl(justread=False,z0vals=depthtestz0)
         t1=time.time()
         print "time:",str(t1-t0),"sec"
-    if 0:
+    if 0: #generate depthhtest maps
         depthtest_get_glm_and_rec(Nreal=10000,z0vals=depthtestz0,justgetrho=0,minreal=0)
-    if 0:
+    if 0: #plot info about depthtest maps
         depthtest_TTscatter(0,depthtestz0,False)
         #depthtest_plot_zwindowfuncs(depthtestz0)
-        #depthtest_plot_rhohist(depthtestz0,True)
+        depthtest_plot_rhohist(depthtestz0,True)
         #depthtest_rho_tests()
 
-    if 1:
+    if 0: #bin test rho expectation value calculations
         #compute cl
         #cldat05=bintest_get_Clvals(finestN=6,z0=0.7,sigz=0.05,justread=0)
         #cldat03=bintest_get_Clvals(finestN=6,z0=0.7,sigz=0.03,justread=0)
         #cldat001=bintest_get_Clvals(finestN=6,z0=0.7,sigz=0.001,justread=0)
         #cldat100=bintest_get_Clvals(finestN=6,z0=0.7,sigz=0.1,justread=0)
         
-        #compute and save expectation values for rho
-        #bintest_rhoexp_comparesigs(finestN=6,z0=0.7,sigzlist=[0.001,0.03,0.05,0.1],checkautoonly=False)
+        #compute and save expectation values for rho[0.001,0.03,0.05,0.1]
+        bintest_rhoexp_comparesigs(finestN=6,z0=0.7,sigzlist=[0.001,0.03,0.05],checkautoonly=1)
 
         for s in [0.001,0.03,0.05,0.1]:
             #bintest_plot_cl_vals(finestN=6,z0=0.7,sigz=s)
             #bintest_plot_zwindowfuncs(sigz=s)
             pass
-        #TOMORROW: add sig=0.01 to rho plot whent hat finishes running
-        # look at cl values using plt_cl_vals
+        
+    if 1: #bin test with many realizations, generate maps
+        bintest_get_glm_and_rec(Nreal=10000,divlist=['6','222','111111'],minreal=0,justgetrho=0)

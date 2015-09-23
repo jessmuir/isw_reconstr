@@ -543,18 +543,18 @@ def generate_many_glm_fromcl(cldata,Nreal=1,rlzns=np.array([]),savedat=True,file
 #    savedat - if True, save glm data to file
 #    filetag - string, filetag for glmdata; 
 #    retglmData - if true returns a glmData object, otherwise just glm array
-#
 #================================================
 def generate_glmdat_fromcl(cldata,rlz=0,savedat=True,filetag='',retglmData=True,matchClruntag=True,runtag=''):
     #need contiguous lvals starting at 0 to use healpy.synalm
-    # rlz is the realization number of this generation; just for labeling
     rundat=cldata.rundat
-    if matchClruntag:
-        runtag=cldata.rundat.tag
-    bintaglist=cldata.bintaglist
+    # rlz is the realization number of this generation; just for labeling
     if rundat.lvals.size!=rundat.lmax+1:
         print "**STOPPING! Need contiguous lvals for healpy to give glm"
         return
+    if matchClruntag:
+        runtag=cldata.rundat.tag
+    bintaglist=cldata.bintaglist
+        
     #need match between Ncross and Nmaps
     Ncross=cldata.cl.shape[0]
     Nmaps = len(bintaglist)
@@ -572,6 +572,8 @@ def generate_glmdat_fromcl(cldata,rlz=0,savedat=True,filetag='',retglmData=True,
         return glmdat 
     else:
         return glmgrid #just return [map][lm] array
+
+
 #------------------------------------------------------------------------
 # Here glmdata is a glmData object
 #      #will write a unique file for each realization

@@ -1243,7 +1243,7 @@ def renameCl_binmap(cldat,intag,newtag,newruntag='',keeporig=True):
         #just copy over other data
         clgrid=cldat.cl[:,:]
         newdocross=cldat.docross[:]
-        newnbarlist=cldat.nbarlist[:]
+        newnbarlist=cldat.nbar[:]
     else:
         newNmap=cldat.Nmap+keeporig
         innbar=cldat.nbar[inmapind]
@@ -1328,4 +1328,40 @@ def combineCl_binlist(cldat,taglist,combotag,newruntag='',keeporig=True,renamesi
     return outcldat
 
 
+#------------------------------------------------------------------------
+# get_reduced_cldata
+#   returns ClData object with some maps, etc taken out;
+#   map indices of output matches order given in dothesemaps
+def get_reduced_cldata(incldat,dothesemaps=[]):
+    bintaglist=incldat.bintaglist
+    keepinds=[]
+    newtags=[]
+    newnbars=[]
+    #check that dothese maps is smaller than bintaglist
+    for m in dothesemaps: #if so construct new bintaglist 
+        if '_bin' in m: #is a specific map
+            mi = np.where(bintaglist==m)[0][0]
+            keepinds.append(mi)
+            newtags.append(m)
+            newnbars.append(incldat.nbar[mi])
+        else: #is a maptype
+            for mi in xrange(incldat.Nmap):
+                if m in bintaglist[mi]:
+                    keepinds.append(mi)
+                    newtags.append(bintaglist[mi])
+                    newnbars.append(incldat.nbar[mi])
+    # use similar alg to that constructing Dl matrices to get recuded cldata
+    newNmap = len(newtags)
+    newNcross=newNmap*(newNmap+1)/2
+    outxpairs,outxinds=get_index_pairs(newNmap)
+    outcl = np.zeros((newNcross,incldat.Nell))
+    for i in xrange(newNmap):
+        for j in xrange(i,newNmap):
+            ci=keepinds[i] #mapind of i in input cl basis
+            cj=keepinds[j] #mapind of j in input cl basis
+            cxij = incldat.crossinds[ci,cj] #crossind of ij pair in input clbasis
+            outcxij= outxinds[i,j] #crossind of ij pair in output cl basis
+            outcl[outcxij,:]=incldat.cl[cxij,:]
 
+    outcldat=ClData(incldat.rundat,newtags,incldat.pairs,outcl,nbarlist=newnbars)
+    return outcldat

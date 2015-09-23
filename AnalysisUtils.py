@@ -123,8 +123,8 @@ def get_Dl_matrix(cldat,includelist=[],zerotag='isw_bin0'):
             ci=clind[i] #mapind of i in cl basis
             cj=clind[j] #mapind of j in cl basis
             cxij = cldat.crossinds[ci,cj] #crossind of ij pair in clbasis
-            D[:,i,j]=cldat.cl[cxij,:]
-            if i!=j: D[:,j,i]=cldat.cl[cxij,:] #matrix is symmetric
+            D[:,i,j]=cldat.cl[cxij,:]+cldat.noisecl[cxij,:]
+            if i!=j: D[:,j,i]=cldat.cl[cxij,:]+cldat.noisecl[cxij,:] #matrix is symmetric
 
     #print 'det(D)=',np.linalg.det(D)
     return D,dtags
@@ -607,6 +607,7 @@ def compute_rho_fromcl(cldat,recdat,Nneighbors=-1):
     #  and other maps in order specified by recdat.includecl
     if Nneighbors>-1:
         oldcl=cldat.cl[:,:]#deep copy, hang onto original info
+        oldnoisecl=cldat.noisecl[:,:]
         maptypes=[]
         binnums=[]
         for i in xrange(cldat.Nmap):
@@ -619,14 +620,18 @@ def compute_rho_fromcl(cldat,recdat,Nneighbors=-1):
             i,j=cldat.crosspairs[n]
             keepthisn=False
             if maptypes[i]==maptypes[j] and np.fabs(binnums[i]-binnums[j])<=Nneighbors:
+                #print 'keeping',cldat.bintaglist[i],cldat.bintaglist[j]
                 keepthisn=True#keep Nneibhors neighboring bins
             elif i==iswind or j==iswind: #keep cross power with isw
                 keepthisn=True
             if not keepthisn:#go through and set unnoted cross power to zero
                 cldat.cl[n,:]=np.zeros(cldat.Nell)
+                cldat.noisecl[n,:]=np.zeros(cldat.Nell)
+
         
     lmin=recdat.lmin
     Dl,dtags=get_Dl_matrix(cldat,recdat.includecl,recdat.zerotagstr)
+    #print Dl[5,:,:]
     Dinv=invert_Dl(Dl)
     Nell=Dinv.shape[0]
     lvals=np.arange(Nell)
@@ -655,14 +660,17 @@ def compute_rho_fromcl(cldat,recdat,Nneighbors=-1):
         sig2recli=np.zeros(lvals.size)
         for j in xrange(NLSS):
             sig2recli+=-1*Nl*Dinv[:,0,j+1]*Dl[:,j+1,i+1]
-        sig2recl+=sig2recli*-1*Nl*Dinv[:,0,i+1]
+        sig2recl+=sig2recli*(-1)*Nl*Dinv[:,0,i+1]
     sig2recl*=includel*(2.*lvals+1)
     sig2rec=np.sum(sig2recl)
     
     denom=np.sqrt(sig2isw*sig2rec)
+    #print '   FINAL   num,demon:',numerator,denom
     result=numerator/denom
     if Nneighbors>-1: #set Cl back to original values
         cldat.cl=oldcl
+        cldat.noisecl=oldnoisecl
+    #print result
     return result
     
 def rho_sampledist(r,rho,NSIDE=32,Nsample=0): #here rho is the expected mean
@@ -681,7 +689,7 @@ def rho_sampledist(r,rho,NSIDE=32,Nsample=0): #here rho is the expected mean
         if np.fabs(r)>=1:
             result[i]=0.
         else:
-            if Nsample: #WORKING HERE
+            if Nsample: 
                 N=Nsample
             else:
                 N=hp.nside2npix(NSIDE)
