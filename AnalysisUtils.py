@@ -384,6 +384,21 @@ def rho_onereal(map1,map2):
     #print 'rho=',rho
     return rho
 
+# s: compute s (variance of difference) between pixels of two maps
+#   #input: two heapy map arrays with equal NSIDE
+#   #output: s = <(map1-map2)^2>/(variance(map1)*variance(map2))
+#                 where <> means average over all pixels
+def s_onereal(map1,map2):
+    if map1.size!=map2.size:
+        print "Can't compute correlation between maps with different NSIDE.***"
+        return 0
+    diff=map1-map2
+    vardiff=np.mean(diff*diff)
+    sig1=np.sqrt(np.var(map1))
+    sig2=np.sqrt(np.var(map2))
+    s= vardiff/(sig1*sig2)
+    return s
+
 #-------------------------------------------------------------------------
 # The glm files take up a lot of space in memory;
 # this function is meant to bundle together:
@@ -479,6 +494,22 @@ def calc_rho_forreclist(glmdat,almdat,reclist,rlzns,savedat=True,overwrite=False
             save_rhodat(rhovals,rlzns,truemapbase,recmapbase,overwrite=overwrite,filetag=rhofiletag)
         
     return np.array(rhogrid)
+
+def calc_s_forreclist(glmdat,almdat,reclist,rlzns,savedat=True,overwrite=False,sfiletag=''):
+    #print "Computing s statistics"
+    sgrid=[]
+    for i in xrange(len(reclist)):
+        truemapf=glmdat.get_mapfile_fortags(0,reclist[i].zerotagstr)
+        truemapbase=truemapf[:truemapf.rfind('.r')]
+        recmapf=almdat.get_mapfile(0,i,'fits')
+        recmapbase=recmapf[:recmapf.rfind('.r')]
+
+        svals=s_manyreal(truemapbase,recmapbase,rlzns=rlzns,savedat=False)
+        sgrid.append(svals)
+        if savedat:
+            save_rhodat(svals,rlzns,truemapbase,recmapbase,overwrite=overwrite,filetag=sfiletag,varname='s')
+        
+    return np.array(rhogrid)
     
 #------------------------------------------------------------------------
 # rho_manyreal -  find correlations between pairs of maps for many realizations
@@ -501,12 +532,32 @@ def rho_manyreal(truefilebase,recfilebase,Nreal=1,rlzns=np.array([]),savedat=Fal
         #compute cross correlations and store the value
         rhovals[r]=rho_onereal(map1,map2)
     if savedat:
-        save_rhodat(rhovals,rlzns,truefilebase,recfilebase,overwrite=overwrite,filetag='')
+        save_rhodat(rhovals,rlzns,truefilebase,recfilebase,overwrite=overwrite,filetag=rhofiletag)
     return rhovals
+
+def s_manyreal(truefilebase,recfilebase,Nreal=1,rlzns=np.array([]),savedat=False,overwrite=False,sfiletag=''):
+    if rlzns.size:
+        Nreal=rlzns.size
+    else:
+        rlzns=np.arange(Nreal)
+    svals=np.zeros(Nreal)
+    #read in the maps
+    for r in xrange(Nreal):
+        f1=''.join([truefilebase,'.r{0:05d}.fits'.format(rlzns[r])])
+        f2=''.join([recfilebase,'.r{0:05d}.fits'.format(rlzns[r])])
+        map1=hp.read_map(f1,verbose=False)
+        map2=hp.read_map(f2,verbose=False)
+        #compute cross correlations and store the value
+        svals[r]=s_onereal(map1,map2)
+    if savedat:
+        save_rhodat(svals,rlzns,truefilebase,recfilebase,overwrite=overwrite,filetag=sfiletag,varname='s')
+    return svals
+
 
 #------------------------------------------------------------------------------
 # save_rhodat - save rho data to file
-def save_rhodat(rhovals,rlzns,truefilebase,recfilebase,overwrite=False,filetag=''):
+#     NOTE: can also be used to save s data; just pass varname='s'
+def save_rhodat(rhovals,rlzns,truefilebase,recfilebase,overwrite=False,filetag='',varname='rho'):
     if filetag:
         tagstr='_'+filetag
     else:
@@ -514,7 +565,7 @@ def save_rhodat(rhovals,rlzns,truefilebase,recfilebase,overwrite=False,filetag='
     truestr=truefilebase[truefilebase.rfind('/')+1:]
     recstr=recfilebase[recfilebase.rfind('/')+1:]
 
-    outf=''.join([recfilebase.replace('/'+recstr+'/','/'),tagstr,'.rho.dat'])
+    outf=''.join([recfilebase.replace('/'+recstr+'/','/'),tagstr,'.'+varname+'.dat'])
     #if overwrite, or if no file exists, write, otherwise append
     NEWFILE=overwrite or not os.path.isfile(outf)
     
@@ -560,7 +611,7 @@ def save_rhodat(rhovals,rlzns,truefilebase,recfilebase,overwrite=False,filetag='
         f.write('rec isw:  '+recstr+'\n')
         f.write('NReal: '+str(Nreal)+'\n')
         f.write('mean: {0:0.3f}\n'.format(np.mean(rhovals)))
-        f.write('{0:5s} {1:s}\n'.format('rlzn','rho'))
+        f.write('{0:5s} {1:s}\n'.format('rlzn',varname))
     else:
         f=open(outf,'a') #just add data to end
 
@@ -569,7 +620,9 @@ def save_rhodat(rhovals,rlzns,truefilebase,recfilebase,overwrite=False,filetag='
     f.write(bodystr)
     f.close()
 
-def get_rho_filename(recdat,recalmdat,filetag=''):
+    #
+def get_rho_filename(recdat,recalmdat,filetag='',varname='rho'):
+    #can also be used for s data
     if filetag:
         tagstr='_'+filetag
     else:
@@ -580,17 +633,19 @@ def get_rho_filename(recdat,recalmdat,filetag=''):
     filebase=recalmdat.get_mapfile_base(recind)
     outf=real0file.replace('/'+filebase+'/','/')
     outf=outf[:outf.rfind('.r')]
-    outf=outf+tagstr+'.rho.dat'
+    outf=outf+tagstr+'.'+varname+'.dat'
     return outf
 
-def read_rhodat(recdat,recalmdat,filetag=''):
-    f=get_rho_filename(recdat,recalmdata,filetag)
+def read_rhodat(recdat,recalmdat,filetag='',varname='rho'):
+    #can also be used for s data
+    f=get_rho_filename(recdat,recalmdata,filetag,varname)
     dat=np.loadtxt(f,skiprows=6)
     rlzns=dat[:,0]
     rho=dat[:,1]
     return rho
 
 def read_rhodat_wfile(filename):
+    #can also be used for s data
     print 'reading',filename
     dat=np.loadtxt(filename,skiprows=6)
     rlzns=dat[:,0]
@@ -708,11 +763,58 @@ def rho_sampledist(r,rho,NSIDE=32,Nsample=0): #here rho is the expected mean
         result=result[0]
     return result
 
+# compute expectation value of s, the variance of the difference between
+# true and rec ISW maps, from theoretical Cl
+def compute_s_fromcl(cldat,recdat):
+    #Dl is a matrix of Cls, with isw at zero index
+    #  and other maps in order specified by recdat.includecl
+    lmin=recdat.lmin
+    Dl,dtags=get_Dl_matrix(cldat,recdat.includecl,recdat.zerotagstr)
+    #print Dl[5,:,:]
+    Dinv=invert_Dl(Dl)
+    Nell=Dinv.shape[0]
+    lvals=np.arange(Nell)
+    Nl=np.zeros(Nell)
+    for l in xrange(Nell):
+        if Dinv[l,0,0]!=0:
+            Nl[l]=1/Dinv[l,0,0]
+
+    includel=(lvals>=lmin)
+    NLSS=recdat.Nmap
+    
+
+    #for sigisw, just sum over l
+    sig2iswl=includel*(2.*lvals+1)*Dl[:,0,0]
+    sig2isw=np.sum(sig2iswl)
+
+    #for sigrec, sum over LSS maps 2x (ij), then l
+    sig2recl=np.zeros(lvals.size)
+    for i in xrange(NLSS):
+        sig2recli=np.zeros(lvals.size)
+        for j in xrange(NLSS):
+            sig2recli+=-1*Nl*Dinv[:,0,j+1]*Dl[:,j+1,i+1]
+        sig2recl+=sig2recli*(-1)*Nl*Dinv[:,0,i+1]
+    sig2recl*=includel*(2.*lvals+1)
+    sig2rec=np.sum(sig2recl)
+
+    #for each l sum over LSS maps for numerator, the sum over l
+    crosspowerell = np.zeros(lvals.size)
+    for i in xrange(NLSS):
+        crosspowerell+=Dinv[:,0,i+1]*Dl[:,0,i+1]
+    crosspowerell*=-1*includel*Nl*(2.*lvals+1)
+    numerator=sig2rec+sig2isw -2*np.sum(crosspowerell)
+    
+    denom=np.sqrt(sig2isw*sig2rec)
+    #print '   FINAL   num,demon:',numerator,denom
+    result=numerator/denom
+    #print result
+    return result
 ###########################################################################
 # plotting functions
 ###########################################################################
 #------------------------------------------------------------------------------
 #plot_Tin_Trec  - make scatter plot comparing true to reconstructed isw
+#------------------------------------------------------------------------------
 def plot_Tin_Trec(iswmapfiles,recmapfiles,reclabels,plotdir='output/',plotname='',colorlist=[]):
     if not colorlist:
         colors=['#404040','#c51b8a','#0571b0','#66a61e','#ffa319','#d7191c']
@@ -774,6 +876,64 @@ def plot_Tin_Trec(iswmapfiles,recmapfiles,reclabels,plotdir='output/',plotname='
     plt.savefig(plotdir+plotname+'.png')
     plt.close()
 
+#-----------------------------------------------------------------------------
+# plot rho hist - plots histograms of rho
+#  rhogrid - NrecxNreal array of rho values
+#  reclabels - Nrec string labels for legend, order matches rhogrid 0 axis
+#  rhopred - if empty, nothing happens. if not, holds Nrec <rho> values 
+#-----------------------------------------------------------------------------
+def plot_rhohist(rhogrid,reclabels,testname,plotdir,plotname,rhopred=[]):
+    varstr='\rho'
+    title=r'{0:s}: correlation coef. $\rho$ for {1:g} rlzns'.format(testname,Nreal)
+    xtitle=r'$\rho=\langle T_{{\rm true}}T_{{\rm rec}}\rangle_{{\rm pix}}/\sigma_{{T}}^{{\rm true}}\sigma_{{T}}^{{\rm rec}}$'
+    plothist(varstr,rhogrid,reclabels,title,xtitle,plotdir,plotname,rhopred)
 
+#-----------------------------------------------------------------------------
+#plot_hists - plot histograms of some quantity
+# varstr - string to label variable being plotted in hist, eg '\rho'
+# datagrid - Nrec x Nreal data to be used as hist input
+# reclabels - Nrec strings to be used as labels for legend
+# plottitle - string title of plot
+# xlabel - string, to be used to label x axis
+# plotdir - directory in which we'll save the plot
+# plotname - filename under which we'll save the plot
+# predvalues - if we've computed expectation values analytically, pass them here
+#              if they're given, they'll print in legend, plot vertical line
+#-----------------------------------------------------------------------------
+def plothist(varstr,datagrid,reclabels,plottitle,xlabel,plotdir,plotname,predvals=[]):
+    Nbins=100
+    Nrecs=rhogrid.shape[0]
+    Nreal=rhogrid.shape[1]
+    maxval=np.max(datagrid)
+    minval=np.min(datagrid)
+    vallim=(minval,maxval)
+    #rholim=(0.,maxrho)
+    
+    colors=['#1b9e77','#d95f02','#e7298a','#7570b3','#66a61e','#e6ab02']
+    plt.figure(0)
+    plt.title(plotname)
+    plt.xlabel(xlabel,fontsize=16)
+    plt.ylabel('realizations',fontsize=16)
+    for i in xrange(Nrecs):
+        mean=np.mean(datagrid[i,:])
+        sigma=np.std(datagrid[i,:])
+        colstr=colors[i%len(colors)]
+        if predvals:
+            predval=predvals[i]
+            plt.axvline(predval,linestyle='-',color=colstr)
+            label=r'{0:s}: $\langle{4:s}\rangle={3:0.3f}$; $\bar{{{4:s}}}={1:0.3f}$, $\sigma={2:0.3f}$'.format(reclabels[i],mean,sigma,rhoval,varstr)
+        else:
+            label=r'{0:s}: $\bar{{{3:s}}}={1:0.3f}$, $\sigma={2:0.3f}$'.format(reclabels[i],mean,sigma,varstr)
+        plt.axvline(mean,linestyle='--',color=colstr)
+        nvals,evals,patches=plt.hist(datagrid[i,:],bins=Nbins,range=vallim,histtype='stepfilled',label=label)
+        plt.setp(patches,'facecolor',colstr,'alpha',0.6)
 
+    if predvals:
+        plt.plot(np.array([]),np.array([]),linestyle='--',color='black',label='mean from sample')
+        plt.plot(np.array([]),np.array([]),linestyle='-',color='black',label='expectation value')
 
+    plt.legend(loc='upper left')
+    outname=plotdir+plotname+'.png'
+    print 'saving',outname
+    plt.savefig(outname)
+    plt.close()
