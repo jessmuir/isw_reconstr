@@ -76,22 +76,29 @@ def depthtest_get_reclist(z0vals=np.array([.3,.6,.7,.8])):
     return reclist
 
 #use cldat to generate glm, alm, and maps; saves maps but not alm
-def depthtest_get_glm_and_rec(Nreal=1,z0vals=np.array([.3,.6,.7,.8]),minreal=0,justgetrho=0):
+def depthtest_get_glm_and_rec(Nreal=1,z0vals=np.array([.3,.6,.7,.8]),minreal=0,justgetrho=0,dorell=0):
     t0=time.time()
     cldat=depthtest_get_Cl(justread=True,z0vals=z0vals)
     makeplots=Nreal==1
     rlzns=np.arange(minreal,minreal+Nreal)
     reclist=depthtest_get_reclist(z0vals)
-    getmaps_fromCl(cldat,rlzns=rlzns,reclist=reclist,justgetrho=justgetrho)
+    getmaps_fromCl(cldat,rlzns=rlzns,reclist=reclist,justgetrho=justgetrho,dorell=dorell)
     t1=time.time()
     print "total time for Nreal",Nreal,": ",t1-t0,'sec'
 
-#get arrays of rho saved in .rho.dat files
-def depthtest_read_rho_wfiles(z0vals=np.array([.3,.6,.7,.8])):
+#get arrays of rho saved in .rho.dat files or .s.dat
+def depthtest_read_rho_wfiles(z0vals=np.array([.3,.6,.7,.8]),varname='rho'):
     mapdir='output/depthtest/map_output/'
-    files=['iswREC.eucz{0:02d}.fid.fullsky.depthtest.rho.dat'.format(int(10*z0)) for z0 in z0vals]
+    files=['iswREC.eucz{0:02d}.fid.fullsky.depthtest.{1:s}.dat'.format(int(10*z0),varname) for z0 in z0vals]
     rhogrid=np.array([read_rhodat_wfile(mapdir+f) for f in files])
     return rhogrid
+
+#get arrays of rho saved in .rell.dat files
+def depthtest_read_rell_wfiles(z0vals=np.array([.3,.6,.7,.8]),varname='rell'):
+    mapdir='output/depthtest/map_output/'
+    files=['iswREC.eucz{0:02d}.fid.fullsky.depthtest.{1:s}.dat'.format(int(10*z0),varname) for z0 in z0vals]
+    rellgrid=np.array([read_relldat_wfile(mapdir+f) for f in files])
+    return rellgrid #[reconstruction,realization,ell]
 
 #----------------------------------------------------------------
 # Analysis: make plots
@@ -131,29 +138,64 @@ def depthtest_plot_zwindowfuncs(z0vals=np.array([.3,.6,.7,.8])):
     plt.close()
     
 #--------------------------------
-def depthtest_plot_rhohist(z0vals=np.array([.3,.6,.7,.8]),plotsampledist=True,getrhopred=True):
-    #if plotsampledist, plot curve of expected sample distribution
+# plot histogram of rho or s, switch between variables given by varname
+def depthtest_plot_rhohist(z0vals=np.array([.3,.6,.7,.8]),getrhopred=True,varname='rho'):
     plotdir='output/depthtest/plots/'
     testname="Depth test"
-    rhogrid=depthtest_read_rho_wfiles(z0vals)
+    rhogrid=depthtest_read_rho_wfiles(z0vals,varname)
     Nreal=rhogrid.shape[1]
     if getrhopred:
-        rhopred=depthtest_get_expected_rho(z0vals)
+        rhopred=depthtest_get_expected_rho(z0vals,varname)
     else:
         rhopred=[]
-    plotname ='depthtest_rhohist_r{0:05d}'.format(Nreal)
+    plotname ='depthtest_{1:s}hist_r{0:05d}'.format(Nreal,varname)
     reclabels=['$z_0={0:0.1f}$'.format(z0) for z0 in z0vals]
-        
-    plot_rhohist(rhogrid,reclabels,testname,plotdir,plotname,rhopred)
+
+    if varname=='rho':
+        plot_rhohist(rhogrid,reclabels,testname,plotdir,plotname,rhopred)
+    elif varname=='s':
+        plot_shist(rhogrid,reclabels,testname,plotdir,plotname,rhopred)
 
 #--------------------------------
-def depthtest_get_expected_rho(z0vals=np.array([0.3,0.6,0.7,0.8])):
+# plot r_ell values
+def depthtest_plot_relldat(z0vals=np.array([.3,.6,.7,.8]),getpred=True,varname='rell'):
+    plotdir='output/depthtest/plots/'
+    testname="Depth test"
+    rellgrid=depthtest_read_rell_wfiles(z0vals,varname)
+    Nreal=rellgrid.shape[1]
+    Nell=rellgrid.shape[2]
+    if getpred:
+        rellpred=depthtest_get_expected_rell(z0vals,varname)
+    else:
+        rellpred=[]
+    plotname ='depthtest_{1:s}dat_r{0:05d}'.format(Nreal,varname)
+    reclabels=['$z_0={0:0.1f}$'.format(z0) for z0 in z0vals]
+
+    if varname=='rell':
+        plot_relldat(reclabels,testname,plotdir,plotname,rellgrid,rellpred)
+        
+#--------------------------------
+# get expectation values of rho or s, choose variable via varname
+def depthtest_get_expected_rho(z0vals=np.array([0.3,0.6,0.7,0.8]),varname='rho'):
     cldat=depthtest_get_Cl(z0vals=z0vals)
     reclist=depthtest_get_reclist(z0vals)
     rhopred=np.zeros_like(z0vals)
     for i in xrange(z0vals.size):
-        rhopred[i]=compute_rho_fromcl(cldat,reclist[i])
+        if varname=='rho':
+            rhopred[i]=compute_rho_fromcl(cldat,reclist[i])
+        elif varname=='s':
+            rhopred[i]=compute_s_fromcl(cldat,reclist[i])
     return rhopred
+
+def depthtest_get_expected_rell(z0vals=np.array([0.3,0.6,0.7,0.8]),varname='rell'):
+    cldat=depthtest_get_Cl(z0vals=z0vals)
+    reclist=depthtest_get_reclist(z0vals)
+    rellpred=[]
+    for i in xrange(z0vals.size):
+        if varname=='rell':
+            rellpred.append(compute_rell_fromcl(cldat,reclist[i]))
+    rellpred=np.array(rellpred)#[Nrec,Nell]
+    return rellpred
 
 #--------------------------------
 #testing or knowledge of predicted rho and distribution
@@ -456,13 +498,16 @@ def bintest_get_reclist(finestN=6,z0=0.7,sigz=0.05,getdivs=['all']):
 #get cl for all bin combos (assumes they're already computed)
 # and computes expectation values for rho, saving that data to file
 # if overwrite==False and that file exists, just read it in
-def bintest_get_rhoexp(finestN=6,z0=0.7,sigz=0.05,overwrite=False,doplot=True,Nneighb=-1,getdivs=['all'],saverho=True):
+#also works for s; switch is in varname 
+def bintest_get_rhoexp(finestN=6,z0=0.7,sigz=0.05,overwrite=False,doplot=True,Nneighb=-1,getdivs=['all'],saverho=True,varname='rho'):
     if saverho:
         outdir = 'output/eucbintest/plots/'
         if Nneighb>-1:
-            datfile='eucbintest{0:03d}_rhoexp_neighb{1:1d}.dat'.format(int(1000*sigz),Nneighb)
+            if varname!='rho':
+                print "**WARNING: only rho stat set up to handle Neighb>-1."
+            datfile='eucbintest{0:03d}_{2:s}exp_neighb{1:1d}.dat'.format(int(1000*sigz),Nneighb,varname)
         else:
-            datfile='eucbintest{0:03d}_rhoexp.dat'.format(int(1000*sigz))
+            datfile='eucbintest{0:03d}_{1:s}exp.dat'.format(int(1000*sigz),varname)
     
         print datfile
         if not overwrite and os.path.isfile(outdir+datfile): #file exists
@@ -483,7 +528,10 @@ def bintest_get_rhoexp(finestN=6,z0=0.7,sigz=0.05,overwrite=False,doplot=True,Nn
             else:
                 divstr=getdivs
             for r in xrange(Nrec):
-                rhoarray[r]=compute_rho_fromcl(cldat,reclist[r],Nneighb)
+                if varname=='rho':
+                    rhoarray[r]=compute_rho_fromcl(cldat,reclist[r],Nneighb)
+                elif varname=='s':
+                    rhoarray[r]=compute_s_fromcl(cldat,reclist[r])
             #write rhoarray to file
             f=open(outdir+datfile,'w')
             f.write(''.join(['{0:8s} {1:8.3f}\n'.format(divstr[i],rhoarray[i]) for i in xrange(Nrec)]))
@@ -502,12 +550,15 @@ def bintest_get_rhoexp(finestN=6,z0=0.7,sigz=0.05,overwrite=False,doplot=True,Nn
         else:
             divstr=getdivs
         for r in xrange(Nrec):
-            rhoarray[r]=compute_rho_fromcl(cldat,reclist[r],Nneighb)
+            if varname=='rho':
+                rhoarray[r]=compute_rho_fromcl(cldat,reclist[r],Nneighb)
+            elif varname=='s':
+                rhoarray[r]=compute_s_fromcl(cldat,reclist[r])
 
     if doplot:
         zedges0=bintest_get_finest_zedges(finestN,z0)
         allzedges=bintest_get_zedgeslist(zedges0,['all'],False)
-        bintest_rhoexpplot(allzedges,divstr,rhoarray)
+        bintest_rhoexpplot(allzedges,divstr,rhoarray,varname)
     return divstr,rhoarray
 
 #if we've computed Cl stuff for multiple values of sigz0, compare them
@@ -567,7 +618,16 @@ def bintest_test_rhoexp():
             print '  div:',divstrlist[r],'----------'
             rhogrid[s,r]=compute_rho_fromcl(cldat,reclist[r],Nneighb)
             print '    rho=',rhogrid[s,r]
-    
+
+def bintest_get_expected_rell(divstr,varname='rell'):
+    cldat=bintest_get_Clvals()
+    reclist=bintest_get_reclist(getdivs=divstr)
+    rellpred=[]
+    for i in xrange(len(reclist)):
+        if varname=='rell':
+            rellpred.append(compute_rell_fromcl(cldat,reclist[i]))
+    rellpred=np.array(rellpred)#[Nrec,Nell]
+    return rellpred
     
 #----------------------------------------------------------------
 # Make maps and run reconstructions
@@ -578,7 +638,7 @@ def bintest_test_rhoexp():
 #  will need to add glm to do reconstructions though
 
 #use cldat to generate glm, alm, and maps; saves maps but not alm #NEED TO TEST
-def bintest_get_glm_and_rec(Nreal=1,divlist=['6','222','111111'],minreal=0,justgetrho=0):
+def bintest_get_glm_and_rec(Nreal=1,divlist=['6','222','111111'],minreal=0,justgetrho=0,dorell=0):
     t0=time.time()
     allcldat=bintest_get_Clvals(justread=True) #default finestN,z0,sigz
     makeplots=Nreal==1
@@ -595,17 +655,23 @@ def bintest_get_glm_and_rec(Nreal=1,divlist=['6','222','111111'],minreal=0,justg
     print 'shape',cldat.cl.shape
     print '-----------------------------------'
     
-    getmaps_fromCl(cldat,rlzns=rlzns,reclist=reclist,justgetrho=justgetrho)
+    getmaps_fromCl(cldat,rlzns=rlzns,reclist=reclist,justgetrho=justgetrho,dorell=dorell)
     t1=time.time()
     print "total time for Nreal",Nreal,": ",t1-t0,'sec'
 
-#get arrays of rho saved in .rho.dat files #TEST
-def bintest_read_rho_wfiles(divlist=['6','222','111111'],sigz=0.05):
+#get arrays of rho saved in .rho.dat files, or .s.dat files
+def bintest_read_rho_wfiles(divlist=['6','222','111111'],sigz=0.05,varname='s'):
     mapdir='output/eucbintest/map_output/'
-    files=['iswREC.euc6bins{0:03d}div{1:s}.fid.fullsky.eucbintest6s{0:03d}all.rho.dat'.format(int(1000*sigz),d) for d in divlist]
+    files=['iswREC.euc6bins{0:03d}div{1:s}.fid.fullsky.eucbintest6s{0:03d}all.{2:s}.dat'.format(int(1000*sigz),d,varname) for d in divlist]
     rhogrid=np.array([read_rhodat_wfile(mapdir+f) for f in files])
     return rhogrid
 
+#get arrays of rho saved in .rell.dat files
+def bintest_read_rell_wfiles(divlist=['6','222','111111'],sigz=0.05,varname='rell'):
+    mapdir='output/eucbintest/map_output/'
+    files=['iswREC.euc6bins{0:03d}div{1:s}.fid.fullsky.eucbintest6s{0:03d}all.{2:s}.dat'.format(int(1000*sigz),d,varname) for d in divlist]
+    rellgrid=np.array([read_relldat_wfile(mapdir+f) for f in files])
+    return rellgrid
 
 #----------------------------------------------------------------
 # Analysis: make plots
@@ -613,12 +679,13 @@ def bintest_read_rho_wfiles(divlist=['6','222','111111'],sigz=0.05):
 
 #plot expectation value of rho for different binning strategy
 # with illustrative y axis
-def bintest_rhoexpplot(allzedges,labels,rhoarraylist,labellist=[],outname='',legtitle='',markerlist=[],colorlist=[],outtag=''):
+# also works for s, switch in variable varname
+def bintest_rhoexpplot(allzedges,labels,rhoarraylist,labellist=[],outname='',legtitle='',markerlist=[],colorlist=[],outtag='',varname='rho'):
     if type(rhoarraylist[0])!=np.ndarray: #just one array passed,not list of arr
         rhoarraylist=[rhoarraylist]
     plotdir='output/eucbintest/plots/'
     if not outname:
-        outname='eucbintest_rhoexp'+outtag+'.png'
+        outname='eucbintest_'+varname+'exp'+outtag+'.png'
     colors=['#1b9e77','#d95f02','#7570b3','#e7298a','#66a61e','#e6ab02']
     scattercolors=['#e41a1c','#377eb8','#4daf4a','#984ea3','#ff7f00','#ffff33','#a65628','#f781bf']
     Npoints=len(labels)
@@ -629,7 +696,10 @@ def bintest_rhoexpplot(allzedges,labels,rhoarraylist,labellist=[],outname='',leg
 
     #divide fiture up into two vertical pieces
     fig=plt.figure(0)
-    plt.suptitle(r'Expected correlation coef. between $T^{{\rm ISW}}$ and $T^{{\rm rec}}$', size=18)
+    if varname=='rho':
+        plt.suptitle(r'Expected correlation coef. between $T^{{\rm ISW}}$ and $T^{{\rm rec}}$', size=18)
+    elif varname=='s':
+        plt.suptitle(r'Expected ratio between RMS of  $T^{{\rm rec}}-T^{{\rm ISW}}$ and $\sigma_{{T}}^{{\rm ISW}}$', size=18)
     ax1 = plt.subplot(1,3,1)
     ax2 = plt.subplot(1,3,(2,3),sharey=ax1)
     fig.subplots_adjust(hspace=0, wspace=0) #put them right next to eachother
@@ -665,7 +735,10 @@ def bintest_rhoexpplot(allzedges,labels,rhoarraylist,labellist=[],outname='',leg
     plt.sca(ax2)
     ax2.yaxis.set_ticks_position('left')
     ax2.xaxis.set_ticks_position('bottom')
-    ax2.set_xlabel(r'$\langle \rho \rangle$')
+    if varname=='rho':
+        ax2.set_xlabel(r'$\langle \rho \rangle$')
+    elif varname=='s':
+        ax2.set_xlabel(r'$\langle s \rangle$')
     ax2.grid(True)
     if not markerlist:
         markerlist=['D']*len(labellist)
@@ -691,23 +764,40 @@ def bintest_rhoexpplot(allzedges,labels,rhoarraylist,labellist=[],outname='',leg
     plt.close()
 
 #----------------
-def bintest_plot_rhohist(divstr=['6','222','111111'],getrhopred=True,reclabels=['1 bin','3 bins','6 bins']):
-    #if plotsampledist, plot curve of expected sample distribution
+def bintest_plot_rhohist(divstr=['6','222','111111'],getrhopred=True,reclabels=['1 bin','3 bins','6 bins'],varname='rho'):
     plotdir='output/eucbintest/plots/'
     Nrecs=len(divstr)
-    rhogrid=bintest_read_rho_wfiles(divstr)
-        Nreal=rhogrid.shape[1]
-    plotname='eucbintest_rhohist_r{0:05d}'.format(Nreal)
+    rhogrid=bintest_read_rho_wfiles(divstr,varname=varname)
+    Nreal=rhogrid.shape[1]
+    plotname='eucbintest_{1:s}hist_r{0:05d}'.format(Nreal,varname)
     testname='Bin test'
     if not reclabels:
         reclabels=divstr
-
     if getrhopred:
-        divstrx,rhopred=bintest_get_rhoexp(getdivs=divstr,saverho=False,doplot=False)
+        divstrx,rhopred=bintest_get_rhoexp(getdivs=divstr,saverho=False,doplot=False,varname=varname)
     else:
         rhopred=[]
-    plot_rhohist(rhogrid,reclabels,testname,plotdir,plotname,rhopred)
-   
+    if varname=='rho':
+        plot_rhohist(rhogrid,reclabels,testname,plotdir,plotname,rhopred)
+    elif varname=='s':
+        plot_shist(rhogrid,reclabels,testname,plotdir,plotname,rhopred)
+        
+#--------------------------------
+# plot r_ell values
+def bintest_plot_relldat(divstr=['6','222','111111'],getpred=True,reclabels=['1 bin','3 bins','6 bins'],varname='rell'):
+    plotdir='output/eucbintest/plots/'
+    testname="Bin test"
+    rellgrid=bintest_read_rell_wfiles(divstr,varname=varname)
+    Nreal=rellgrid.shape[1]
+    Nell=rellgrid.shape[2]
+    if getpred:
+        rellpred=bintest_get_expected_rell(divstr,varname)
+    else:
+        rellpred=[]
+    plotname ='eucbintest_{1:s}dat_r{0:05d}'.format(Nreal,varname)
+
+    if varname=='rell':
+        plot_relldat(reclabels,testname,plotdir,plotname,rellgrid,rellpred)   
 #----------------
 def bintest_plot_zwindowfuncs(finestN=6,z0=0.7,sigz=0.05,doiswkernel=True):
     bins=bintest_get_binmaps(finestN,z0=0.7,sigz=sigz,includeisw=False,justfinest=True)#just gal maps
@@ -878,11 +968,14 @@ if __name__=="__main__":
         t1=time.time()
         print "time:",str(t1-t0),"sec"
     if 0: #generate depthhtest maps
-        depthtest_get_glm_and_rec(Nreal=10000,z0vals=depthtestz0,justgetrho=0,minreal=0)
+        nomaps=True
+        depthtest_get_glm_and_rec(Nreal=10000,z0vals=depthtestz0,justgetrho=nomaps,minreal=0,dorell=1)
     if 0: #plot info about depthtest maps
-        depthtest_TTscatter(0,depthtestz0,False)
+        #depthtest_TTscatter(0,depthtestz0,False)
         #depthtest_plot_zwindowfuncs(depthtestz0)
-        depthtest_plot_rhohist(depthtestz0,True)
+        #depthtest_plot_rhohist(depthtestz0,'rho')
+        #depthtest_plot_rhohist(depthtestz0,varname='s')
+        depthtest_plot_relldat(depthtestz0,getpred=True,varname='rell')
         #depthtest_rho_tests()
 
     if 0: #bin test rho expectation value calculations
@@ -901,6 +994,9 @@ if __name__=="__main__":
             pass
         
     if 0: #bin test with many realizations, generate maps
-        bintest_get_glm_and_rec(Nreal=10000,divlist=['6','222','111111'],minreal=0,justgetrho=0)
-    if 0: #bin test with many realizations, make plots
-        bintest_plot_rhohist(getrhopred=True)
+        nomaps=True
+        bintest_get_glm_and_rec(Nreal=10000,divlist=['6','222','111111'],minreal=0,justgetrho=nomaps,dorell=1)
+    if 1: #bin test with many realizations, make plots
+        #bintest_plot_rhohist(getrhopred=True,varname='rho')
+        #bintest_plot_rhohist(getrhopred=True,varname='s')
+        bintest_plot_relldat()

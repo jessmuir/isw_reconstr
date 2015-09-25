@@ -383,21 +383,33 @@ def rho_onereal(map1,map2):
     rho= avgprod/(sig1*sig2)
     #print 'rho=',rho
     return rho
-
+#-------------------------------------------------------------------------
 # s: compute s (variance of difference) between pixels of two maps
 #   #input: two heapy map arrays with equal NSIDE
 #   #output: s = <(map1-map2)^2>/(variance(map1)*variance(map2))
 #                 where <> means average over all pixels
-def s_onereal(map1,map2):
-    if map1.size!=map2.size:
+def s_onereal(truemap,recmap):
+    if truemap.size!=recmap.size:
         print "Can't compute correlation between maps with different NSIDE.***"
         return 0
-    diff=map1-map2
+    diff=recmap-truemap
     vardiff=np.mean(diff*diff)
-    sig1=np.sqrt(np.var(map1))
-    sig2=np.sqrt(np.var(map2))
-    s= vardiff/(sig1*sig2)
+    sigtrue=np.sqrt(np.var(truemap))
+    s= np.sqrt(vardiff)/sigtrue
     return s
+
+#-------------------------------------------------------------------------
+# rell_onereal: compute correlation coef between true and rec alm given two maps
+# input: two healpy map arrays with equal NSIDE
+# output: rell - array of size Nell correlation for each ell value
+def rell_onereal(truemap,recmap):
+    #max ell default is 3*Nside-1
+    truecl=hp.sphtfunc.anafast(truemap) #compute Cl's from maps
+    reccl=hp.sphtfunc.anafast(recmap) #compute Cl's from maps
+    xcl = hp.sphtfunc.anafast(recmap,truemap)
+    rell=xcl/np.sqrt(truecl*reccl)
+    return rell 
+
 
 #-------------------------------------------------------------------------
 # The glm files take up a lot of space in memory;
@@ -405,7 +417,7 @@ def s_onereal(map1,map2):
 #  -given Cl, generate glm for simulated maps
 #  -perform some isw reconstructions (maybe for a few lmin?)
 #  -only save glm data for Nglm realizations (make plots for these too)
-def getmaps_fromCl(cldat,Nreal=1,rlzns=np.array([]),reclist=[],Nglm=1,block=100,glmfiletag='',almfiletag='iswREC',rhofiletag='',justgetrho=False):
+def getmaps_fromCl(cldat,Nreal=1,rlzns=np.array([]),reclist=[],Nglm=1,block=100,glmfiletag='',almfiletag='iswREC',rhofiletag='',justgetrho=False,dorell=False):
     #block=3
     arangereal=not rlzns.size
     if rlzns.size:
@@ -445,11 +457,11 @@ def getmaps_fromCl(cldat,Nreal=1,rlzns=np.array([]),reclist=[],Nglm=1,block=100,
         else:
             thisNglm=Nglm
             Nglm=0
-        
-        print "Making maps for rlzns {0:d}-{1:d}".format(nrlzns[0],nrlzns[-1])
-        #print "   thisNglm=",thisNglm
 
         if not justgetrho:
+            print "Making maps for rlzns {0:d}-{1:d}".format(nrlzns[0],nrlzns[-1])
+            #print "   thisNglm=",thisNglm
+            
             glmdat=generate_many_glm_fromcl(cldat,rlzns=nrlzns,savedat=False)
             almdat=domany_isw_recs(cldat,glmdat,reclist,writetofile=False,getmaps=True,makeplots=False,outruntag=glmdat.runtag,dorho=False)
             get_maps_from_glm(glmdat,redofits=True,makeplots=False)
@@ -462,12 +474,17 @@ def getmaps_fromCl(cldat,Nreal=1,rlzns=np.array([]),reclist=[],Nglm=1,block=100,
                 savealm=write_glm_to_files(savealm,setnewfiletag=True,newfiletag=almfiletag)
                 get_maps_from_glm(savealm,redofits=False,makeplots=True)
         else:
+            print "Reading maps for rlzns {0:d}-{1:d}".format(nrlzns[0],nrlzns[-1])
             #need to get almdat and glmdat for filenames
             glmdat=get_glm(cldat,filetag=glmfiletag,Nreal=0,runtag=cldat.rundat.tag)
             almdat=get_dummy_recalmdat(glmdat,reclist,outruntag=glmdat.runtag)
         #for each list, get rho
-        print "   Computing and saving rho statistics"
-        calc_rho_forreclist(glmdat,almdat,reclist,nrlzns,rhofiletag=rhofiletag,overwrite=NEWRHOFILE) #start new file for first block, then add to it
+        #print "   Computing and saving rho and s statistics"
+        #calc_rho_forreclist(glmdat,almdat,reclist,nrlzns,rhofiletag=rhofiletag,overwrite=NEWRHOFILE) #start new file for first block, then add to it
+        #calc_s_forreclist(glmdat,almdat,reclist,nrlzns,sfiletag=rhofiletag,overwrite=NEWRHOFILE) #start new file for first block, then add to it
+        if dorell: #this is slow
+            print "  Computing and saving r_ell statistics."
+            calc_rell_forreclist(glmdat,almdat,reclist,nrlzns,overwrite=NEWRHOFILE,filetag=rhofiletag)
         
         NEWRHOFILE=False
     for recdat in reclist:
@@ -509,7 +526,23 @@ def calc_s_forreclist(glmdat,almdat,reclist,rlzns,savedat=True,overwrite=False,s
         if savedat:
             save_rhodat(svals,rlzns,truemapbase,recmapbase,overwrite=overwrite,filetag=sfiletag,varname='s')
         
-    return np.array(rhogrid)
+    return np.array(sgrid)
+#------------------------------------------------------------------------
+#given list of reconstruction ojbects, and realizations, computes r_ell for them
+def calc_rell_forreclist(glmdat,almdat,reclist,rlzns,savedat=True,overwrite=False,filetag=''):
+    #print "Computing s statistics"
+    rellgrid=[]
+    for i in xrange(len(reclist)):
+        truemapf=glmdat.get_mapfile_fortags(0,reclist[i].zerotagstr)
+        truemapbase=truemapf[:truemapf.rfind('.r')]
+        recmapf=almdat.get_mapfile(0,i,'fits')
+        recmapbase=recmapf[:recmapf.rfind('.r')]
+        rellvals=rell_manyreal(truemapbase,recmapbase,rlzns=rlzns,savedat=False)
+        rellgrid.append(rellvals)
+        if savedat:
+            save_relldat(rellvals,rlzns,truemapbase,recmapbase,overwrite=overwrite,filetag=filetag,varname='rell')
+        
+    return np.array(rellgrid)#[reconstruction,realization,ell]
     
 #------------------------------------------------------------------------
 # rho_manyreal -  find correlations between pairs of maps for many realizations
@@ -543,16 +576,45 @@ def s_manyreal(truefilebase,recfilebase,Nreal=1,rlzns=np.array([]),savedat=False
     svals=np.zeros(Nreal)
     #read in the maps
     for r in xrange(Nreal):
+        f1=''.join([truefilebase,'.r{0:05d}.fits'.format(rlzns[r])])#true
+        f2=''.join([recfilebase,'.r{0:05d}.fits'.format(rlzns[r])])#rec
+        map1=hp.read_map(f1,verbose=False)#true
+        map2=hp.read_map(f2,verbose=False)#rec
+        #compute cross correlations and store the value
+        svals[r]=s_onereal(map1,map2)#(true,rec)
+    if savedat:
+        save_rhodat(svals,rlzns,truefilebase,recfilebase,overwrite=overwrite,filetag=sfiletag,varname='s')
+    return svals
+
+#------------------------------------------------------------------------------
+def rell_manyreal(truefilebase,recfilebase,Nreal=1,rlzns=np.array([]),savedat=False,overwrite=False,filetag=''):
+    if rlzns.size:
+        Nreal=rlzns.size
+    else:
+        rlzns=np.arange(Nreal)
+
+    #read in the first map to get info about ell
+    f10=''.join([truefilebase,'.r{0:05d}.fits'.format(rlzns[0])])
+    f20=''.join([recfilebase,'.r{0:05d}.fits'.format(rlzns[0])])
+    map10=hp.read_map(f10,verbose=False)
+    map20=hp.read_map(f20,verbose=False)
+    rell0=rell_onereal(map10,map20)
+    Nell=rell0.size
+    #set up array to hold all data
+    rellvals=np.zeros((Nreal,Nell))
+    rellvals[0,:]=rell0
+    #read in the maps
+    for r in xrange(1,Nreal):
+        #print ' on realization',r
         f1=''.join([truefilebase,'.r{0:05d}.fits'.format(rlzns[r])])
         f2=''.join([recfilebase,'.r{0:05d}.fits'.format(rlzns[r])])
         map1=hp.read_map(f1,verbose=False)
         map2=hp.read_map(f2,verbose=False)
         #compute cross correlations and store the value
-        svals[r]=s_onereal(map1,map2)
+        rellvals[r]=rell_onereal(map1,map2)
     if savedat:
-        save_rhodat(svals,rlzns,truefilebase,recfilebase,overwrite=overwrite,filetag=sfiletag,varname='s')
-    return svals
-
+        save_relldat(rellvals,rlzns,truefilebase,recfilebase,overwrite=overwrite,filetag=filetag)
+    return rellvals
 
 #------------------------------------------------------------------------------
 # save_rhodat - save rho data to file
@@ -606,7 +668,10 @@ def save_rhodat(rhovals,rlzns,truefilebase,recfilebase,overwrite=False,filetag='
         truestr=truefilebase[truefilebase.rfind('/')+1:]
         recstr=recfilebase[recfilebase.rfind('/')+1:]
         f=open(outf,'w')
-        f.write('Correlation coefficent rho between true and rec maps\n')
+        if varname=='rho':
+            f.write('Correlation coefficent rho between true and rec maps\n')
+        elif varname=='s':
+            f.write('RMS of difference between true and rec maps, in units of true map RMS\n')
         f.write('true isw: '+truestr+'\n')
         f.write('rec isw:  '+recstr+'\n')
         f.write('NReal: '+str(Nreal)+'\n')
@@ -619,10 +684,78 @@ def save_rhodat(rhovals,rlzns,truefilebase,recfilebase,overwrite=False,filetag='
                          for i in xrange(Nreal)])
     f.write(bodystr)
     f.close()
+#------------------------------------------------------------------------------
+# save_reldat - save rell data to file
+def save_relldat(rellvals,rlzns,truefilebase,recfilebase,overwrite=False,filetag='',varname='rell'):
+    if filetag:
+        tagstr='_'+filetag
+    else:
+        tagstr=''
+    truestr=truefilebase[truefilebase.rfind('/')+1:]
+    recstr=recfilebase[recfilebase.rfind('/')+1:]
 
-    #
+    outf=''.join([recfilebase.replace('/'+recstr+'/','/'),tagstr,'.'+varname+'.dat'])
+    #if overwrite, or if no file exists, write, otherwise append
+    NEWFILE=overwrite or not os.path.isfile(outf)
+    
+    if not NEWFILE: #read in existing data, make sure realizations don't overlap
+        dat=np.loadtxt(outf,skiprows=5)
+        oldell=dat[0,1:]
+        oldrlzns=dat[1:,0]
+        oldrell=dat[1:,1:]
+        Nell=oldell.size
+        #check for overlaps bewteen realizations
+        duplicates=np.intersect1d(oldrlzns,rlzns)
+        Ndup=duplicates.size
+        if Ndup:
+            NEWFILE=True #we'll combine old and new w/out duplicateds
+            # for each duplicated real,store where they are in oldrlzns, rlzns
+            overlap=np.array([\
+                          [np.where(oldrlzns==r)[0][0],np.where(rlzns==r)[0][0]]\
+                          for r in duplicates]) #index starts at rlzns=0
+
+            newdat=np.zeros((oldrlzns.size+rlzns.size - Ndup,Nell+1))
+            newdat[0,1:]=oldell #assumes new and old data have same ell
+            newdat[1:oldrlzns.size+1,0]=oldrlzns 
+            newdat[1:oldrlzns.size+1,1:]=oldrell
+            #overwrite duplicates
+            for d in xrange(Ndup):
+                whereold=overlap[d,0]+1 #plus one since first row is ell vals
+                wherenew=overlap[d,1]+1
+                newdat[whereold,:]=np.concatenate(rlzns[wherenew],rhovals[wherenew,:])
+            #delete overlaps from input data, add to newdat
+            rhovals=np.delete(rellvals,overlap[:,1],0)
+            rlzns=np.delete(rlzns,overlap[:,1],0)
+            newdat[1+oldrlzns.size:,0]=rlzns
+            newdat[1+oldrlzns.size:,:]=rellvals
+            #sort in to order arrays
+            newdat.sort(axis=0)
+            #change labels to get ready to write to file
+            rlzns=newdat[1:,0]
+            rellvals=newdat[1:,1:]
+    Nreal=len(rlzns)
+    Nell=rellvals.shape[1]
+    if NEWFILE: #write header and data
+        truestr=truefilebase[truefilebase.rfind('/')+1:]
+        recstr=recfilebase[recfilebase.rfind('/')+1:]
+        f=open(outf,'w')
+        if varname=='rell':
+            f.write('Correlation coefficent r_ell between true and rec alm\n')
+        f.write('true isw: '+truestr+'\n')
+        f.write('rec isw:  '+recstr+'\n')
+        f.write('NReal: '+str(Nreal)+'\n')
+        f.write('{0:5s} {1:s}\n'.format('rlzn',varname))
+        f.write('{0:05d}'.format(0)+''.join([' {0:05d}'.format(l) for l in xrange(Nell)])+'\n')
+    else:
+        f=open(outf,'a') #just add data to end
+
+    bodystr=''.join(['{0:05d}'.format(int(rlzns[i]))+''.join([' {0:0.3f}'.format(rellvals[i,l]) for l in xrange(Nell)])+'\n' for i in xrange(Nreal)])
+    f.write(bodystr)
+    f.close()
+    
+#------------------------------------------------------------------------------
 def get_rho_filename(recdat,recalmdat,filetag='',varname='rho'):
-    #can also be used for s data
+    #can also be used for s data and rell data
     if filetag:
         tagstr='_'+filetag
     else:
@@ -637,7 +770,7 @@ def get_rho_filename(recdat,recalmdat,filetag='',varname='rho'):
     return outf
 
 def read_rhodat(recdat,recalmdat,filetag='',varname='rho'):
-    #can also be used for s data
+    #can also be used for s data ad rell data
     f=get_rho_filename(recdat,recalmdata,filetag,varname)
     dat=np.loadtxt(f,skiprows=6)
     rlzns=dat[:,0]
@@ -645,11 +778,19 @@ def read_rhodat(recdat,recalmdat,filetag='',varname='rho'):
     return rho
 
 def read_rhodat_wfile(filename):
-    #can also be used for s data
+    #can also be used for s data 
     print 'reading',filename
     dat=np.loadtxt(filename,skiprows=6)
     rlzns=dat[:,0]
     rho=dat[:,1]
+    return rho
+
+def read_relldat_wfile(filename):
+    print 'reading',filename
+    dat=np.loadtxt(filename,skiprows=5) 
+    rlzns=dat[1:,0] #rows are realizations
+    ell = dat[0,1:] #col are ell values
+    rho=dat[1:,1:]
     return rho
 
 #compute the expected value of rho, given theoretical Cl
@@ -763,8 +904,8 @@ def rho_sampledist(r,rho,NSIDE=32,Nsample=0): #here rho is the expected mean
         result=result[0]
     return result
 
-# compute expectation value of s, the variance of the difference between
-# true and rec ISW maps, from theoretical Cl
+# compute expectation value of s, the rms of the difference between
+# true and rec ISW maps, in units of true ISW rms
 def compute_s_fromcl(cldat,recdat):
     #Dl is a matrix of Cls, with isw at zero index
     #  and other maps in order specified by recdat.includecl
@@ -802,13 +943,55 @@ def compute_s_fromcl(cldat,recdat):
     for i in xrange(NLSS):
         crosspowerell+=Dinv[:,0,i+1]*Dl[:,0,i+1]
     crosspowerell*=-1*includel*Nl*(2.*lvals+1)
-    numerator=sig2rec+sig2isw -2*np.sum(crosspowerell)
+    numerator=np.sqrt(sig2rec+sig2isw -2*np.sum(crosspowerell))
     
-    denom=np.sqrt(sig2isw*sig2rec)
+    denom=np.sqrt(sig2isw)
     #print '   FINAL   num,demon:',numerator,denom
     result=numerator/denom
     #print result
     return result
+
+# compute expectation value of r_ell, the correlation coefficient between true
+#  and rec alm from theoretical cl
+def compute_rell_fromcl(cldat,recdat):
+    #Dl is a matrix of Cls, with isw at zero index
+    #  and other maps in order specified by recdat.includecl
+    lmin=recdat.lmin
+    Dl,dtags=get_Dl_matrix(cldat,recdat.includecl,recdat.zerotagstr)
+    #print Dl[5,:,:]
+    Dinv=invert_Dl(Dl)
+    Nell=Dinv.shape[0]
+    lvals=np.arange(Nell)
+    Nl=np.zeros(Nell)
+    for l in xrange(Nell):
+        if Dinv[l,0,0]!=0:
+            Nl[l]=1/Dinv[l,0,0]
+
+    includel=(lvals>=lmin)
+    NLSS=recdat.Nmap
+
+    rell=np.zeros(Nell)
+
+    clisw=Dl[:,0,0]#true ISW auto power
+
+    #for rec auto power, sum over LSS maps 2x (ij)
+    clrec=np.zeros(lvals.size)
+    for i in xrange(NLSS):
+        clreci=np.zeros(Nell)
+        for j in xrange(NLSS):
+            clreci+=-1*Nl*Dinv[:,0,j+1]*Dl[:,j+1,i+1]
+        clrec+=clreci*(-1)*Nl*Dinv[:,0,i+1]
+
+    #for cross power sum over LSS maps for numerator
+    clx = np.zeros(lvals.size)
+    for i in xrange(NLSS):
+        clx+=Dinv[:,0,i+1]*Dl[:,0,i+1]
+    clx*=-1*includel*Nl
+
+    result= clx/np.sqrt(clrec*clisw)
+    #print result
+    return result
+
 ###########################################################################
 # plotting functions
 ###########################################################################
@@ -883,11 +1066,18 @@ def plot_Tin_Trec(iswmapfiles,recmapfiles,reclabels,plotdir='output/',plotname='
 #  rhopred - if empty, nothing happens. if not, holds Nrec <rho> values 
 #-----------------------------------------------------------------------------
 def plot_rhohist(rhogrid,reclabels,testname,plotdir,plotname,rhopred=[]):
-    varstr='\rho'
+    varstr=r'\rho'
+    Nreal=rhogrid.shape[1]
     title=r'{0:s}: correlation coef. $\rho$ for {1:g} rlzns'.format(testname,Nreal)
     xtitle=r'$\rho=\langle T_{{\rm true}}T_{{\rm rec}}\rangle_{{\rm pix}}/\sigma_{{T}}^{{\rm true}}\sigma_{{T}}^{{\rm rec}}$'
     plothist(varstr,rhogrid,reclabels,title,xtitle,plotdir,plotname,rhopred)
 
+def plot_shist(sgrid,reclabels,testname,plotdir,plotname,spred=[]):
+    varstr='s'
+    Nreal=sgrid.shape[1]
+    title=r'{0:s}: RMS of difference $s$ for {1:g} rlzns'.format(testname,Nreal)
+    xtitle=r'$s=\langle (T_{{\rm true}}-T_{{\rm rec}})^2\rangle_{{\rm pix}}^{{1/2}}/\sigma_{{T}}^{{\rm true}}$'
+    plothist(varstr,sgrid,reclabels,title,xtitle,plotdir,plotname,spred)
 #-----------------------------------------------------------------------------
 #plot_hists - plot histograms of some quantity
 # varstr - string to label variable being plotted in hist, eg '\rho'
@@ -902,37 +1092,105 @@ def plot_rhohist(rhogrid,reclabels,testname,plotdir,plotname,rhopred=[]):
 #-----------------------------------------------------------------------------
 def plothist(varstr,datagrid,reclabels,plottitle,xlabel,plotdir,plotname,predvals=[]):
     Nbins=100
-    Nrecs=rhogrid.shape[0]
-    Nreal=rhogrid.shape[1]
+    Nrecs=datagrid.shape[0]
+    Nreal=datagrid.shape[1]
     maxval=np.max(datagrid)
     minval=np.min(datagrid)
     vallim=(minval,maxval)
     #rholim=(0.,maxrho)
-    
     colors=['#1b9e77','#d95f02','#e7298a','#7570b3','#66a61e','#e6ab02']
     plt.figure(0)
     plt.title(plotname)
-    plt.xlabel(xlabel,fontsize=16)
+    plt.xlabel(xlabel,fontsize=14)
     plt.ylabel('realizations',fontsize=16)
     for i in xrange(Nrecs):
         mean=np.mean(datagrid[i,:])
         sigma=np.std(datagrid[i,:])
         colstr=colors[i%len(colors)]
-        if predvals:
+        if len(predvals):
             predval=predvals[i]
             plt.axvline(predval,linestyle='-',color=colstr)
-            label=r'{0:s}: $\langle{4:s}\rangle={3:0.3f}$; $\bar{{{4:s}}}={1:0.3f}$, $\sigma={2:0.3f}$'.format(reclabels[i],mean,sigma,rhoval,varstr)
+            if varstr==r'\rho':
+                label=r'{0:s}: $\langle {4:s}\rangle={3:0.3f}$; $\bar{{{4:s}}}={1:0.3f}$, $\sigma={2:0.3f}$'.format(reclabels[i],mean,sigma,predval,varstr)
+            elif varstr=='s':
+                label=r'{0:s}: $\langle {3:s}\rangle={2:0.3f}$; $\bar{{{3:s}}}={1:0.3f}$'.format(reclabels[i],mean,predval,varstr)
         else:
-            label=r'{0:s}: $\bar{{{3:s}}}={1:0.3f}$, $\sigma={2:0.3f}$'.format(reclabels[i],mean,sigma,varstr)
+            label='{0:s}: $\bar{{{3:s}}}={1:0.3f} $, $\sigma={2:0.3f}$'.format(reclabels[i],mean,sigma,varstr)
         plt.axvline(mean,linestyle='--',color=colstr)
         nvals,evals,patches=plt.hist(datagrid[i,:],bins=Nbins,range=vallim,histtype='stepfilled',label=label)
         plt.setp(patches,'facecolor',colstr,'alpha',0.6)
 
-    if predvals:
+    if len(predvals):
         plt.plot(np.array([]),np.array([]),linestyle='--',color='black',label='mean from sample')
         plt.plot(np.array([]),np.array([]),linestyle='-',color='black',label='expectation value')
 
-    plt.legend(loc='upper left')
+    if varstr==r'\rho':
+        plt.legend(loc='upper left')
+    elif varstr=='s':
+        plt.legend(loc='upper right')
+    outname=plotdir+plotname+'.png'
+    print 'saving',outname
+    plt.savefig(outname)
+    plt.close()
+
+#-----------------------------------------------------------------------------
+# plot_relldat- plot r_ell data
+#  rellgrid  - Nrec x Nreal x Nell data array
+#  rellpred - Nrec x Nell data array of expectation values
+#  reclabels - Nrec strings to be used as labels in legend
+#  test name - name of test, for title
+#  plotdir - output directory
+#  plotname -output file name
+def plot_relldat(reclabels,testname,plotdir,plotname,rellgrid=[],rellpred=[]):
+    Nellexp=0
+    Nelldat=0
+    Nrec=len(reclabels)
+    doexp=rellpred.size
+    dodat=rellgrid.size
+    if doexp:
+        Nellexp=rellpred.shape[1]
+    if dodat:
+        Nreal=rellgrid.shape[1]
+        Nelldat=rellgrid.shape[2]
+        #get mean and quartiles for each ell
+        rellmean=np.zeros((Nrec,Nelldat))
+        rellquartlow=np.zeros((Nrec,Nelldat))
+        rellquarthigh=np.zeros((Nrec,Nelldat))
+        for r in xrange(Nrec):
+            rellmean[r,:]=[np.mean(rellgrid[r,:,l]) for l in xrange(Nelldat)]
+            #rellquartlow[r,:]=[np.percentile(rellgrid[r,:,l],10) for l in xrange(Nelldat)]
+            #rellquarthigh[r,:]=[np.percentile(rellgrid[r,:,l],90) for l in xrange(Nelldat)]
+    #make plot
+    colors=['#1b9e77','#d95f02','#e7298a','#7570b3','#66a61e','#e6ab02']
+    plt.figure(0)
+    plt.title(r'Correlation coef. between true and rec ISW $a_{{\ell m}}$')
+    plt.xlabel(r'$\ell$',fontsize=14)
+    plt.ylabel(r'$r_{{\ell}}=\langle a_{{\ell m}} \hat{{a}}^*_{{\ell m}} \rangle/ \sqrt{{C_{{\ell}}^{{\rm ISW}}C_{{\ell}}^{{\rm rec}}}}$',fontsize=16)
+
+    if dodat:
+        for r in xrange(Nrec):
+            colstr=colors[r%len(colors)]
+            #plot quartiles as shaded region, legend labels here
+            #plt.fill_between(np.arange(Nelldat),rellquartlow[r,:],rellquartlow[r,:],facecolor=colstr,edgecolor=None,alpha=0.5)
+            #plot mean as dotted line
+            plt.plot(np.arange(Nelldat),rellmean[r,:],linestyle='-',color=colstr,label=reclabels[r])
+    if doexp:
+        for r in xrange(Nrec):
+            colstr=colors[r%len(colors)]
+            if dodat: #no legend label
+                plt.plot(np.arange(Nellexp),rellpred[r,:],linestyle='--',color=colstr)
+            else:
+                plt.plot(np.arange(Nellexp),rellpred[r,:],linestyle='--',color=colstr,label=reclabels[r])
+
+    if dodat and doexp:
+        plt.plot(np.array([]),np.array([]),linestyle='-',color='black',label='mean from sample')
+        plt.plot(np.array([]),np.array([]),linestyle='--',color='black',label='expectation value')
+        plt.legend(loc='center right')
+    elif dodat:
+        plt.legend(title='From {0:d} rlzns'.format(Nreal),loc='center right')
+    elif doexp:
+        plt.legend(title='Expectation vals',loc='center right')
+    
     outname=plotdir+plotname+'.png'
     print 'saving',outname
     plt.savefig(outname)

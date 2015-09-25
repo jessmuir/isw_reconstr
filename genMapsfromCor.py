@@ -903,22 +903,24 @@ def get_fixedvar_errors_formaps(glmdat,cdatalist=[],overwrite=False,NSIDE=32):
 #   variance of calibration error field is fixed to sig2 for 1<l<=caliblmax
 #   and calib error is assumed to have l^-2 spectrum
 #------------------------------------------------------------------------
-def gen_error_map_fixedvar(sig2=0.1,caliblmax=20,NSIDE=32):
-    modtag='fixvar{0:g}_maxl{1:d}'.format(sig2,caliblmax)
+def gen_error_cl_fixedvar(sig2=0.1,caliblmax=20,lmin=1):
     invnorm=0 #clcal=norm/l^2, 
     clcal=np.zeros(caliblmax+1)
-    lmin=1
     for l in xrange(lmin,caliblmax+1):#find using rel between variance and C_l
         invnorm+=(2*l+1.)/(4*np.pi*l*l)
     norm =sig2/invnorm
     #print 'norm=',norm
     for l in xrange(lmin,caliblmax+1):
-        clcal[l]=norm/(l*l)#/(2*l+1.) 
+        clcal[l]=norm/(l*l)#/(2*l+1.)
+    return clcal
+
+def gen_error_map_fixedvar(sig2=0.1,caliblmax=20,NSIDE=32):
+    modtag='fixvar{0:g}_maxl{1:d}'.format(sig2,caliblmax)
+    invnorm=0 #clcal=norm/l^2, 
+    clcal=gen_error_cl_fixedvar(sig2,caliblmax)
     #now generate map
     cmap=hp.sphtfunc.synfast(clcal,NSIDE,verbose=False)
-
     return cmap
-    
 
 #------------------------------------------------------------------------
 # apply_caliberror_tomap
