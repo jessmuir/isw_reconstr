@@ -943,14 +943,25 @@ def bintest_plot_cl_vals(finestN=6,z0=0.7,sigz=0.05):
 # caltest - Overlay calibration error maps on depthtest fiducial map
 #   varying variance of calibration error and lmin used in reconstruction 
 #================================================================
+def caltest_getClcal(varlist=[1.e2,1.e3,1.e4],lmax=20,lmin=1):
+    #generate calibration errors with fixed variance, spread through Cl lmin-lmax
+    # return array of shape [Nvar,Nell]
+    pass
 
 #---------------------------------------------------------------
 # generate maps, do reconstructions
 #---------------------------------------------------------------
+# generate reference maps with variance of say, 1.e-2
+# rescale approrpiately when doing recs
 
 #---------------------------------------------------------------
 # rhocalc utils
 #---------------------------------------------------------------
+def caltest_rhoexp_additive(cldat,varlist,lmax=20,lmin=1):
+    # add additive noise from calib errors to LSS Cll in cldat
+    # the compute rhoexp
+    #return rhogrid
+    pass
 
 #---------------------------------------------------------------
 # make plots
