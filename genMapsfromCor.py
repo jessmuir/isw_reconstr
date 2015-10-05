@@ -7,7 +7,7 @@ import numpy as np
 import healpy as hp
 import matplotlib.pyplot as plt
 import matplotlib
-import itertools
+import itertools,copy
 from multiprocessing import Pool, Manager,cpu_count
 
 from MapParams import *
@@ -822,11 +822,12 @@ def plotmap(m,outfname,rlz,maptag,modtag='unmod',masktag='fullsky',titlenote='')
 #                constructed for them, and what stats that error maps has
 #                ->though calib maps don't are indep of gal maps, should gen
 #                  a unique calib error for each map+real 
-#                ->list entries should be tuples (mapstr,fixedvar,clmax)
+#                ->list entries should be tuples (mapstr,fixedvar,clmax,shape)
 #                  where mapstr is a string labeling maps
 #                  fixedvar gives the variance of the caliberror to make
 #                  and clmax gives max l of calib error map (defaults used
-#                  if tuple only contains string). 
+#                  if tuple only contains string).
+#                  if shape not give, assume 'g' (gaussian), can also pass 'l2' 
 #                --->note; calib error map will be generated for each map+real
 #                    containing the mapstr; ie, putting 'gal' will apply to 
 #                    'gal_bin0', 'galA_bin0', 'gal_bin1',etc
@@ -855,12 +856,16 @@ def get_fixedvar_errors_formaps(glmdat,cdatalist=[],overwrite=False,NSIDE=32):
             if nentries>2:
                 clmax=cdat[2]
                 #print 'clmax=',clmax
+                if nentries>3:
+                    shape=cldat[3]
             else: #defaults
-                clmax=20
+                clmax=30
+                shape='g'
                 #print 'clmax=default=',clmax
         else: #defaults
             cvar=0.1
-            clmax=20
+            clmax=30
+            shape='g'
             #print 'cvar=default=',cvar
             #print 'clmax=default2=',clmax
         #collect maptags for which we're generating calib errs
@@ -874,7 +879,10 @@ def get_fixedvar_errors_formaps(glmdat,cdatalist=[],overwrite=False,NSIDE=32):
         else:
             dothesereal=np.arange(glmdat.Nreal)
 
-        modtag='fixvar{0:g}_maxl{1:d}'.format(cvar,clmax) 
+        if shape=='l2':
+            modtag='l2_var{0:.2e}_maxl{1:d}'.format(cvar,clmax)
+        elif shape=='g': #currently default width
+            modtag='g{1:d}_var{0:.2e}_maxl{2:d}'.format(cvar,int(10),clmax)
         #print 'USING MODTAG',modtag
 
         #loop through maps and realizations, generating calib maps
@@ -888,7 +896,10 @@ def get_fixedvar_errors_formaps(glmdat,cdatalist=[],overwrite=False,NSIDE=32):
                 outname=outbase+'.r{0:05d}.fits'.format(r)        
                 #only bother generating map if overwrite or file nonexistant
                 if overwrite or not os.path.isfile(thisoutdir+outname):
-                    cmap=gen_error_map_fixedvar(cvar,clmax,NSIDE)
+                    if shape=='l2':
+                        cmap=gen_error_map_fixedvar_l2(cvar,clmax,NSIDE)
+                    elif shape=='g':
+                        cmap=gen_error_map_fixedvar_gauss(cvar,clmax,NSIDE=NSIDE)
                     #write to file
                     hp.write_map(thisoutdir+outname,cmap)
     #return list of map/mod/mask tuples 
@@ -899,11 +910,11 @@ def get_fixedvar_errors_formaps(glmdat,cdatalist=[],overwrite=False,NSIDE=32):
             
 
 #------------------------------------------------------------------------
-# gen_calib_error_map_fixedvar
+# gen_error_cl_fixedvar_l2
 #   variance of calibration error field is fixed to sig2 for 1<l<=caliblmax
 #   and calib error is assumed to have l^-2 spectrum
 #------------------------------------------------------------------------
-def gen_error_cl_fixedvar(sig2=0.1,caliblmax=20,lmin=1):
+def gen_error_cl_fixedvar_l2(sig2=0.1,caliblmax=30,lmin=1):
     invnorm=0 #clcal=norm/l^2, 
     clcal=np.zeros(caliblmax+1)
     for l in xrange(lmin,caliblmax+1):#find using rel between variance and C_l
@@ -914,13 +925,74 @@ def gen_error_cl_fixedvar(sig2=0.1,caliblmax=20,lmin=1):
         clcal[l]=norm/(l*l)#/(2*l+1.)
     return clcal
 
-def gen_error_map_fixedvar(sig2=0.1,caliblmax=20,NSIDE=32):
-    modtag='fixvar{0:g}_maxl{1:d}'.format(sig2,caliblmax)
+def gen_error_map_fixedvar_l2(sig2=0.1,caliblmax=30,NSIDE=32):
+    modtag='l2_var{0:.2e}_maxl{1:d}'.format(sig2,caliblmax)
     invnorm=0 #clcal=norm/l^2, 
-    clcal=gen_error_cl_fixedvar(sig2,caliblmax)
+    clcal=gen_error_cl_fixedvar_l2(sig2,caliblmax)
     #now generate map
     cmap=hp.sphtfunc.synfast(clcal,NSIDE,verbose=False)
     return cmap
+
+#------------------------------------------------------------------------
+# gen_calib_error_map_fixedvar_gauss
+#   variance of calibration error field is fixed to sig2 for 1<l<=caliblmax
+#   and calib error is assumed to have exp(-(l/width)**2) spectrum
+# this looks like the Clcal shown in figures 5 and 6 in the 'calib errors unleashed'
+#------------------------------------------------------------------------
+def gen_error_cl_fixedvar_gauss(sig2=0.1,caliblmax=30,lmin=0,width=10.):
+    invnorm=0 #clcal=norm/l^2, 
+    clcal=np.zeros(caliblmax+1)
+    for l in xrange(lmin,caliblmax+1):#find using rel between variance and C_l
+        invnorm+=(2*l+1.)*np.exp(-(l/width)**2)/(4*np.pi)
+    norm =sig2/invnorm
+    #print 'norm=',norm
+    for l in xrange(lmin,caliblmax+1):
+        clcal[l]=norm*np.exp(-(l/width)**2)
+    return clcal
+
+def gen_error_map_fixedvar_gauss(sig2=0.1,caliblmax=20,lmin=0,width=10.,NSIDE=32):
+    modtag='g{1:d}_var{0:.2e}_maxl{2:d}'.format(sig2,int(width),caliblmax)
+    invnorm=0 #clcal=norm/l^2, 
+    clcal=gen_error_cl_fixedvar_gauss(sig2,caliblmax,lmin,width)
+    #now generate map
+    cmap=hp.sphtfunc.synfast(clcal,NSIDE,verbose=False)
+    return cmap
+
+#------------------------------------------------------------------------
+# apply_additive_caliberror_tocl - for computing <rho> with calib errors
+#   input: cldat - ClData object containing ISW and galaxy maps
+#          mapmodcombos - list of (maptag,masktag) tuples
+#                        where each maptag or maptype tag only appears once
+#
+# neglects multiplicative errors
+# assumes epsilon propto c_00
+# assumes calibration error maps are uncorrelated with each other and galaxies
+#------------------------------------------------------------------------
+def apply_additive_caliberror_tocl(cldat,mapmodcombs=[]):
+    Nmap=cldat.Nmap
+    Nell=cldat.Nell
+    
+    #initialize
+    calcl=np.zeros((Nmap,Nell))#should have same number of entries as maps in cldat
+    c00list=np.zeros(Nmap)
+    newnbarlist=cldat.nbarlist[:]
+    
+    #go through mapmod combos, generate Clcal and put it in the appropriate place in calcl
+    for c in mapmodcombos:
+        pass #WORKING HERE
+
+    #make copy of cl data
+    outcl=cldat.cl[:,:]
+
+    #go through all cross pairs and add appropriate calib error modifications
+
+
+    #go through and multiply nbars by 1+epsilon, if they're not equal to minus one
+
+    #creat outcldata object with new outcl and nbar
+    
+    return outcldat
+
 
 #------------------------------------------------------------------------
 # apply_caliberror_tomap
@@ -952,7 +1024,6 @@ def apply_caliberror_tomap(inmap,cmap,innbar):
 #------------------------------------------------------------------------
 def apply_caliberror_toglm(inglmdat,mapmodcombos=[],savemaps=False,saveplots=False,newglmfiletag=''):
     #print 'in apply calerror_toglm, glm shape:',inglmdat.glm.shape
-    addmods=[]
     #for each mapmodcombo, check whether it is already in glmdat
     newmaptags=[]
     newmodtags=[]
