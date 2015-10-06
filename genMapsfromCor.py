@@ -858,14 +858,20 @@ def get_fixedvar_errors_formaps(glmdat,cdatalist=[],overwrite=False,NSIDE=32):
                 #print 'clmax=',clmax
                 if nentries>3:
                     shape=cldat[3]
+                    if nentries>4:
+                        width=cldat[4] #sets gaussian width, does nothing to l2
+                    else:
+                        width=10.
             else: #defaults
                 clmax=30
                 shape='g'
+                width=10.
                 #print 'clmax=default=',clmax
         else: #defaults
             cvar=0.1
             clmax=30
             shape='g'
+            width=10.
             #print 'cvar=default=',cvar
             #print 'clmax=default2=',clmax
         #collect maptags for which we're generating calib errs
@@ -882,7 +888,7 @@ def get_fixedvar_errors_formaps(glmdat,cdatalist=[],overwrite=False,NSIDE=32):
         if shape=='l2':
             modtag='l2_var{0:.2e}_maxl{1:d}'.format(cvar,clmax)
         elif shape=='g': #currently default width
-            modtag='g{1:d}_var{0:.2e}_maxl{2:d}'.format(cvar,int(10),clmax)
+            modtag='g{1:d}_var{0:.2e}_maxl{2:d}'.format(cvar,int(width),clmax)
         #print 'USING MODTAG',modtag
 
         #loop through maps and realizations, generating calib maps
@@ -899,7 +905,7 @@ def get_fixedvar_errors_formaps(glmdat,cdatalist=[],overwrite=False,NSIDE=32):
                     if shape=='l2':
                         cmap=gen_error_map_fixedvar_l2(cvar,clmax,NSIDE)
                     elif shape=='g':
-                        cmap=gen_error_map_fixedvar_gauss(cvar,clmax,NSIDE=NSIDE)
+                        cmap=gen_error_map_fixedvar_gauss(cvar,clmax,width=width,NSIDE=NSIDE)
                     #write to file
                     hp.write_map(thisoutdir+outname,cmap)
     #return list of map/mod/mask tuples 
@@ -925,8 +931,20 @@ def gen_error_cl_fixedvar_l2(sig2=0.1,caliblmax=30,lmin=1):
         clcal[l]=norm/(l*l)#/(2*l+1.)
     return clcal
 
-def gen_error_map_fixedvar_l2(sig2=0.1,caliblmax=30,NSIDE=32):
+def getmodtag_fixedvar_l2(sig2,caliblmax):
     modtag='l2_var{0:.2e}_maxl{1:d}'.format(sig2,caliblmax)
+    return modtag
+
+def parsemodtag_fixedvar_l2(ctag): #ctag = modtag
+    aftervar=ctag.find('_var')+4
+    premax=ctag.find('_max')
+    variance=float(ctag[aftervar,premax])
+    aftermaxl=premax+5
+    maxl=int(ctag[aftermaxl:])
+    return variance, maxl
+    
+def gen_error_map_fixedvar_l2(sig2=0.1,caliblmax=30,NSIDE=32):
+    modtag=getmodtag_fixedvar_l2(sig2,caliblmax)
     invnorm=0 #clcal=norm/l^2, 
     clcal=gen_error_cl_fixedvar_l2(sig2,caliblmax)
     #now generate map
@@ -950,8 +968,22 @@ def gen_error_cl_fixedvar_gauss(sig2=0.1,caliblmax=30,lmin=0,width=10.):
         clcal[l]=norm*np.exp(-(l/width)**2)
     return clcal
 
-def gen_error_map_fixedvar_gauss(sig2=0.1,caliblmax=20,lmin=0,width=10.,NSIDE=32):
+def getmodtag_fixedvar_gauss(sig2,width,caliblmax):
     modtag='g{1:d}_var{0:.2e}_maxl{2:d}'.format(sig2,int(width),caliblmax)
+    return modtag
+
+def parsemodtag_fixedvar_l2(ctag): #ctag = modtag
+    aftervar=ctag.find('_var')+4
+    premax=ctag.find('_max')
+    variance=float(ctag[aftervar,premax])
+    aftermaxl=premax+5
+    maxl=int(ctag[aftermaxl:])
+    preunderscore=aftervar-4
+    width=float(ctag[1:preunderscore])
+    return variance, maxl,width
+
+def gen_error_map_fixedvar_gauss(sig2=0.1,caliblmax=20,lmin=0,width=10.,NSIDE=32):
+    modtag=getmodtag_fixedvar_gauss(sig2,width,caliblmax)
     invnorm=0 #clcal=norm/l^2, 
     clcal=gen_error_cl_fixedvar_gauss(sig2,caliblmax,lmin,width)
     #now generate map
@@ -962,7 +994,7 @@ def gen_error_map_fixedvar_gauss(sig2=0.1,caliblmax=20,lmin=0,width=10.,NSIDE=32
 # apply_additive_caliberror_tocl - for computing <rho> with calib errors
 #   input: cldat - ClData object containing ISW and galaxy maps
 #          mapmodcombos - list of (maptag,masktag) tuples
-#                        where each maptag or maptype tag only appears once
+#                        where each maptag  only appears once
 #
 # neglects multiplicative errors
 # assumes epsilon propto c_00
@@ -974,25 +1006,54 @@ def apply_additive_caliberror_tocl(cldat,mapmodcombs=[]):
     
     #initialize
     calcl=np.zeros((Nmap,Nell))#should have same number of entries as maps in cldat
-    c00list=np.zeros(Nmap)
     newnbarlist=cldat.nbarlist[:]
     
     #go through mapmod combos, generate Clcal and put it in the appropriate place in calcl
     for c in mapmodcombos:
-        pass #WORKING HERE
-
+        mtag=c[0]#maptag
+        ctag=c[1]#modtag
+        #find index of maptag
+        mapind=-1
+        for i in xrange(Nmap):
+            if mtag==cldat.bintaglist[i]:
+                mapind=i
+                break
+        if mapind==-1:
+            print 'map tag not found:',mtag
+        else: #parse modtag and get calib error Cl
+            if ctag[:2]=='l2':#power law
+                var,maxl=parsemodtag_fixedvar_l2(ctag)
+                thiscalcl=gen_error_cl_fixedvar_l2(var,maxl)
+            elif ctag[:1]=='g':#gaussian
+                var,maxl,width=parsemodtag_fixedvar_gauss(ctag)
+                thiscalcl=gen_error_cl_fixedvar_gauss(var,maxl,width=width)
+            else:
+                print "modtag not recognized:",ctag
+            #put this cal cl into clcal grid
+            thisNell=thiscalcl.size
+            calcl[i,:thisNell]=thiscalcl
+            #working here
+    #epsilon parameter tells us how nbar changes; includign only c00 contrib
+    epsilon=cacl[:,0]/np.sqrt(4*np.pi) #is zero if no Clcal input
+    newnbarlist=cldat.nbarlist*(1.+epsilon) #if not gal, eps=0, so nbar=-1 still
+    
     #make copy of cl data
     outcl=cldat.cl[:,:]
-
+    crosspairs=cldat.crosspairs #[crossind,mapinds] 
+    crossinds=cldat.crossinds #[mapind,mapind]
+    Ncross=cldat.Ncross
+    
     #go through all cross pairs and add appropriate calib error modifications
-
-
-    #go through and multiply nbars by 1+epsilon, if they're not equal to minus one
+    for n in Ncross:
+        i,j=crosspairs[n]
+        if i==j:
+            outcl[n,:]+=calcl[i,:] #additive power from calib error auto power
+        outcl[n,0]+=-1*calcl[i,0]*calcl[j,0] #from some of the epsilon terms 
+        outcl[n,:]/=(1.+epsilon[i])*(1.+epsilon[j]) #no mod if epsilon small
 
     #creat outcldata object with new outcl and nbar
-    
+    outcldat=ClData(copy.deepcopy(cldat.rundat),cldat.bintaglist,docrossind=cldat.docross,nbarlist=newnbarlist)
     return outcldat
-
 
 #------------------------------------------------------------------------
 # apply_caliberror_tomap

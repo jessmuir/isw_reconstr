@@ -794,13 +794,21 @@ def read_relldat_wfile(filename):
     return rho
 
 #compute the expected value of rho, given theoretical Cl
+# cldat is the Cl representing the Cl's used for simulation
+#  if reccldat is passed as a ClData object, these Cl's are used in estimator
+# Note: right now, can either pass reccldat, or mess with Nneibors, NOT both
+#WORKING HERE
 # If Nneighbors=-1, use all available data in Cl
 #     if it is 0: set everything that's not bin-isw or bin-auto to zero
 #     if it is 1: use only bin-isw, bin-auto, and bin-nearest neighbor
 #                 etc.
-def compute_rho_fromcl(cldat,recdat,Nneighbors=-1):
+def compute_rho_fromcl(cldat,recdat,Nneighbors=-1,reccldat=0):
     #Dl is a matrix of Cls, with isw at zero index
     #  and other maps in order specified by recdat.includecl
+    if not reccldat:
+        DIFFREC=False
+    else:
+        DIFFREC=True #are the Cl's for rec and sim different?
     if Nneighbors>-1:
         oldcl=cldat.cl[:,:]#deep copy, hang onto original info
         oldnoisecl=cldat.noisecl[:,:]
@@ -824,7 +832,6 @@ def compute_rho_fromcl(cldat,recdat,Nneighbors=-1):
                 cldat.cl[n,:]=np.zeros(cldat.Nell)
                 cldat.noisecl[n,:]=np.zeros(cldat.Nell)
 
-        
     lmin=recdat.lmin
     Dl,dtags=get_Dl_matrix(cldat,recdat.includecl,recdat.zerotagstr)
     #print Dl[5,:,:]
@@ -838,6 +845,25 @@ def compute_rho_fromcl(cldat,recdat,Nneighbors=-1):
 
     includel=(lvals>=lmin)
     NLSS=recdat.Nmap
+
+    #if DIFFREC, get Dl data for those Cl
+    if DIFFREC: #assumes cldat and reccldat have same ell info
+        recDl,recdtags=get_Dl_matrix(reccldat,recdat.includecl,recdat.zerotagstr)
+        recDinv=invert_Dl(recDl)
+        recNl=np.zeros(Nell)
+        for l in xrange(Nell):
+            if recDinv[l,0,0]!=0:
+                recNl[l]=1/recDinv[l,0,0]
+    else:
+        recDl=Dl
+        recDinv=Dinv
+        recNl=Nl
+        
+    # construct estimator operators
+    estop=np.zeros((NLSS,Nell))#"estimator operator"
+    for i in xrange(NLSS):
+        estop[i,:]=-1*recNl*recDinv[:,0,i+1]
+    #WORKING HERE, need to insert estop into folling calcs
     
     #for each l sum over LSS maps for numerator, the sum over l
     numell = np.zeros(lvals.size)
