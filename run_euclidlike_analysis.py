@@ -943,11 +943,38 @@ def bintest_plot_cl_vals(finestN=6,z0=0.7,sigz=0.05):
 # caltest - Overlay calibration error maps on depthtest fiducial map
 #   varying variance of calibration error and lmin used in reconstruction 
 #================================================================
-def caltest_getClcal(varlist=[1.e2,1.e3,1.e4],lmax=20,lmin=1):
-    #generate calibration errors with fixed variance, spread through Cl lmin-lmax
-    # return array of shape [Nvar,Nell]
-    pass
+def caltest_get_fidbins():
+    z0=0.7
+    fidbins=depthtest_get_binmaps(z0vals=np.array([z0])) #isw+one galbin
+    if len(fidbins)!=2:
+        print 'more items in fidbins than expected:',fidbins
+    return fidbins
 
+def caltest_get_clfid(justread=True):
+    bins=caltest_get_fidbins()
+    zmax=max(m.zmax for m in bins)
+    #use depthtest tags since we'll read in those (already calculated) Cl
+    rundat = ClRunData(tag='depthtest',rundir='output/depthtest/',lmax=95,zmax=zmax)
+    fidcl=getCl(bins,rundat,dopairs=['all'],DoNotOverwrite=justread)
+    return fidcl
+
+#return Cl^cal list; return array of shape Nvariance x Nell, NOT ClData object
+#  assumes all cl_cal have same shape, just different map variances
+def caltest_get_clcallist(varlist=[0.,1.e-1,1.e-2,1.e-3,1.e-4],lmax=30,lmin=0,shape='g',width=10.):
+    Nvar=len(varlist)
+    maxvar=max(varlist)
+    maxind=np.where(varlist==maxvar)[0][0]
+    if shape=='g':
+        maxcl= gen_error_cl_fixedvar_gauss(maxvar,lmax,lmin,width)
+    elif shape=='l2':
+        maxcl = gen_error_cl_fixedvar_l2(maxvar,lmax,lmin)
+
+    clgrid=np.zeros((Nvar,lmax+1))
+    #since Clcal\propto variance, can just scale
+    for v in xrange(Nvar):
+        clgrid[v,:]=maxcl*varlist[v]/maxvar
+    return clgrid
+    
 #---------------------------------------------------------------
 # generate maps, do reconstructions
 #---------------------------------------------------------------
@@ -957,14 +984,128 @@ def caltest_getClcal(varlist=[1.e2,1.e3,1.e4],lmax=20,lmin=1):
 #---------------------------------------------------------------
 # rhocalc utils
 #---------------------------------------------------------------
-def caltest_rhoexp_additive(cldat,varlist,lmax=20,lmin=1):
-    # add additive noise from calib errors to LSS Cll in cldat
-    # the compute rhoexp
-    #return rhogrid
-    pass
+
+#caltest_get_rhoexp - approximating calib errors as additive only,
+#                     compute expectation value of rho for number of calibration
+#                     error field variances, assuming reconstruction is done
+#                     assuming no calib error
+#         inserts fiducial (no calib error) as last entry
+#         returns grid of rho or s values of size Nrec=Nvar
+def caltest_get_rhoexp(varlist=[1.e-1,1.e-2,1.e-3,1.e-4],lmax=30,lmin=0,shape='g',width=10.,overwrite=False,doplot=True,saverho=True,varname='rho',filetag=''):
+    if shape=='g':
+        shapestr='g{2:d}_{0:d}l{1:d}'.format(lmin,lmax,int(width))
+    elif shape=='l2':
+        shapestr='l2_{0:d}l{1:d}'.format(lmin,lmax)
+    if saverho:
+        outdir = 'output/caltest_plots/'
+        if filetag:
+            filetagstr='_'+filetag
+        else:
+            filetagstr=''
+        datfile='caltest_{0:s}_{1:s}exp{2:s}.dat'.format(shapestr,varname,filetagstr)
+
+        if not overwrite and os.path.isfile(outdir+datfile): #file exists
+            print 'Reading data file:',datfile
+            x=np.loadtxt(outdir+datfile,skiprows=2)
+            divstr=[str(int(x[i,0])) for i in xrange(x.shape[0])]
+            rhoarray=x[:,1]
+            return rhoarray
+        else:
+            print 'Writing to data file:',datfile
+
+    #get fiducial cl, with no calibration error
+    fidbins=caltest_get_fidbins()
+    lssbin=fidbins[1].tag #will just be the depthtest bin map
+    fidcl=caltest_get_clfid()
+
+    #construct map-mod combos for the variances given
+    if shape=='g':
+        mapmods=[(lssbin,getmodtag_fixedvar_gauss(v,width,lmax)) for v in varlist]
+    elif shape=='l2':
+        mapmods=[(lssbin,getmodtag_fixedvar_l2(v,lmax)) for v in varlist]
+
+    #generate calibration errors with fixed variance, spread through Cl lmin-lmax
+    #for each variance, get calib error Cl
+    clmodlist=[]
+    for mm in mapmods:
+        clmodlist.append(apply_additive_caliberror_tocl(fidcl,[mm]))
+    # include fidicual cl as last entry
+    varlist.append(0.)
+    clmodlist.append(fidcl)
+
+    #get recdat; only need to pass maptags, not modtags, since cldata objects
+    #  note that his means we can use the same recdat for all variances
+    recdat=RecData(includeglm=[lssbin],inmaptag=lssbin[:lssbin.rfind('_bin0')])
+    
+    # return array of shape [Nvar,Nell]
+    Nrec=len(varlist)
+    rhoarray=np.zeros(Nrec)
+    for r in xrange(Nrec):
+        if varname=='rho':
+            rhoarray[r]=compute_rho_fromcl(fidcl,recdat,reccldat=clmodlist[r])
+        elif varname=='s':
+            rhoarray[r]=compute_s_fromcl(fidcl,recdat,reccldat=clmodlist[r])
+
+    #if save, write to file
+    if saverho:
+        f=open(outdir+datfile,'w')
+        f.write('Calib error test: Clcal shape={0:s}, ell={1:d}-{2:d}\n'.format(shape,lmin,lmax))
+        f.write('var(c(nhat))   <rho>\n')
+        f.write(''.join(['{0:.2e} {1:8.3f}\n'.format(varlist[i],rhoarray[i]) for i in xrange(Nrec)]))
+        f.close()
+
+    if doplot:
+        caltest_rhoexpplot(varlist,rhoarray,varname=varname,outtag=shapestr)
+    return rhoarray
 
 #---------------------------------------------------------------
 # make plots
+def caltest_rhoexpplot(varlist,rhoarraylist,labellist=[],outname='',legtitle='',markerlist=[],colorlist=[],outtag='',varname='rho'):
+    #assuming last entry in varlist, rhoarray is fiducial (var=0)
+    if type(rhoarraylist[0])!=np.ndarray: #just one array passed,not list of arr
+        rhoarraylist=[rhoarraylist]
+    scattercolors=['#e41a1c','#377eb8','#4daf4a','#984ea3','#ff7f00','#ffff33','#a65628','#f781bf']
+    plotdir = 'output/caltest_plots/'
+    if not outname:
+        outname='caltest_'+varname+'exp'+outtag+'.png'
+
+    fig=plt.figure(0)
+    if varname=='rho':
+        plt.suptitle(r'Expected correlation coef. between $T^{{\rm ISW}}$ and $T^{{\rm rec}}$', size=18)
+    elif varname=='s':
+        plt.suptitle(r'Expected ratio between RMS of  $T^{{\rm rec}}-T^{{\rm ISW}}$ and $\sigma_{{T}}^{{\rm ISW}}$', size=18)
+    ax1 = plt.subplot(3,1,(1,2)) #top part has rho
+    ax2 = plt.subplot(3,1,3,sharex=ax1) #bottom has rho/rhofid
+    if not markerlist:
+        markerlist=['D']*len(labellist)
+    if not markerlist: #if labellist was empty
+        markerlist=['D']
+        labellist=['']
+    if not colorlist:
+        colorlist=scattercolors
+
+    plt.sca(ax1)
+    ax1.grid(True)
+    #ax1.ticklabel_format(axis='y',style='')
+    ax2.grid(True)
+    if varname=='rho':
+        ax1.set_ylabel(r'$\langle \rho \rangle$')
+        ax2.set_ylabel(r'$\langle \rho \rangle /\langle \rho_{{c=0}} \rangle$')
+    elif varname=='s':
+        ax1.set_ylabel(r'$\langle s \rangle$')
+        ax2.set_ylabel(r'$\langle s \rangle /\langle s_{{c=0}} \rangle - 1$')
+    ax1.set_xlabel(r'${\rm var}[c(\hat{{n}})]$')
+    for i in xrange(len(rhoarraylist)):
+        ax1.semilogx(varlist[:-1],rhoarraylist[i][:-1],label=labellist[i],color=colorlist[i],marker=markerlist[i])
+        ax2.semilogx(varlist[:-1], rhoarraylist[i][:-1]/rhoarraylist[i][-1]-1.,label=labellist[i],color=colorlist[i],marker=markerlist[i])
+
+    plt.sca(ax1)
+    if labellist:
+        plt.legend(fontsize=12,title=legtitle)
+
+    print 'Saving plot to ',plotdir+outname
+    plt.savefig(plotdir+outname)
+    plt.close()
 #---------------------------------------------------------------
 # rho histogram 
 
@@ -1007,7 +1148,11 @@ if __name__=="__main__":
     if 0: #bin test with many realizations, generate maps
         nomaps=True
         bintest_get_glm_and_rec(Nreal=10000,divlist=['6','222','111111'],minreal=0,justgetrho=nomaps,dorell=1)
-    if 1: #bin test with many realizations, make plots
+    if 0: #bin test with many realizations, make plots
         #bintest_plot_rhohist(getrhopred=True,varname='rho')
         #bintest_plot_rhohist(getrhopred=True,varname='s')
         bintest_plot_relldat()
+
+    if 1: #cal test, rho expectation value calcs
+        varlist=[1.e-1,1.e-2,1.e-3,1.e-4]
+        caltest_get_rhoexp(varlist,overwrite=1,doplot=1,saverho=1,varname='rho')

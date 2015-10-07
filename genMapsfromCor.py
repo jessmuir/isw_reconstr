@@ -888,7 +888,7 @@ def get_fixedvar_errors_formaps(glmdat,cdatalist=[],overwrite=False,NSIDE=32):
         if shape=='l2':
             modtag='l2_var{0:.2e}_maxl{1:d}'.format(cvar,clmax)
         elif shape=='g': #currently default width
-            modtag='g{1:d}_var{0:.2e}_maxl{2:d}'.format(cvar,int(width),clmax)
+            modtag='g{1:d}_var{0:.2e}_{3:d}l{2:d}'.format(cvar,int(width),clmax)
         #print 'USING MODTAG',modtag
 
         #loop through maps and realizations, generating calib maps
@@ -938,7 +938,7 @@ def getmodtag_fixedvar_l2(sig2,caliblmax):
 def parsemodtag_fixedvar_l2(ctag): #ctag = modtag
     aftervar=ctag.find('_var')+4
     premax=ctag.find('_max')
-    variance=float(ctag[aftervar,premax])
+    variance=float(ctag[aftervar:premax])
     aftermaxl=premax+5
     maxl=int(ctag[aftermaxl:])
     return variance, maxl
@@ -972,10 +972,10 @@ def getmodtag_fixedvar_gauss(sig2,width,caliblmax):
     modtag='g{1:d}_var{0:.2e}_maxl{2:d}'.format(sig2,int(width),caliblmax)
     return modtag
 
-def parsemodtag_fixedvar_l2(ctag): #ctag = modtag
+def parsemodtag_fixedvar_gauss(ctag): #ctag = modtag
     aftervar=ctag.find('_var')+4
     premax=ctag.find('_max')
-    variance=float(ctag[aftervar,premax])
+    variance=float(ctag[aftervar:premax])
     aftermaxl=premax+5
     maxl=int(ctag[aftermaxl:])
     preunderscore=aftervar-4
@@ -1000,13 +1000,13 @@ def gen_error_map_fixedvar_gauss(sig2=0.1,caliblmax=20,lmin=0,width=10.,NSIDE=32
 # assumes epsilon propto c_00
 # assumes calibration error maps are uncorrelated with each other and galaxies
 #------------------------------------------------------------------------
-def apply_additive_caliberror_tocl(cldat,mapmodcombs=[]):
+def apply_additive_caliberror_tocl(cldat,mapmodcombos=[]):
     Nmap=cldat.Nmap
     Nell=cldat.Nell
     
     #initialize
     calcl=np.zeros((Nmap,Nell))#should have same number of entries as maps in cldat
-    newnbarlist=cldat.nbarlist[:]
+    newnbarlist=cldat.nbar[:]
     
     #go through mapmod combos, generate Clcal and put it in the appropriate place in calcl
     for c in mapmodcombos:
@@ -1034,8 +1034,8 @@ def apply_additive_caliberror_tocl(cldat,mapmodcombs=[]):
             calcl[i,:thisNell]=thiscalcl
             #working here
     #epsilon parameter tells us how nbar changes; includign only c00 contrib
-    epsilon=cacl[:,0]/np.sqrt(4*np.pi) #is zero if no Clcal input
-    newnbarlist=cldat.nbarlist*(1.+epsilon) #if not gal, eps=0, so nbar=-1 still
+    epsilon=calcl[:,0]/np.sqrt(4*np.pi) #is zero if no Clcal input
+    newnbarlist=cldat.nbar*(1.+epsilon) #if not gal, eps=0, so nbar=-1 still
     
     #make copy of cl data
     outcl=cldat.cl[:,:]
@@ -1044,7 +1044,7 @@ def apply_additive_caliberror_tocl(cldat,mapmodcombs=[]):
     Ncross=cldat.Ncross
     
     #go through all cross pairs and add appropriate calib error modifications
-    for n in Ncross:
+    for n in xrange(Ncross):
         i,j=crosspairs[n]
         if i==j:
             outcl[n,:]+=calcl[i,:] #additive power from calib error auto power
@@ -1052,7 +1052,8 @@ def apply_additive_caliberror_tocl(cldat,mapmodcombs=[]):
         outcl[n,:]/=(1.+epsilon[i])*(1.+epsilon[j]) #no mod if epsilon small
 
     #creat outcldata object with new outcl and nbar
-    outcldat=ClData(copy.deepcopy(cldat.rundat),cldat.bintaglist,docrossind=cldat.docross,nbarlist=newnbarlist)
+    outcldat=ClData(copy.deepcopy(cldat.rundat),cldat.bintaglist,clgrid=outcl,docrossind=cldat.docross,nbarlist=newnbarlist)
+    print 'HAS CL changed? ',np.any(cldat.cl-outcldat.cl)
     return outcldat
 
 #------------------------------------------------------------------------
@@ -1133,7 +1134,7 @@ def apply_caliberror_toglm(inglmdat,mapmodcombos=[],savemaps=False,saveplots=Fal
 
             startmapf=inglmdat.get_mapfile(r,n)
             startmap=hp.read_map(startmapf,verbose=False)
-            startnbar=inglmdat.nbarlist[n]
+            startnbar=inglmdat.nbar[n]
 
             #read in calib error map 
             calibmapf=inglmdat.mapdir()+'caliberror.{0:s}.for_{1:s}.r{2:05d}.fits'.format(newmodtags[c],newmaptags[c],r)        

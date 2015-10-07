@@ -797,7 +797,7 @@ def read_relldat_wfile(filename):
 # cldat is the Cl representing the Cl's used for simulation
 #  if reccldat is passed as a ClData object, these Cl's are used in estimator
 # Note: right now, can either pass reccldat, or mess with Nneibors, NOT both
-#WORKING HERE
+#       Also, currently assumes recdat can be used for both cldat and recldat
 # If Nneighbors=-1, use all available data in Cl
 #     if it is 0: set everything that's not bin-isw or bin-auto to zero
 #     if it is 1: use only bin-isw, bin-auto, and bin-nearest neighbor
@@ -809,6 +809,7 @@ def compute_rho_fromcl(cldat,recdat,Nneighbors=-1,reccldat=0):
         DIFFREC=False
     else:
         DIFFREC=True #are the Cl's for rec and sim different?
+
     if Nneighbors>-1:
         oldcl=cldat.cl[:,:]#deep copy, hang onto original info
         oldnoisecl=cldat.noisecl[:,:]
@@ -833,7 +834,8 @@ def compute_rho_fromcl(cldat,recdat,Nneighbors=-1,reccldat=0):
                 cldat.noisecl[n,:]=np.zeros(cldat.Nell)
 
     lmin=recdat.lmin
-    Dl,dtags=get_Dl_matrix(cldat,recdat.includecl,recdat.zerotagstr)
+    # These are the Cl used for simulating maps (hence the recdat.includeglm)
+    Dl,dtags=get_Dl_matrix(cldat,recdat.includeglm,recdat.zerotagstr)
     #print Dl[5,:,:]
     Dinv=invert_Dl(Dl)
     Nell=Dinv.shape[0]
@@ -846,7 +848,7 @@ def compute_rho_fromcl(cldat,recdat,Nneighbors=-1,reccldat=0):
     includel=(lvals>=lmin)
     NLSS=recdat.Nmap
 
-    #if DIFFREC, get Dl data for those Cl
+    #if DIFFREC, get Dl data for those Cl, these are Cl for making estimator
     if DIFFREC: #assumes cldat and reccldat have same ell info
         recDl,recdtags=get_Dl_matrix(reccldat,recdat.includecl,recdat.zerotagstr)
         recDinv=invert_Dl(recDl)
@@ -863,13 +865,12 @@ def compute_rho_fromcl(cldat,recdat,Nneighbors=-1,reccldat=0):
     estop=np.zeros((NLSS,Nell))#"estimator operator"
     for i in xrange(NLSS):
         estop[i,:]=-1*recNl*recDinv[:,0,i+1]
-    #WORKING HERE, need to insert estop into folling calcs
     
     #for each l sum over LSS maps for numerator, the sum over l
     numell = np.zeros(lvals.size)
     for i in xrange(NLSS):
-        numell+=Dinv[:,0,i+1]*Dl[:,0,i+1]
-    numell*=-1*includel*Nl*(2.*lvals+1)
+        numell+=estop[i,:]*Dl[:,0,i+1]
+    numell*=includel*(2.*lvals+1)
     numerator=np.sum(numell)
 
     #for sigisw, just sum over l
@@ -881,8 +882,8 @@ def compute_rho_fromcl(cldat,recdat,Nneighbors=-1,reccldat=0):
     for i in xrange(NLSS):
         sig2recli=np.zeros(lvals.size)
         for j in xrange(NLSS):
-            sig2recli+=-1*Nl*Dinv[:,0,j+1]*Dl[:,j+1,i+1]
-        sig2recl+=sig2recli*(-1)*Nl*Dinv[:,0,i+1]
+            sig2recli+=estop[j,:]*Dl[:,j+1,i+1]
+        sig2recl+=sig2recli*estop[i,:]
     sig2recl*=includel*(2.*lvals+1)
     sig2rec=np.sum(sig2recl)
     
@@ -932,9 +933,14 @@ def rho_sampledist(r,rho,NSIDE=32,Nsample=0): #here rho is the expected mean
 
 # compute expectation value of s, the rms of the difference between
 # true and rec ISW maps, in units of true ISW rms
-def compute_s_fromcl(cldat,recdat):
+def compute_s_fromcl(cldat,recdat,reccldat=0):
     #Dl is a matrix of Cls, with isw at zero index
     #  and other maps in order specified by recdat.includecl
+    if not reccldat:
+        DIFFREC=False
+    else:
+        DIFFREC=True #are the Cl's for rec and sim different?
+    
     lmin=recdat.lmin
     Dl,dtags=get_Dl_matrix(cldat,recdat.includecl,recdat.zerotagstr)
     #print Dl[5,:,:]
@@ -949,6 +955,23 @@ def compute_s_fromcl(cldat,recdat):
     includel=(lvals>=lmin)
     NLSS=recdat.Nmap
     
+    #if DIFFREC, get Dl data for those Cl
+    if DIFFREC: #assumes cldat and reccldat have same ell info
+        recDl,recdtags=get_Dl_matrix(reccldat,recdat.includecl,recdat.zerotagstr)
+        recDinv=invert_Dl(recDl)
+        recNl=np.zeros(Nell)
+        for l in xrange(Nell):
+            if recDinv[l,0,0]!=0:
+                recNl[l]=1/recDinv[l,0,0]
+    else:
+        recDl=Dl
+        recDinv=Dinv
+        recNl=Nl
+
+    # construct estimator operators
+    estop=np.zeros((NLSS,Nell))#"estimator operator"
+    for i in xrange(NLSS):
+        estop[i,:]=-1*recNl*recDinv[:,0,i+1]
 
     #for sigisw, just sum over l
     sig2iswl=includel*(2.*lvals+1)*Dl[:,0,0]
@@ -959,16 +982,16 @@ def compute_s_fromcl(cldat,recdat):
     for i in xrange(NLSS):
         sig2recli=np.zeros(lvals.size)
         for j in xrange(NLSS):
-            sig2recli+=-1*Nl*Dinv[:,0,j+1]*Dl[:,j+1,i+1]
-        sig2recl+=sig2recli*(-1)*Nl*Dinv[:,0,i+1]
+            sig2recli+=estop[j,:]*Dl[:,j+1,i+1]
+        sig2recl+=sig2recli*estop[i,:]
     sig2recl*=includel*(2.*lvals+1)
     sig2rec=np.sum(sig2recl)
 
     #for each l sum over LSS maps for numerator, the sum over l
     crosspowerell = np.zeros(lvals.size)
     for i in xrange(NLSS):
-        crosspowerell+=Dinv[:,0,i+1]*Dl[:,0,i+1]
-    crosspowerell*=-1*includel*Nl*(2.*lvals+1)
+        crosspowerell+=estop[i,:]*Dl[:,0,i+1]
+    crosspowerell*=includel*(2.*lvals+1)
     numerator=np.sqrt(sig2rec+sig2isw -2*np.sum(crosspowerell))
     
     denom=np.sqrt(sig2isw)
