@@ -985,6 +985,42 @@ def caltest_get_clcallist(varlist=[0.,1.e-1,1.e-2,1.e-3,1.e-4],lmax=30,lmin=0,sh
 # rhocalc utils
 #---------------------------------------------------------------
 
+def caltest_get_logspaced_varlist(minvar=1.e-9,maxvar=.1,Nperlog=10):
+    logmin=np.log10(minvar)
+    logmax=np.log10(maxvar)
+    Npoints=int(logmax-logmin)*Nperlog+1
+    dlog=1./Nperlog
+    logout=logmin+np.arange(Npoints)*dlog
+    varout=10**logout
+    return varout
+
+def caltest_compare_clcal_shapes(varlist,shapelist=['g','l2'],varname='rho',lmaxlist=[],lminlist=[],widthlist=[]):
+    Nshapes=len(shapelist)
+    if not lmaxlist:
+        lmaxlist=[30]*Nshapes
+    if not lminlist:
+        lminlist=[]
+        for s in shapelist:
+            if s=='g':
+                lminlist.append(0)
+            elif s=='l2':
+                lminlist.append(1)
+    if not widthlist:
+        widthlist=[10.]*Nshapes
+    rhoexplist=[]
+    labels=[]
+    for s in xrange(Nshapes):
+        rhoexplist.append(caltest_get_rhoexp(varlist,lmax=lmaxlist[s],lmin=lminlist[s],shape=shapelist[s],width=widthlist[s],overwrite=False,doplot=False,saverho=True,varname=varname))
+        if shapelist[s]=='g':
+            shapestr='g{2:d}_{0:d}l{1:d}'.format(lminlist[s],lmaxlist[s],int(widthlist[s]))
+        elif shapelist[s]=='l2':
+            shapestr='l2_{0:d}l{1:d}'.format(lminlist[s],lmaxlist[s])
+        labels.append(shapestr)
+    print 'rhoexplist.shape',np.array(rhoexplist).shape
+    print 'Nshapes',Nshapes
+    print "Nvar",len(varlist)
+    caltest_rhoexpplot(varlist,rhoexplist,labels,legtitle=r'$C_{{\ell}}^{{\rm cal}}$ shape',outtag='shapecompare',varname=varname)
+
 #caltest_get_rhoexp - approximating calib errors as additive only,
 #                     compute expectation value of rho for number of calibration
 #                     error field variances, assuming reconstruction is done
@@ -1030,8 +1066,9 @@ def caltest_get_rhoexp(varlist=[1.e-1,1.e-2,1.e-3,1.e-4],lmax=30,lmin=0,shape='g
     for mm in mapmods:
         clmodlist.append(apply_additive_caliberror_tocl(fidcl,[mm]))
     # include fidicual cl as last entry
-    varlist.append(0.)
-    clmodlist.append(fidcl)
+    if varlist[-1]!=0.:
+        varlist.append(0.)
+        clmodlist.append(fidcl)
 
     #get recdat; only need to pass maptags, not modtags, since cldata objects
     #  note that his means we can use the same recdat for all variances
@@ -1060,7 +1097,7 @@ def caltest_get_rhoexp(varlist=[1.e-1,1.e-2,1.e-3,1.e-4],lmax=30,lmin=0,shape='g
 
 #---------------------------------------------------------------
 # make plots
-def caltest_rhoexpplot(varlist,rhoarraylist,labellist=[],outname='',legtitle='',markerlist=[],colorlist=[],outtag='',varname='rho'):
+def caltest_rhoexpplot(varlist,rhoarraylist,labellist=[],outname='',legtitle='',colorlist=[],outtag='',varname='rho'):
     #assuming last entry in varlist, rhoarray is fiducial (var=0)
     if type(rhoarraylist[0])!=np.ndarray: #just one array passed,not list of arr
         rhoarraylist=[rhoarraylist]
@@ -1071,15 +1108,12 @@ def caltest_rhoexpplot(varlist,rhoarraylist,labellist=[],outname='',legtitle='',
 
     fig=plt.figure(0)
     if varname=='rho':
-        plt.suptitle(r'Expected correlation coef. between $T^{{\rm ISW}}$ and $T^{{\rm rec}}$', size=18)
+        plt.suptitle(r'Calibration error test: Expected correlation coef. between $T^{{\rm ISW}}$ and $T^{{\rm rec}}$', size=14)
     elif varname=='s':
-        plt.suptitle(r'Expected ratio between RMS of  $T^{{\rm rec}}-T^{{\rm ISW}}$ and $\sigma_{{T}}^{{\rm ISW}}$', size=18)
+        plt.suptitle(r'Calibration error test: Expected [RMS of  $T^{{\rm rec}}-T^{{\rm ISW}}$]/$\sigma_{{T}}^{{\rm ISW}}$', size=14)
     ax1 = plt.subplot(3,1,(1,2)) #top part has rho
     ax2 = plt.subplot(3,1,3,sharex=ax1) #bottom has rho/rhofid
-    if not markerlist:
-        markerlist=['D']*len(labellist)
-    if not markerlist: #if labellist was empty
-        markerlist=['D']
+    if not labellist:
         labellist=['']
     if not colorlist:
         colorlist=scattercolors
@@ -1090,17 +1124,18 @@ def caltest_rhoexpplot(varlist,rhoarraylist,labellist=[],outname='',legtitle='',
     ax2.grid(True)
     if varname=='rho':
         ax1.set_ylabel(r'$\langle \rho \rangle$')
-        ax2.set_ylabel(r'$\langle \rho \rangle /\langle \rho_{{c=0}} \rangle$')
+        ax2.set_ylabel(r'$\langle \rho \rangle /\langle \rho_{{c=0}} \rangle -1$')
     elif varname=='s':
         ax1.set_ylabel(r'$\langle s \rangle$')
         ax2.set_ylabel(r'$\langle s \rangle /\langle s_{{c=0}} \rangle - 1$')
-    ax1.set_xlabel(r'${\rm var}[c(\hat{{n}})]$')
+    ax2.set_xlabel(r'Variance of calib. error field ${\rm var}[c(\hat{{n}})]$')
     for i in xrange(len(rhoarraylist)):
-        ax1.semilogx(varlist[:-1],rhoarraylist[i][:-1],label=labellist[i],color=colorlist[i],marker=markerlist[i])
-        ax2.semilogx(varlist[:-1], rhoarraylist[i][:-1]/rhoarraylist[i][-1]-1.,label=labellist[i],color=colorlist[i],marker=markerlist[i])
+        print len(varlist[:-1]),rhoarraylist[i][:-1].shape
+        ax1.semilogx(varlist[:-1],rhoarraylist[i][:-1],label=labellist[i],color=colorlist[i])
+        ax2.semilogx(varlist[:-1], rhoarraylist[i][:-1]/rhoarraylist[i][-1]-1.,label=labellist[i],color=colorlist[i])
 
     plt.sca(ax1)
-    if labellist:
+    if labellist and labellist[0]:
         plt.legend(fontsize=12,title=legtitle)
 
     print 'Saving plot to ',plotdir+outname
@@ -1154,5 +1189,11 @@ if __name__=="__main__":
         bintest_plot_relldat()
 
     if 1: #cal test, rho expectation value calcs
-        varlist=[1.e-1,1.e-2,1.e-3,1.e-4]
+        #varlist=[1.e-1,1.e-2,1.e-3,1.e-4]
+        varlist=list(caltest_get_logspaced_varlist(minvar=1.e-8,maxvar=.1,Nperlog=10))
         caltest_get_rhoexp(varlist,overwrite=1,doplot=1,saverho=1,varname='rho')
+        caltest_get_rhoexp(varlist,overwrite=1,doplot=1,saverho=1,varname='s')
+
+        
+        caltest_compare_clcal_shapes(varlist,shapelist=['g','l2'],varname='rho')
+        caltest_compare_clcal_shapes(varlist,shapelist=['g','l2'],varname='s')

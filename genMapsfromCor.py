@@ -1038,22 +1038,25 @@ def apply_additive_caliberror_tocl(cldat,mapmodcombos=[]):
     newnbarlist=cldat.nbar*(1.+epsilon) #if not gal, eps=0, so nbar=-1 still
     
     #make copy of cl data
-    outcl=cldat.cl[:,:]
+    outcl=np.copy(cldat.cl)
     crosspairs=cldat.crosspairs #[crossind,mapinds] 
     crossinds=cldat.crossinds #[mapind,mapind]
     Ncross=cldat.Ncross
     
     #go through all cross pairs and add appropriate calib error modifications
     for n in xrange(Ncross):
+        #print 'n=',n
         i,j=crosspairs[n]
         if i==j:
             outcl[n,:]+=calcl[i,:] #additive power from calib error auto power
         outcl[n,0]+=-1*calcl[i,0]*calcl[j,0] #from some of the epsilon terms 
         outcl[n,:]/=(1.+epsilon[i])*(1.+epsilon[j]) #no mod if epsilon small
-
+        #print '  changed?',np.any(outcl[n,:]==cldat.cl[n,:])
+        
     #creat outcldata object with new outcl and nbar
+    #print 'HAS CL changed? ',np.any(cldat.cl-outcl)
     outcldat=ClData(copy.deepcopy(cldat.rundat),cldat.bintaglist,clgrid=outcl,docrossind=cldat.docross,nbarlist=newnbarlist)
-    print 'HAS CL changed? ',np.any(cldat.cl-outcldat.cl)
+
     return outcldat
 
 #------------------------------------------------------------------------
