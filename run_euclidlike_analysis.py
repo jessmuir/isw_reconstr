@@ -980,6 +980,16 @@ def caltest_get_clcallist(varlist=[0.,1.e-1,1.e-2,1.e-3,1.e-4],lmax=30,lmin=0,sh
 #---------------------------------------------------------------
 # generate reference maps with variance of say, 1.e-2
 # rescale approrpiately when doing recs
+def caltest_apply_caliberrors(varlist,shape='g',width=10.,lmin=0.,lmax=30.):
+    #get fiducial cl, with no calibration error
+    fidbins=caltest_get_fidbins()
+    lssbin=fidbins[1].tag #will just be the depthtest bin map
+    fidcl=caltest_get_clfid()
+    #get correct names, etc for maps, glm, whatever
+    
+    #apply calibration errors
+    
+    #WORKING HERE
 
 #---------------------------------------------------------------
 # rhocalc utils
@@ -1043,9 +1053,12 @@ def caltest_get_rhoexp(varlist=[1.e-1,1.e-2,1.e-3,1.e-4],lmax=30,lmin=0,shape='g
         if not overwrite and os.path.isfile(outdir+datfile): #file exists
             print 'Reading data file:',datfile
             x=np.loadtxt(outdir+datfile,skiprows=2)
-            divstr=[str(int(x[i,0])) for i in xrange(x.shape[0])]
-            rhoarray=x[:,1]
-            return rhoarray
+            invarlist=x[:,0]
+            if not np.all(invarlist==np.array(varlist)):
+                print "WARNING, invarlist!=varlist, overwriting"
+            else:
+                rhoarray=x[:,1]
+                return rhoarray
         else:
             print 'Writing to data file:',datfile
 
@@ -1055,11 +1068,8 @@ def caltest_get_rhoexp(varlist=[1.e-1,1.e-2,1.e-3,1.e-4],lmax=30,lmin=0,shape='g
     fidcl=caltest_get_clfid()
 
     #construct map-mod combos for the variances given
-    if shape=='g':
-        mapmods=[(lssbin,getmodtag_fixedvar_gauss(v,width,lmax)) for v in varlist]
-    elif shape=='l2':
-        mapmods=[(lssbin,getmodtag_fixedvar_l2(v,lmax)) for v in varlist]
-
+    mapmods=caltest_getmapmods_onebin(lssbin,varlist,lmax,lmin,shape,width)
+    
     #generate calibration errors with fixed variance, spread through Cl lmin-lmax
     #for each variance, get calib error Cl
     clmodlist=[]
@@ -1067,6 +1077,7 @@ def caltest_get_rhoexp(varlist=[1.e-1,1.e-2,1.e-3,1.e-4],lmax=30,lmin=0,shape='g
         clmodlist.append(apply_additive_caliberror_tocl(fidcl,[mm]))
     # include fidicual cl as last entry
     if varlist[-1]!=0.:
+        print "  appending fiducial case, no calib error"
         varlist.append(0.)
         clmodlist.append(fidcl)
 
@@ -1094,6 +1105,15 @@ def caltest_get_rhoexp(varlist=[1.e-1,1.e-2,1.e-3,1.e-4],lmax=30,lmin=0,shape='g
     if doplot:
         caltest_rhoexpplot(varlist,rhoarray,varname=varname,outtag=shapestr)
     return rhoarray
+
+#-------
+def caltest_getmapmods_onebin(lssbintag,varlist=[1.e-1,1.e-2,1.e-3,1.e-4],lmax=30,lmin=0,shape='g',width=10.):
+    #construct map-mod combos for the variances given
+    if shape=='g':
+        mapmods=[(lssbintag,getmodtag_fixedvar_gauss(v,width,lmax)) for v in varlist]
+    elif shape=='l2':
+        mapmods=[(lssbintag,getmodtag_fixedvar_l2(v,lmax)) for v in varlist]
+    return mapmods
 
 #---------------------------------------------------------------
 # make plots
@@ -1188,12 +1208,15 @@ if __name__=="__main__":
         #bintest_plot_rhohist(getrhopred=True,varname='s')
         bintest_plot_relldat()
 
-    if 1: #cal test, rho expectation value calcs
-        #varlist=[1.e-1,1.e-2,1.e-3,1.e-4]
-        varlist=list(caltest_get_logspaced_varlist(minvar=1.e-8,maxvar=.1,Nperlog=10))
-        caltest_get_rhoexp(varlist,overwrite=1,doplot=1,saverho=1,varname='rho')
-        caltest_get_rhoexp(varlist,overwrite=1,doplot=1,saverho=1,varname='s')
-
-        
+    shortvarlist=[1.e-6,1.e-5,1.e-4,1.e-3] #for testing datapoints
+    varlist=list(caltest_get_logspaced_varlist(minvar=1.e-8,maxvar=.1,Nperlog=10))    
+    if 0: #cal test, rho expectation value calcs
+        #caltest_get_rhoexp(varlist,overwrite=1,doplot=1,saverho=1,varname='rho')
+        #caltest_get_rhoexp(varlist,overwrite=1,doplot=1,saverho=1,varname='s')
         caltest_compare_clcal_shapes(varlist,shapelist=['g','l2'],varname='rho')
         caltest_compare_clcal_shapes(varlist,shapelist=['g','l2'],varname='s')
+
+    if 1: #caltest, rho for many realizations
+        nomaps=False
+        #caltest_apply_errors(varlist)
+        #caltest_get_glm_and_rec(Nreal=10000,varlist=shortvarlist,minreal=0,justgetrho=nomaps,dorell=0)
