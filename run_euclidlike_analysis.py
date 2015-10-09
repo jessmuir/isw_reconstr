@@ -980,15 +980,34 @@ def caltest_get_clcallist(varlist=[0.,1.e-1,1.e-2,1.e-3,1.e-4],lmax=30,lmin=0,sh
 #---------------------------------------------------------------
 # generate reference maps with variance of say, 1.e-2
 # rescale approrpiately when doing recs
-def caltest_apply_caliberrors(varlist,shape='g',width=10.,lmin=0.,lmax=30.):
+def caltest_apply_caliberrors(Nreal=1,varlist,shape='g',width=10.,lmin=0.,lmax=30.,makecalibmap=False,scaletovar=False):
+    #scaletovar=refvar is the variance for which cl maps are generated
+    if scaletovar and np.where(varlist==scaletovar):
+        refvar=scaletovar
+        refind=np.where(varlist==refvar)[0][0]
+    else:
+        refvar=max(varlist)
+        refind=np.where(varlist==maxvar)[0][0] #scale all calib maps from largest
+    
     #get fiducial cl, with no calibration error
     fidbins=caltest_get_fidbins()
     lssbin=fidbins[1].tag #will just be the depthtest bin map
     fidcl=caltest_get_clfid()
-    #get correct names, etc for maps, glm, whatever
-    
+
+    #get fid glmdat; no data needed, just mapnames, et
+    glmdat=get_glm(fidcl,Nreal=0)
+
+    #set up calibration error maps
+    calinfolist=[(lssbin,refvar,lmax,shape,width,lmin)] #only for max var
+    dothesemods=get_fixedvar_errors_formaps(glmdat,calinfolist,overwrite=makecalibmap) #generates calibration error maps, returns [(maptag,modtag,masktag)]list
+
     #apply calibration errors
-    
+    for v in varlist:
+        scaling=np.sqrt(v/refvar)
+        apply_caliberror_to_manymaps(glmdat,dothesemods,Nreal=1,calmap_scaling=scaling)
+    #don't need to hang onto new nbar valuse, only comes into estimator in theory
+
+    #do i need to compute estomators here or in anotehr function?
     #WORKING HERE
 
 #---------------------------------------------------------------

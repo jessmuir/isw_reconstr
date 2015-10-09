@@ -817,12 +817,13 @@ def plotmap(m,outfname,rlz,maptag,modtag='unmod',masktag='fullsky',titlenote='')
 #   with appropriate maps, save calibration error maps to .fits files
 # input:
 #   glmData - glmData object; glm data not actually used, but mapnames,
-#             realizations, and rundir info are used for saving.
+#             realizations, and rundir info are used for saving. Can pass dummy
+#             glm with glmdat.Nreal==0, but only if you also pass an Nreal arg
 #   cdatatuple - list of info about which maps should get calib error maps
 #                constructed for them, and what stats that error maps has
 #                ->though calib maps don't are indep of gal maps, should gen
 #                  a unique calib error for each map+real 
-#                ->list entries should be tuples (mapstr,fixedvar,clmax,shape)
+#                ->list entries should be tuples (mapstr,fixedvar,clmax,shape,width,clmin)
 #                  where mapstr is a string labeling maps
 #                  fixedvar gives the variance of the caliberror to make
 #                  and clmax gives max l of calib error map (defaults used
@@ -837,14 +838,19 @@ def plotmap(m,outfname,rlz,maptag,modtag='unmod',masktag='fullsky',titlenote='')
 #  returns: for now, nothing. as long as apply_caliberror_toglm uses same
 #           naming convention as here, it will open up files
 #------------------------------------------------------------------------
-def get_fixedvar_errors_formaps(glmdat,cdatalist=[],overwrite=False,NSIDE=32):
+def get_fixedvar_errors_formaps(glmdat,cdatalist=[],overwrite=False,NSIDE=32,Nreal=0):
     #print 'in get_fixedvar...; glmdat.glm.shape=',glmdat.glm.shape
     rundir=glmdat.rundir
     outdir=glmdat.mapdir()
     outtuplelist=[]
-    #print 'outdir:',outdir
-    #print 'cdatalist=',cdatalist
+
     for cdat in cdatalist:
+        #defaults
+        cvar=1.e-4
+        shape='g'
+        width='10.'
+        clmin=0.
+        clmax=30.
         if type(cdat)==str: #if only string, do this to avoid confusion
             cdat=(cdat,)
         #print cdat
@@ -860,35 +866,25 @@ def get_fixedvar_errors_formaps(glmdat,cdatalist=[],overwrite=False,NSIDE=32):
                     shape=cldat[3]
                     if nentries>4:
                         width=cldat[4] #sets gaussian width, does nothing to l2
-                    else:
-                        width=10.
-            else: #defaults
-                clmax=30
-                shape='g'
-                width=10.
-                #print 'clmax=default=',clmax
-        else: #defaults
-            cvar=0.1
-            clmax=30
-            shape='g'
-            width=10.
-            #print 'cvar=default=',cvar
-            #print 'clmax=default2=',clmax
+                        if nentries>5:
+                            clmin=cldat[5]
         #collect maptags for which we're generating calib errs
         dothesemaps=[]
         for t in glmdat.maptaglist:
             if (mapstr in t) and (t not in dothesemaps): 
                 dothesemaps.append(t)
         #get realization numbers for which we're generating calib errors
+        # if passing a dummy glm, look for Nreal arg to this function
         if glmdat.rlzns.size:
             dothesereal=glmdat.rlzns
-        else:
+        elif glmdat.Nreal:
             dothesereal=np.arange(glmdat.Nreal)
-
+        elif Nreal:
+            dothesereal=np.arange(Nreal)
         if shape=='l2':
-            modtag='l2_var{0:.2e}_maxl{1:d}'.format(cvar,clmax)
+            modtag='l2_var{0:.2e}_{2:d}l{1:d}'.format(cvar,clmax,clmin)
         elif shape=='g': #currently default width
-            modtag='g{1:d}_var{0:.2e}_{3:d}l{2:d}'.format(cvar,int(width),clmax)
+            modtag='g{1:d}_var{0:.2e}_{3:d}l{2:d}'.format(cvar,int(width),clmax,clmin)
         #print 'USING MODTAG',modtag
 
         #loop through maps and realizations, generating calib maps
@@ -1087,7 +1083,7 @@ def apply_caliberror_tomap(inmap,cmap,innbar):
 #  to get new map and thus new glm.
 # Add new glmdata to glmData, return that
 #------------------------------------------------------------------------
-def apply_caliberror_toglm(inglmdat,mapmodcombos=[],savemaps=False,saveplots=False,newglmfiletag=''):
+def apply_caliberror_toglm(inglmdat,mapmodcombos=[],savemaps=False,saveplots=False,newglmfiletag='',calmap_scaling=1.):
     #print 'in apply calerror_toglm, glm shape:',inglmdat.glm.shape
     #for each mapmodcombo, check whether it is already in glmdat
     newmaptags=[]
@@ -1141,7 +1137,7 @@ def apply_caliberror_toglm(inglmdat,mapmodcombos=[],savemaps=False,saveplots=Fal
 
             #read in calib error map 
             calibmapf=inglmdat.mapdir()+'caliberror.{0:s}.for_{1:s}.r{2:05d}.fits'.format(newmodtags[c],newmaptags[c],r)        
-            calibmap=hp.read_map(calibmapf,verbose=False)
+            calibmap=calmap_scaling*hp.read_map(calibmapf,verbose=False)
             newmap,newnbar=apply_caliberror_tomap(startmap,calibmap,startnbar)
             if savemaps:
                 newmapf= inglmdat.get_mapfile_fortags_unchecked(r,newmaptags[c],newmodtags[c],newmasktags[c])
@@ -1178,3 +1174,77 @@ def apply_caliberror_toglm(inglmdat,mapmodcombos=[],savemaps=False,saveplots=Fal
         oldfiletag=inglmdat.filetags[0]
         outglm=write_glm_to_files(outglm,setnewfiletag=True,newfiletag=oldfiletag)
     return outglm
+
+
+#------------------------------------------------------------------------
+# apply_calibrerror_to_manymaps
+#  input: inglmdat - dummy glmData object (Nreal=0)
+#         mapmodcombos - list of tuples [(maptag,modtag,masktag),...]
+#                 where masktag is optional
+#         savemaps - if true, the fits file of the combined maps are saved
+#         saveplots - if true, plots of the maps are saved as png files
+#  for each pair, if that map/mod/mask combo not already in inglmdata
+#  apply the calibration error modification associated with modtag to it 
+#  to get new map and nbar value
+#------------------------------------------------------------------------
+def apply_caliberror_to_manymaps(inglmdat,mapmodcombos=[],saveplots=False,rlzns=np.array([]),Nreal=1,calmap_scaling=1.):
+    #print 'in apply calerror_toglm, glm shape:',inglmdat.glm.shape
+    #for each mapmodcombo, check whether it is already in glmdat
+    newmaptags=[]
+    newmodtags=[]
+    newmasktags=[]
+    newnbarlist=[] #to be filled once we start combining maps
+    #print 'mapmodcombos:',mapmodcombos
+    for c in mapmodcombos:
+        if len(c)==2: #masktag is default
+            mapmod=(c[0],c[1],'fullsky')
+            #print 'mapmod=',mapmod
+        else:
+            mapmod=c
+            #print '  here for c=',c
+        if mapmod in inglmdat.mapdict:
+            #print '   already have this one:',mapmod
+            continue #we already have added this mod
+        else:
+            #print '   adding:',mapmod
+            newmaptags.append(mapmod[0])
+            newmodtags.append(mapmod[1])
+            newmasktags.append(mapmod[2])
+
+    #for each new modification, get the map and mod maps, combine them
+    # for each realization contained in inglmdat
+    if rlzns.size:
+        reals=rlzns
+    else:
+        reals=np.arange(Nreal)
+    realcount=0 #use this so we only add to newnbar once
+    
+    #For each realization and map/mod combo, get unmod map and appropriate
+    # calib error map, then combine them
+    #****For now, assumes approp calib error map exists
+    print "applying calib erros to maps for",len(reals),' realizations'
+    for r in reals:
+        for c in xrange(len(newmaptags)):
+            #print 'r=',r,': applying',newmodtags[c],'to',newmaptags[c]
+            n=inglmdat.mapdict[(newmaptags[c],'unmod',newmasktags[c])] #index of unmodified map
+
+            startmapf=inglmdat.get_mapfile(r,n)
+            startmap=hp.read_map(startmapf,verbose=False)
+            startnbar=inglmdat.nbar[n]
+
+            #read in calib error map 
+            calibmapf=inglmdat.mapdir()+'caliberror.{0:s}.for_{1:s}.r{2:05d}.fits'.format(newmodtags[c],newmaptags[c],r)        
+            calibmap=calmap_scaling*hp.read_map(calibmapf,verbose=False)
+            newmap,newnbar=apply_caliberror_tomap(startmap,calibmap,startnbar)
+            #save the maps' .fits files
+            newmapf= inglmdat.get_mapfile_fortags_unchecked(r,newmaptags[c],newmodtags[c],newmasktags[c])
+            hp.write_map(newmapf,newmap)
+            if saveplots:
+                plotfname=inglmdat.get_mapfile_fortags_unchecked(r,newmaptags[c],newmodtags[c],newmasktags[c],'png')
+                print 'saving to', plotfname
+                plotmap(newmap,plotfname,r,newmaptags[c],newmodtags[c],newmasktags[c],inglmdat.runtag)
+            if realcount==0:
+                newnbarlist.append(newnbar)
+                realcount+=1
+
+    return newnbarlist #only holds for first realization

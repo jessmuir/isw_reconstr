@@ -229,7 +229,7 @@ def make_deslikeplots(destype='spec',Nreal=1,Nrealmaps=1,REDOGLM=True,makeplots=
 
                     calc_isw_est(cldat,glmdat,includelist=maptuples,rectag='iswREC',recnote=recnote,makeplots=makeplots,NSIDE=NSIDE)    
 #===========================================
-def makemapes_separate_spec_and_photo(Nreal=1,Nrealmaps=1):
+def makemaps_separate_spec_and_photo(Nreal=1,Nrealmaps=1):
     NSIDE=64
     makeplots=01
     REDOGLM=01
@@ -586,7 +586,7 @@ def plotandsave_map(m,title,scalelabel,scalemax,plotdir,plotf,savesmall=1,savebi
     plt.close()
 #################################################################
 if __name__=="__main__":
-    #makemapes_separate_spec_and_photo() #don't use both this and _correlated_
+    #makemaps_separate_spec_and_photo() #don't use both this and _correlated_
     Nreal=5
     #makemaps_correlated_spec_and_photo(Nreal=Nreal,Nrealmaps=Nreal)
     for i in xrange(Nreal):
