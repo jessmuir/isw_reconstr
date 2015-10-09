@@ -637,7 +637,7 @@ def bintest_get_expected_rell(divstr,varname='rell'):
 # and then do some adding to get stats on combined bins
 #  will need to add glm to do reconstructions though
 
-#use cldat to generate glm, alm, and maps; saves maps but not alm #NEED TO TEST
+#use cldat to generate glm, alm, and maps; saves maps but not alm
 def bintest_get_glm_and_rec(Nreal=1,divlist=['6','222','111111'],minreal=0,justgetrho=0,dorell=0):
     t0=time.time()
     allcldat=bintest_get_Clvals(justread=True) #default finestN,z0,sigz
@@ -1004,7 +1004,9 @@ def caltest_apply_caliberrors(Nreal=1,varlist,shape='g',width=10.,lmin=0.,lmax=3
     #apply calibration errors
     for v in varlist:
         scaling=np.sqrt(v/refvar)
-        apply_caliberror_to_manymaps(glmdat,dothesemods,Nreal=1,calmap_scaling=scaling)
+        outglmdat=apply_caliberror_to_manymaps(glmdat,dothesemods,Nreal=1,calmap_scaling=scaling)
+
+    return outglmdat
     #don't need to hang onto new nbar valuse, only comes into estimator in theory
 
     #do i need to compute estomators here or in anotehr function?

@@ -490,6 +490,96 @@ def getmaps_fromCl(cldat,Nreal=1,rlzns=np.array([]),reclist=[],Nglm=1,block=100,
     for recdat in reclist:
         print get_rho_filename(recdat,almdat,filetag=rhofiletag)
 
+
+#------------------------------------------------------------------------
+# doiswrec_formaps - given a dummy glmdata with info for existing .fits maps
+#                   make ISW reconstructiosn, compute stats, etc
+# input:
+#  dummyglm - glmData object with Nreal=0, but containing map names, lmax, etc
+#  cldat - clData object containing info for maps to be used in reconstruction
+#  Nreal, rlzns; tell what or how many realizations to do reconstruction for
+#  Nglm - if nonzero, number of realizations for which to save glm data
+#  block - number of realizations to include in each reconstruction; set in order
+#          to avoid manipulating extremely large arrays
+#  glmfiletag,almfiletag - for if you want to save glm data
+#  rhofiletag- appended to filename where rho data is saved
+#  domaps - do we want to generate maps or just look at them? set to false
+#           if we want to just calc rho and other stats
+#  dorell - set to True if we want to compute variance at different ell
+#WORKING HERE NEED TO TEST
+def doiswrec_formaps(dummyglm,cldat,Nreal=1,rlzns=np.array([]),reclist=[],Nglm=0,block=100,glmfiletag='',almfiletag='iswREC',rhofiletag='',domaps=True,dorell=False):
+    #block=3
+    arangereal=not rlzns.size
+    if rlzns.size:
+        Nreal=rlzns.size
+
+    #to avoid having giant glm arrays, run in batches, 100ish should be fine
+    Nblock=Nreal/block
+    remainder=Nreal%block
+    
+    #rhogrid will hold rho values
+    #first index dientifies which recdata, second is block
+    rhogrid=[] #will have indices [block][rec][real]
+    truemapbases=['' for i in xrange(len(reclist))]
+    recmapbases=['' for i in xrange(len(reclist))]
+
+    NEWRHOFILE=(not rlzns.size) or np.all(rlzns==np.arange(rlzns.size))
+
+    #generate maps!
+    for n in xrange(Nblock+1):
+        rmin=n*block
+        if n==Nblock:
+            if not remainder:
+                continue #nothing left!
+            rmax=rmin+remainder
+        else:
+            rmax=(n+1)*block
+
+        if arangereal:
+            nrlzns=np.arange(rmin,rmax)
+        else:
+            nrlzns=rlzns[rmin:rmax]#np.arange(rmin,rmax)
+        #print nrlzns
+        
+        if Nglm>rmax:
+            thisNglm=rmax-rmin-1
+            Nglm-=thisNglm
+        else:
+            thisNglm=Nglm
+            Nglm=0
+
+        if not justgetrho:
+            print "Getting glm from maps for rlzns {0:d}-{1:d}".format(nrlzns[0],nrlzns[-1])
+            
+            glmdat=generate_many_glm_fromcl(cldat,rlzns=nrlzns,savedat=False)
+            glmdat=getglm_frommaps(dummyglm,rlzns=nrlzns)
+            almdat=domany_isw_recs(cldat,glmdat,reclist,writetofile=False,getmaps=True,makeplots=False,outruntag=glmdat.runtag,dorho=False)
+            if thisNglm:
+                saveglm=glmdat.copy(Nreal=thisNglm) #save glm for these
+                saveglm= write_glm_to_files(saveglm,setnewfiletag=True,newfiletag=glmfiletag)
+                get_maps_from_glm(saveglm,redofits=False,makeplots=True)
+
+                savealm=almdat.copy(Nreal=thisNglm)
+                savealm=write_glm_to_files(savealm,setnewfiletag=True,newfiletag=almfiletag)
+                get_maps_from_glm(savealm,redofits=False,makeplots=True)
+        else:
+            print "Reading maps for rlzns {0:d}-{1:d}".format(nrlzns[0],nrlzns[-1])
+            #need to get almdat and glmdat for filenames
+            glmdat=dummyglm
+            almdat=get_dummy_recalmdat(glmdat,reclist,outruntag=glmdat.runtag)
+        #for each list, get rho
+        #print "   Computing and saving rho and s statistics"
+        calc_rho_forreclist(glmdat,almdat,reclist,nrlzns,rhofiletag=rhofiletag,overwrite=NEWRHOFILE) #start new file for first block, then add to it
+        calc_s_forreclist(glmdat,almdat,reclist,nrlzns,sfiletag=rhofiletag,overwrite=NEWRHOFILE) #start new file for first block, then add to it
+        if dorell: #this is slow
+            print "  Computing and saving r_ell statistics."
+            calc_rell_forreclist(glmdat,almdat,reclist,nrlzns,overwrite=NEWRHOFILE,filetag=rhofiletag)
+        
+        NEWRHOFILE=False
+    for recdat in reclist:
+        print get_rho_filename(recdat,almdat,filetag=rhofiletag)
+
+
 #------------------------------------------------------------------------
 # calc_rho_forreclist - given glmdat, almdat (can be dummy) plus reclist
 #                  return 2d array of [rec][real] of rho values

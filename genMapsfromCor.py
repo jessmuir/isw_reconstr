@@ -503,7 +503,7 @@ def get_glm(cldata='',rundir='output/',filetag='',runtag='',Nreal=1,rlzns=np.arr
 
 
 #================================================
-# generate_glm - given cldata and info about realizations, generate glmData
+# generate_many_glm_fromcl - given cldata and info about realizations, generate glmData
 # input:
 #    cldata - ClData object (from genCrossCor.py)     
 #    Nreal - number of realizations; set to rlzns.size if that is !=0
@@ -572,7 +572,6 @@ def generate_glmdat_fromcl(cldata,rlz=0,savedat=True,filetag='',retglmData=True,
         return glmdat 
     else:
         return glmgrid #just return [map][lm] array
-
 
 #------------------------------------------------------------------------
 # Here glmdata is a glmData object
@@ -788,6 +787,42 @@ def get_maps_from_glm_1real(glmdat,rlz=0,redofits=False,makeplots=False,NSIDE=32
             plotfname=glmdat.get_mapfile(rlz,i,'png')
             plotmap(m,plotfname,rlz,maptag,modtag,masktag,glmdat.runtag)
     return np.array(hpmaplist) #shape=Nmap,Npix
+
+#================================================
+# Map ultilities
+#===============================================
+#------------------------------------------------------------------------
+# getglm_frommaps - assuming maps have already been generated,
+#                   takes in dummy (Nreal=0) glmdata object, reads in maps
+#                   extracts glm data from than and returns a filled in glmdata
+#                   object
+# input:
+#  dummyglm - glmdat object with Nreal=0
+# output:
+#  outglm - glmdata object with same propreties as dummy, with data filled in
+#------------------------------------------------------------------------
+def getglm_frommaps(dummyglm,rlzns=np.array([]),Nreal=1):
+    if rlzns.size:
+        Nreal=rlzns.size
+    else:
+        rlzns = np.arange(Nreal)
+    Nlm=dummyglm.Nlm #dummyglm will have Nlm set by its lmax value
+    Nmap=dummyglm.Nmap
+    #set up container for glm data
+    glm=np.zeros((Nreal,dummyglm.Nmap,dummglm.Nlm),dtype=np.complex)
+    
+    #go get data
+    for r in xrange(Nreal):
+        for n in xrange(Nmap):
+            mapfile=dummyglm.get_mapfile(rlzns[r],n) #filename of .fits file
+            #read in map, extract glm
+            mapdat=hp.read_map(mapfile,verbose=False)
+            glm[r,n,:]=hp.map2alm(mapdat,dummyglm.lmax)
+        
+    outglm=dummyglm.copy()
+    outglm.add_newreal(glm,rlzns)
+    return outglm
+#working here
 #------------------------------------------------------------------------
 # plotmap - plot map, hanging onto various map/mod/mask info
 def plotmap(m,outfname,rlz,maptag,modtag='unmod',masktag='fullsky',titlenote=''):
@@ -810,7 +845,11 @@ def plotmap(m,outfname,rlz,maptag,modtag='unmod',masktag='fullsky',titlenote='')
     #print 'Writing plot to',plotfname
     plt.savefig(outfname)
     plt.close()
- 
+
+
+#========================================================================
+# Functions for generating and applying calibration error maps
+#========================================================================
 #------------------------------------------------------------------------
 # get_fixedvar_errors_formaps
 #   given a glmData object, get calibration error maps which are to be combined
@@ -1028,7 +1067,7 @@ def apply_additive_caliberror_tocl(cldat,mapmodcombos=[]):
             #put this cal cl into clcal grid
             thisNell=thiscalcl.size
             calcl[i,:thisNell]=thiscalcl
-            #working here
+
     #epsilon parameter tells us how nbar changes; includign only c00 contrib
     epsilon=calcl[:,0]/np.sqrt(4*np.pi) #is zero if no Clcal input
     newnbarlist=cldat.nbar*(1.+epsilon) #if not gal, eps=0, so nbar=-1 still
@@ -1083,6 +1122,8 @@ def apply_caliberror_tomap(inmap,cmap,innbar):
 #  to get new map and thus new glm.
 # Add new glmdata to glmData, return that
 #------------------------------------------------------------------------
+# Working here: Note, nbarlist is technically just nbar for first realization
+#               ->shouldn't change much, so is ok to leave, but should resolve
 def apply_caliberror_toglm(inglmdat,mapmodcombos=[],savemaps=False,saveplots=False,newglmfiletag='',calmap_scaling=1.):
     #print 'in apply calerror_toglm, glm shape:',inglmdat.glm.shape
     #for each mapmodcombo, check whether it is already in glmdat
@@ -1183,9 +1224,10 @@ def apply_caliberror_toglm(inglmdat,mapmodcombos=[],savemaps=False,saveplots=Fal
 #                 where masktag is optional
 #         savemaps - if true, the fits file of the combined maps are saved
 #         saveplots - if true, plots of the maps are saved as png files
-#  for each pair, if that map/mod/mask combo not already in inglmdata
-#  apply the calibration error modification associated with modtag to it 
-#  to get new map and nbar value
+#   for each pair, if that map/mod/mask combo not already in inglmdata
+#   apply the calibration error modification associated with modtag to it 
+#   to get new map and nbar value
+#  Returns: outglmdat - new dummy glmData object, with mapmodcombos included
 #------------------------------------------------------------------------
 def apply_caliberror_to_manymaps(inglmdat,mapmodcombos=[],saveplots=False,rlzns=np.array([]),Nreal=1,calmap_scaling=1.):
     #print 'in apply calerror_toglm, glm shape:',inglmdat.glm.shape
@@ -1247,4 +1289,9 @@ def apply_caliberror_to_manymaps(inglmdat,mapmodcombos=[],saveplots=False,rlzns=
                 newnbarlist.append(newnbar)
                 realcount+=1
 
-    return newnbarlist #only holds for first realization
+    #create and return new dummyglmdat
+    outglmdat=glmData(glm=np.array([]),inglmdat.lmax,maptaglist=newmaptags,runtag=inglmdat.runtag,rundir=inglmdat.rundir,nbarlist=newnbarlist,modtaglist=newmodtags,masktaglist=newmasktags)
+    
+    return outglmdat
+
+
