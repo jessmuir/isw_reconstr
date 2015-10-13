@@ -548,10 +548,10 @@ def doiswrec_formaps(dummyglm,cldat,Nreal=1,rlzns=np.array([]),reclist=[],Nglm=0
             thisNglm=Nglm
             Nglm=0
 
-        if not justgetrho:
+        if domaps:
             print "Getting glm from maps for rlzns {0:d}-{1:d}".format(nrlzns[0],nrlzns[-1])
             
-            glmdat=generate_many_glm_fromcl(cldat,rlzns=nrlzns,savedat=False)
+            #glmdat=generate_many_glm_fromcl(cldat,rlzns=nrlzns,savedat=False)
             glmdat=getglm_frommaps(dummyglm,rlzns=nrlzns)
             almdat=domany_isw_recs(cldat,glmdat,reclist,writetofile=False,getmaps=True,makeplots=False,outruntag=glmdat.runtag,dorho=False)
             if thisNglm:

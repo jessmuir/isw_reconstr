@@ -994,7 +994,7 @@ def caltest_get_clcallist(varlist=[1.e-1,1.e-2,1.e-3,1.e-4],lmax=30,lmin=0,shape
 # generate reference maps with variance of say, 1.e-2
 # rescale approrpiately when doing recs
 # If Nreal==0, does no map making, just returns dummyglm containing mapnames
-def caltest_apply_caliberrors(varlist,Nreal=0,shape='g',width=10.,lmin=0,lmax=30,overwritecalibmap=True,scaletovar=False):
+def caltest_apply_caliberrors(varlist,Nreal=0,shape='g',width=10.,lmin=0,lmax=30,overwritecalibmap=False,scaletovar=False):
     #print 'varlist',varlist
     refvar,refind=caltest_get_scaleinfo(varlist,scaletovar)
     #print 'refvar,refind',refvar,refind
@@ -1007,7 +1007,6 @@ def caltest_apply_caliberrors(varlist,Nreal=0,shape='g',width=10.,lmin=0,lmax=30
     #set up calibration error maps
     calinfolist=[(lssbin,refvar,lmax,shape,width,lmin)] #only for max var
     dothesemods=get_fixedvar_errors_formaps(glmdat,calinfolist,overwrite=overwritecalibmap,Nreal=Nreal) #generates calibration error maps, returns [(maptag,modtag,masktag)]list
-    print 'dothesemods',dothesemods
 
     outglmdatlist=[]
     #apply calibration errors
@@ -1045,8 +1044,10 @@ def caltest_get_reclist(varlist,shape='g',width=10.,lmin=0,lmax=30,recminell=1):
     fidbins=caltest_get_fidbins()
     lssbin=fidbins[1].tag #will just be the depthtest bin map
     lsstype=fidbins[1].typetag
-    calinfolist=[(lssbin,v,lmax,shape,width,lmin) for v in varlist] 
+    calinfolist=[(lssbin,v,lmax,shape,width,lmin) for v in varlist]
+    fidglm=caltest_get_fidglm()
     dothesemods=get_fixedvar_errors_formaps(fidglm,calinfolist,overwrite=False,Nreal=0) #returns [(maptag,modtag,masktag)]list
+    #put fidicual 
     for m in dothesemods:
         includeglm=[m]
         includecl=[lssbin]
@@ -1057,11 +1058,11 @@ def caltest_get_reclist(varlist,shape='g',width=10.,lmin=0,lmax=30,recminell=1):
 
 #having already generated maps for reconstructions with calib errors,
 # do isw reconstructions from the maps, computing rho and s stats
-def caltest_iswrec(Nreal,varlist,shape='g',width=10.,lmin=0,lmax=30,overwritecalibmap=False,scaletovar=False):
+def caltest_iswrec(Nreal,varlist,shape='g',width=10.,lmin=0,lmax=30,overwritecalibmap=False,scaletovar=False,recminell=1):
     fidcl=caltest_get_clfid()
     dummyglm=caltest_apply_caliberrors(varlist,0,shape,width,lmin,lmax,overwritecalibmap,scaletovar)
-    reclist=caltest_get_reclist(dummyglm)
-    doiswrec_formaps(dummyglm,fidcl,Nreal,reclist=reclist)
+    reclist=caltest_get_reclist(varlist,shape,width,lmin,lmax,recminell=1)
+    doiswrec_formaps(dummyglm,fidcl,Nreal,reclist=reclist,domaps=True)
 
 #---------------------------------------------------------------
 # rhocalc utils
@@ -1292,5 +1293,6 @@ if __name__=="__main__":
     if 1: #caltest, rho for many realizations
         nomaps=False
         #caltest_get_scaleinfo(shortvarlist,scaletovar=False)
-        caltest_apply_caliberrors(Nreal=10000,varlist=shortvarlist,overwritecalibmap=False)
-        #caltest_get_glm_and_rec(Nreal=10000,varlist=shortvarlist,minreal=0,justgetrho=nomaps,dorell=0)
+        Nreal=10
+        #caltest_apply_caliberrors(Nreal=Nreal,varlist=shortvarlist,overwritecalibmap=False)
+        caltest_iswrec(Nreal=Nreal,varlist=shortvarlist)

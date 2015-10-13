@@ -312,7 +312,14 @@ class glmData(object):
         Nnewreal=newrlzns.size
         #check if current and newrlzns give a larger np.array
         #if so: leave self.rlzns as empty array
-        if (not self.rlzns.size) and np.all(newrlzns==np.arange(self.Nreal,self.Nreal+Nnewreal)):
+        if self.isdummy:
+            #adding realization data to a dummyglm
+            self.isdummy=False
+            self.glm=newglm
+            self.Nreal=Nnewreal
+            if not np.all(newrlzns==np.arange(self.Nreal)):
+                self.rlzns=newrlzns
+        elif (not self.rlzns.size) and np.all(newrlzns==np.arange(self.Nreal,self.Nreal+Nnewreal)):
             fullglm=np.zeros((self.Nreal+Nnewreal,self.Nmap,self.Nlm),dtype=np.complex)
             fullglm[:self.Nreal,:,:]=self.glm
             fullglm[self.Nreal:,:,:]=newglm
@@ -809,7 +816,7 @@ def getglm_frommaps(dummyglm,rlzns=np.array([]),Nreal=1):
     Nlm=dummyglm.Nlm #dummyglm will have Nlm set by its lmax value
     Nmap=dummyglm.Nmap
     #set up container for glm data
-    glm=np.zeros((Nreal,dummyglm.Nmap,dummglm.Nlm),dtype=np.complex)
+    glm=np.zeros((Nreal,dummyglm.Nmap,dummyglm.Nlm),dtype=np.complex)
     
     #go get data
     for r in xrange(Nreal):
@@ -818,9 +825,13 @@ def getglm_frommaps(dummyglm,rlzns=np.array([]),Nreal=1):
             #read in map, extract glm
             mapdat=hp.read_map(mapfile,verbose=False)
             glm[r,n,:]=hp.map2alm(mapdat,dummyglm.lmax)
+        #print 'realization',r,'glm nonzero?',np.any(glm[r,:,:])
         
-    outglm=dummyglm.copy()
-    outglm.add_newreal(glm,rlzns)
+    #outglm=dummyglm.copy()
+    #outglm.add_newreal(glm,rlzns)
+    outglm=glmData(glm,dummyglm.lmax,dummyglm.maptaglist,dummyglm.runtag,dummyglm.rundir,dummyglm.nbarlist,dummyglm.modtaglist,dummyglm.masktaglist,rlzns,dummyglm.filetags)
+    #for r in rlzns:
+    #    print 'r=',r, 'nonzeroglm?',np.any(outglm.glm[r,:,:])
     return outglm
 #working here
 #------------------------------------------------------------------------
@@ -929,6 +940,7 @@ def get_fixedvar_errors_formaps(glmdat,cdatalist=[],overwrite=False,NSIDE=32,Nre
             modtag='g{1:d}_var{0:.2e}_{3:d}l{2:d}'.format(cvar,int(width),clmax,clmin)
         print 'USING MODTAG',modtag
 
+        rcountblock=100
         #loop through maps and realizations, generating calib maps
         for m in dothesemaps:
             outtuplelist.append((m,modtag)) #for now, assumes no mask
@@ -937,13 +949,16 @@ def get_fixedvar_errors_formaps(glmdat,cdatalist=[],overwrite=False,NSIDE=32,Nre
             if not os.path.isdir(thisoutdir):
                 os.mkdir(thisoutdir)
             for r in dothesereal:
+                print 'Generating calibration error maps with base:',outbase
+                if r%rcountblock==0:
+                    print "    ON realization",r
                 outname=outbase+'.r{0:05d}.fits'.format(r)        
                 #only bother generating map if overwrite or file nonexistant
                 if overwrite or not os.path.isfile(thisoutdir+outname):
                     if shape=='l2':
-                        cmap=gen_error_map_fixedvar_l2(cvar,clmax,NSIDE)
+                        cmap=gen_error_map_fixedvar_l2(cvar,clmax,clmin,NSIDE)
                     elif shape=='g':
-                        cmap=gen_error_map_fixedvar_gauss(cvar,clmax,width=width,NSIDE=NSIDE)
+                        cmap=gen_error_map_fixedvar_gauss(cvar,clmax,clmin,width=width,NSIDE=NSIDE)
                     #write to file
                     hp.write_map(thisoutdir+outname,cmap)
     #return list of map/mod/mask tuples 
@@ -982,10 +997,10 @@ def parsemodtag_fixedvar_l2(ctag): #ctag = modtag
     maxl=int(ctag[ell+1:])
     return variance, maxl,minl
     
-def gen_error_map_fixedvar_l2(sig2=0.1,caliblmax=30,NSIDE=32):
+def gen_error_map_fixedvar_l2(sig2=0.1,caliblmax=30,caliblmin=1,NSIDE=32):
     modtag=getmodtag_fixedvar_l2(sig2,caliblmax)
     invnorm=0 #clcal=norm/l^2, 
-    clcal=gen_error_cl_fixedvar_l2(sig2,caliblmax)
+    clcal=gen_error_cl_fixedvar_l2(sig2,caliblmax,caliblmin)
     #now generate map
     cmap=hp.sphtfunc.synfast(clcal,NSIDE,verbose=False)
     return cmap
@@ -1023,7 +1038,7 @@ def parsemodtag_fixedvar_gauss(ctag): #ctag = modtag
     return variance, maxl,minl,width
 
 def gen_error_map_fixedvar_gauss(sig2=0.1,caliblmax=30,lmin=0,width=10.,NSIDE=32):
-    modtag=getmodtag_fixedvar_gauss(sig2,width,caliblmax)
+    modtag=getmodtag_fixedvar_gauss(sig2,width,caliblmax,lmin)
     invnorm=0 #clcal=norm/l^2, 
     clcal=gen_error_cl_fixedvar_gauss(sig2,caliblmax,lmin,width)
     #now generate map
@@ -1297,8 +1312,11 @@ def apply_caliberror_to_manymaps(inglmdat,mapmodcombos=[],saveplots=False,rlzns=
     #For each realization and map/mod combo, get unmod map and appropriate
     # calib error map, then combine them
     #****For now, assumes approp calib error map exists
+    rcountblock=100
     print "applying calib errors to maps for",len(reals),' realizations'
     for r in reals:
+        if r%rcountblock==0:
+            print "    ON realization",r
         for c in xrange(len(newmaptags)):
             #print 'r=',r,': applying',newmodtags[c],'to',newmaptags[c]
             n=inglmdat.mapdict[(newmaptags[c],'unmod',newmasktags[c])] #index of unmodified map
