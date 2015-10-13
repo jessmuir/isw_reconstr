@@ -950,17 +950,30 @@ def caltest_get_fidbins():
         print 'more items in fidbins than expected:',fidbins
     return fidbins
 
-def caltest_get_clfid(justread=True):
+def caltest_get_clfid():
     bins=caltest_get_fidbins()
     zmax=max(m.zmax for m in bins)
     #use depthtest tags since we'll read in those (already calculated) Cl
     rundat = ClRunData(tag='depthtest',rundir='output/depthtest/',lmax=95,zmax=zmax)
-    fidcl=getCl(bins,rundat,dopairs=['all'],DoNotOverwrite=justread)
+    fidcl=getCl(bins,rundat,dopairs=['all'],DoNotOverwrite=True)
     return fidcl
+
+# get glmdata object with fiducial (no calib error) bin and isw info
+#   is a dummy glmdata object; no data or realizations, just map names
+def caltest_get_fidglm(fidcl=0):
+     #get fiducial cl, with no calibration error
+    fidbins=caltest_get_fidbins()
+    lssbin=fidbins[1].tag #will just be the depthtest bin map
+    if not fidcl:
+        fidcl=caltest_get_clfid()
+
+    #get fid glmdat; no data needed, just mapnames, et
+    glmdat=get_glm(fidcl,Nreal=0,matchClruntag=True)
+    return glmdat
 
 #return Cl^cal list; return array of shape Nvariance x Nell, NOT ClData object
 #  assumes all cl_cal have same shape, just different map variances
-def caltest_get_clcallist(varlist=[0.,1.e-1,1.e-2,1.e-3,1.e-4],lmax=30,lmin=0,shape='g',width=10.):
+def caltest_get_clcallist(varlist=[1.e-1,1.e-2,1.e-3,1.e-4],lmax=30,lmin=0,shape='g',width=10.):
     Nvar=len(varlist)
     maxvar=max(varlist)
     maxind=np.where(varlist==maxvar)[0][0]
@@ -980,37 +993,75 @@ def caltest_get_clcallist(varlist=[0.,1.e-1,1.e-2,1.e-3,1.e-4],lmax=30,lmin=0,sh
 #---------------------------------------------------------------
 # generate reference maps with variance of say, 1.e-2
 # rescale approrpiately when doing recs
-def caltest_apply_caliberrors(Nreal=1,varlist,shape='g',width=10.,lmin=0.,lmax=30.,makecalibmap=False,scaletovar=False):
-    #scaletovar=refvar is the variance for which cl maps are generated
-    if scaletovar and np.where(varlist==scaletovar):
-        refvar=scaletovar
-        refind=np.where(varlist==refvar)[0][0]
-    else:
-        refvar=max(varlist)
-        refind=np.where(varlist==maxvar)[0][0] #scale all calib maps from largest
-    
-    #get fiducial cl, with no calibration error
+# If Nreal==0, does no map making, just returns dummyglm containing mapnames
+def caltest_apply_caliberrors(varlist,Nreal=0,shape='g',width=10.,lmin=0,lmax=30,overwritecalibmap=True,scaletovar=False):
+    #print 'varlist',varlist
+    refvar,refind=caltest_get_scaleinfo(varlist,scaletovar)
+    #print 'refvar,refind',refvar,refind
+    #get fid glmdat; no data needed, just mapnames, et
     fidbins=caltest_get_fidbins()
     lssbin=fidbins[1].tag #will just be the depthtest bin map
-    fidcl=caltest_get_clfid()
-
-    #get fid glmdat; no data needed, just mapnames, et
-    glmdat=get_glm(fidcl,Nreal=0)
+    #print 'lssbin',lssbin
+    glmdat=caltest_get_fidglm()
 
     #set up calibration error maps
     calinfolist=[(lssbin,refvar,lmax,shape,width,lmin)] #only for max var
-    dothesemods=get_fixedvar_errors_formaps(glmdat,calinfolist,overwrite=makecalibmap) #generates calibration error maps, returns [(maptag,modtag,masktag)]list
+    dothesemods=get_fixedvar_errors_formaps(glmdat,calinfolist,overwrite=overwritecalibmap,Nreal=Nreal) #generates calibration error maps, returns [(maptag,modtag,masktag)]list
+    print 'dothesemods',dothesemods
 
+    outglmdatlist=[]
     #apply calibration errors
     for v in varlist:
         scaling=np.sqrt(v/refvar)
-        outglmdat=apply_caliberror_to_manymaps(glmdat,dothesemods,Nreal=1,calmap_scaling=scaling)
+        newcaltag=getmodtag_fixedvar(v,shape,lmin,lmax)
+        print 'newcaltag',newcaltag
+        outglmdatlist.append(apply_caliberror_to_manymaps(glmdat,dothesemods,Nreal=Nreal,calmap_scaling=scaling,newmodtags=[newcaltag])) #returns dummyglmdat
 
-    return outglmdat
-    #don't need to hang onto new nbar valuse, only comes into estimator in theory
+    outglmdat=glmdat.copy(Nreal=0)
+    for n in xrange(len(outglmdatlist)):
+        outglmdat=outglmdat+outglmdatlist[n]
+    print 'outglmdat.modtaglist',outglmdat.modtaglist
+    return outglmdat #includes, isw, fiduical, and cal error map names
 
-    #do i need to compute estomators here or in anotehr function?
-    #WORKING HERE
+#we only want to generate c(nhat) maps for one var(c); get others by scaling
+#   this function picks out the reference variance for which maps will be made
+#   and the index where it appears in varlist
+def caltest_get_scaleinfo(varlist,scaletovar=False):
+    #scaletovar=refvar is the variance for which cl maps are generated
+    varlist=np.array(varlist)
+    if scaletovar and np.where(varlist==scaletovar):
+        #print 'finding scaletovar',scaletovar
+        refvar=scaletovar
+        refind=np.where(varlist==refvar)[0][0]
+    else:
+        #print 'finding max'
+        refvar=max(varlist)
+        refind=np.where(varlist==refvar)[0][0] #scale all calib maps from largest
+    print refvar,refind
+    return refvar,refind
+
+def caltest_get_reclist(varlist,shape='g',width=10.,lmin=0,lmax=30,recminell=1):
+    reclist=[]
+    fidbins=caltest_get_fidbins()
+    lssbin=fidbins[1].tag #will just be the depthtest bin map
+    lsstype=fidbins[1].typetag
+    calinfolist=[(lssbin,v,lmax,shape,width,lmin) for v in varlist] 
+    dothesemods=get_fixedvar_errors_formaps(fidglm,calinfolist,overwrite=False,Nreal=0) #returns [(maptag,modtag,masktag)]list
+    for m in dothesemods:
+        includeglm=[m]
+        includecl=[lssbin]
+        inmaptype=lsstype
+        rectag=m[1]#modtag
+        reclist.append(RecData(includeglm,includecl,inmaptype,rectag,recminell))
+    return reclist
+
+#having already generated maps for reconstructions with calib errors,
+# do isw reconstructions from the maps, computing rho and s stats
+def caltest_iswrec(Nreal,varlist,shape='g',width=10.,lmin=0,lmax=30,overwritecalibmap=False,scaletovar=False):
+    fidcl=caltest_get_clfid()
+    dummyglm=caltest_apply_caliberrors(varlist,0,shape,width,lmin,lmax,overwritecalibmap,scaletovar)
+    reclist=caltest_get_reclist(dummyglm)
+    doiswrec_formaps(dummyglm,fidcl,Nreal,reclist=reclist)
 
 #---------------------------------------------------------------
 # rhocalc utils
@@ -1058,7 +1109,7 @@ def caltest_compare_clcal_shapes(varlist,shapelist=['g','l2'],varname='rho',lmax
 #                     assuming no calib error
 #         inserts fiducial (no calib error) as last entry
 #         returns grid of rho or s values of size Nrec=Nvar
-def caltest_get_rhoexp(varlist=[1.e-1,1.e-2,1.e-3,1.e-4],lmax=30,lmin=0,shape='g',width=10.,overwrite=False,doplot=True,saverho=True,varname='rho',filetag=''):
+def caltest_get_rhoexp(varlist=[1.e-4],lmax=30,lmin=1,shape='g',width=10.,overwrite=False,doplot=True,saverho=True,varname='rho',filetag=''):
     if shape=='g':
         shapestr='g{2:d}_{0:d}l{1:d}'.format(lmin,lmax,int(width))
     elif shape=='l2':
@@ -1230,8 +1281,9 @@ if __name__=="__main__":
         bintest_plot_relldat()
 
     shortvarlist=[1.e-6,1.e-5,1.e-4,1.e-3] #for testing datapoints
-    varlist=list(caltest_get_logspaced_varlist(minvar=1.e-8,maxvar=.1,Nperlog=10))    
+
     if 0: #cal test, rho expectation value calcs
+        varlist=list(caltest_get_logspaced_varlist(minvar=1.e-8,maxvar=.1,Nperlog=10))    
         #caltest_get_rhoexp(varlist,overwrite=1,doplot=1,saverho=1,varname='rho')
         #caltest_get_rhoexp(varlist,overwrite=1,doplot=1,saverho=1,varname='s')
         caltest_compare_clcal_shapes(varlist,shapelist=['g','l2'],varname='rho')
@@ -1239,5 +1291,6 @@ if __name__=="__main__":
 
     if 1: #caltest, rho for many realizations
         nomaps=False
-        #caltest_apply_errors(varlist)
+        #caltest_get_scaleinfo(shortvarlist,scaletovar=False)
+        caltest_apply_caliberrors(Nreal=10000,varlist=shortvarlist,overwritecalibmap=False)
         #caltest_get_glm_and_rec(Nreal=10000,varlist=shortvarlist,minreal=0,justgetrho=nomaps,dorell=0)
