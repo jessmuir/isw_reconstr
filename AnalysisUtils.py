@@ -506,7 +506,7 @@ def getmaps_fromCl(cldat,Nreal=1,rlzns=np.array([]),reclist=[],Nglm=1,block=100,
 #  domaps - do we want to generate maps or just look at them? set to false
 #           if we want to just calc rho and other stats
 #  dorell - set to True if we want to compute variance at different ell
-#WORKING HERE NEED TO TEST
+
 def doiswrec_formaps(dummyglm,cldat,Nreal=1,rlzns=np.array([]),reclist=[],Nglm=0,block=100,glmfiletag='',almfiletag='iswREC',rhofiletag='',domaps=True,dorell=False):
     #block=3
     arangereal=not rlzns.size

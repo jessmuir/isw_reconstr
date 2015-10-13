@@ -948,8 +948,8 @@ def get_fixedvar_errors_formaps(glmdat,cdatalist=[],overwrite=False,NSIDE=32,Nre
             thisoutdir=outdir+outbase+'/'
             if not os.path.isdir(thisoutdir):
                 os.mkdir(thisoutdir)
+            print 'Generating calibration error maps with base:',outbase
             for r in dothesereal:
-                print 'Generating calibration error maps with base:',outbase
                 if r%rcountblock==0:
                     print "    ON realization",r
                 outname=outbase+'.r{0:05d}.fits'.format(r)        
@@ -1271,7 +1271,7 @@ def apply_caliberror_toglm(inglmdat,mapmodcombos=[],savemaps=False,saveplots=Fal
 #   to get new map and nbar value
 #  Returns: outglmdat - new dummy glmData object, with mapmodcombos included
 #------------------------------------------------------------------------
-def apply_caliberror_to_manymaps(inglmdat,mapmodcombos=[],saveplots=False,rlzns=np.array([]),Nreal=0,calmap_scaling=1.,newmodtags=[]):
+def apply_caliberror_to_manymaps(inglmdat,mapmodcombos=[],saveplots=False,rlzns=np.array([]),Nreal=0,calmap_scaling=1.,newmodtags=[],overwritefits=False):
     #print mapmodcombos,len(mapmodcombos)
     #print newmodtags,len(newmodtags)
     #print 'in apply calerror_toglm, glm shape:',inglmdat.glm.shape
@@ -1339,7 +1339,8 @@ def apply_caliberror_to_manymaps(inglmdat,mapmodcombos=[],saveplots=False,rlzns=
             newmapdir=newmapf[:newmapf.rfind('/')+1]
             if not os.path.isdir(newmapdir):
                 os.mkdir(newmapdir)
-            hp.write_map(newmapf,newmap)
+            if overwritefits or not os.path.isfile(newmapf):
+                hp.write_map(newmapf,newmap)
             if saveplots:
                 plotfname=inglmdat.get_mapfile_fortags_unchecked(r,newmaptags[c],newmodtags[c],newmasktags[c],'png')
                 print 'saving to', plotfname

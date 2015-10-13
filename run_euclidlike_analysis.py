@@ -995,6 +995,7 @@ def caltest_get_clcallist(varlist=[1.e-1,1.e-2,1.e-3,1.e-4],lmax=30,lmin=0,shape
 # rescale approrpiately when doing recs
 # If Nreal==0, does no map making, just returns dummyglm containing mapnames
 def caltest_apply_caliberrors(varlist,Nreal=0,shape='g',width=10.,lmin=0,lmax=30,overwritecalibmap=False,scaletovar=False):
+    print 'IN caltest_apply_caliberrors with NREAL=',Nreal
     #print 'varlist',varlist
     refvar,refind=caltest_get_scaleinfo(varlist,scaletovar)
     #print 'refvar,refind',refvar,refind
@@ -1006,6 +1007,8 @@ def caltest_apply_caliberrors(varlist,Nreal=0,shape='g',width=10.,lmin=0,lmax=30
 
     #set up calibration error maps
     calinfolist=[(lssbin,refvar,lmax,shape,width,lmin)] #only for max var
+    if Nreal:
+        print 'Generating calibraiton error maps.'
     dothesemods=get_fixedvar_errors_formaps(glmdat,calinfolist,overwrite=overwritecalibmap,Nreal=Nreal) #generates calibration error maps, returns [(maptag,modtag,masktag)]list
 
     outglmdatlist=[]
@@ -1013,13 +1016,13 @@ def caltest_apply_caliberrors(varlist,Nreal=0,shape='g',width=10.,lmin=0,lmax=30
     for v in varlist:
         scaling=np.sqrt(v/refvar)
         newcaltag=getmodtag_fixedvar(v,shape,lmin,lmax)
-        print 'newcaltag',newcaltag
+        print 'Applying calibration errors, newcaltag',newcaltag
         outglmdatlist.append(apply_caliberror_to_manymaps(glmdat,dothesemods,Nreal=Nreal,calmap_scaling=scaling,newmodtags=[newcaltag])) #returns dummyglmdat
 
     outglmdat=glmdat.copy(Nreal=0)
     for n in xrange(len(outglmdatlist)):
         outglmdat=outglmdat+outglmdatlist[n]
-    print 'outglmdat.modtaglist',outglmdat.modtaglist
+    #print 'outglmdat.modtaglist',outglmdat.modtaglist
     return outglmdat #includes, isw, fiduical, and cal error map names
 
 #we only want to generate c(nhat) maps for one var(c); get others by scaling
@@ -1047,11 +1050,12 @@ def caltest_get_reclist(varlist,shape='g',width=10.,lmin=0,lmax=30,recminell=1):
     calinfolist=[(lssbin,v,lmax,shape,width,lmin) for v in varlist]
     fidglm=caltest_get_fidglm()
     dothesemods=get_fixedvar_errors_formaps(fidglm,calinfolist,overwrite=False,Nreal=0) #returns [(maptag,modtag,masktag)]list
-    #put fidicual 
+    #put fidicual in
+    includecl=[lssbin]
+    inmaptype=lsstype
+    reclist.append(RecData(includecl,includecl,inmaptype,'unmod',recminell))
     for m in dothesemods:
         includeglm=[m]
-        includecl=[lssbin]
-        inmaptype=lsstype
         rectag=m[1]#modtag
         reclist.append(RecData(includeglm,includecl,inmaptype,rectag,recminell))
     return reclist
@@ -1189,15 +1193,26 @@ def caltest_getmapmods_onebin(lssbintag,varlist=[1.e-1,1.e-2,1.e-3,1.e-4],lmax=3
     return mapmods
 
 #---------------------------------------------------------------
-# make plots
-def caltest_rhoexpplot(varlist,rhoarraylist,labellist=[],outname='',legtitle='',colorlist=[],outtag='',varname='rho'):
+# make plots of expected rho (or s) vs calibration error variance
+# input:
+#   varlist: list of variances (x data)
+#   rhoarraylist - list of arrays of rho data, each of which w size==varlist.size
+#   labellist - list of labels for legend, corresponding to rhodat
+#   outname - string name for file, if you want to override default formatting
+#   legtitle - if passed, sets title of legend
+#   colorlist - sets colors of each dataset, if not passed, uses default
+#   outtag - if using default filename formatting, this is added to it
+#   varname - what variable are we plotting? 'rho' or 's'
+#   dataplot=[(datvar,datrho,datlabel,datcol,datsig),...] #if you want to plot
+#       some data points, pass their plotting info here. datsig!=0 adds error bars
+def caltest_rhoexpplot(varlist,rhoarraylist,labellist=[],outname='',legtitle='',colorlist=[],outtag='',varname='rho',datplot=[]):
     #assuming last entry in varlist, rhoarray is fiducial (var=0)
     if type(rhoarraylist[0])!=np.ndarray: #just one array passed,not list of arr
         rhoarraylist=[rhoarraylist]
     scattercolors=['#e41a1c','#377eb8','#4daf4a','#984ea3','#ff7f00','#ffff33','#a65628','#f781bf']
     plotdir = 'output/caltest_plots/'
     if not outname:
-        outname='caltest_'+varname+'exp'+outtag+'.png'
+        outname='caltest_'+varname+'_exp'+outtag+'.png'
 
     fig=plt.figure(0)
     if varname=='rho':
@@ -1213,6 +1228,7 @@ def caltest_rhoexpplot(varlist,rhoarraylist,labellist=[],outname='',legtitle='',
 
     plt.sca(ax1)
     ax1.grid(True)
+    ax1.set_xscale('log')
     #ax1.ticklabel_format(axis='y',style='')
     ax2.grid(True)
     if varname=='rho':
@@ -1224,9 +1240,26 @@ def caltest_rhoexpplot(varlist,rhoarraylist,labellist=[],outname='',legtitle='',
     ax2.set_xlabel(r'Variance of calib. error field ${\rm var}[c(\hat{{n}})]$')
     for i in xrange(len(rhoarraylist)):
         print len(varlist[:-1]),rhoarraylist[i][:-1].shape
-        ax1.semilogx(varlist[:-1],rhoarraylist[i][:-1],label=labellist[i],color=colorlist[i])
-        ax2.semilogx(varlist[:-1], rhoarraylist[i][:-1]/rhoarraylist[i][-1]-1.,label=labellist[i],color=colorlist[i])
+        ax1.semilogx(varlist[:-1],rhoarraylist[i][:-1],label=labellist[i],color=colorlist[i%len(colorlist)])
+        ax2.semilogx(varlist[:-1], rhoarraylist[i][:-1]/rhoarraylist[i][-1]-1.,label=labellist[i],color=colorlist[i%len(colorlist)])
 
+    for i in xrange(len(datplot)):
+        datvar=datplot[0]#array
+        datrho=datplot[1]#array
+        datlabel=datplot[2] #string
+        datsig=0
+        datcol=''
+        if len(datplot)>3:
+            datcol=datplot[3]
+            if len(datplot)>4:
+                datsig=datplot[4] #if one value, same for all points
+                #   if array, sets different
+        if not datcol:
+            datcol=colorlist[(i+len(rhoarraylist))%len(colorlist)]
+        if type(datsig)==0:
+        else: #uniform error bars if datsig is a number, nonuni if array
+            ax1.errorbar(datvar,datrho,yerr=datsig,label=datlabel,color=datcol)
+        #working here, need to finish setting up and test data point plotting
     plt.sca(ax1)
     if labellist and labellist[0]:
         plt.legend(fontsize=12,title=legtitle)
@@ -1293,6 +1326,6 @@ if __name__=="__main__":
     if 1: #caltest, rho for many realizations
         nomaps=False
         #caltest_get_scaleinfo(shortvarlist,scaletovar=False)
-        Nreal=10
-        #caltest_apply_caliberrors(Nreal=Nreal,varlist=shortvarlist,overwritecalibmap=False)
+        Nreal=10000
+        #caltest_apply_caliberrors(Nreal=Nreal,varlist=shortvarlist,overwritecalibmap=True)
         caltest_iswrec(Nreal=Nreal,varlist=shortvarlist)
