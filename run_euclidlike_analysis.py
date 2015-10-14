@@ -660,7 +660,7 @@ def bintest_get_glm_and_rec(Nreal=1,divlist=['6','222','111111'],minreal=0,justg
     print "total time for Nreal",Nreal,": ",t1-t0,'sec'
 
 #get arrays of rho saved in .rho.dat files, or .s.dat files
-def bintest_read_rho_wfiles(divlist=['6','222','111111'],sigz=0.05,varname='s'):
+def bintest_read_rho_wfiles(divlist=['6','222','111111'],sigz=0.05,varname='rho'):
     mapdir='output/eucbintest/map_output/'
     files=['iswREC.euc6bins{0:03d}div{1:s}.fid.fullsky.eucbintest6s{0:03d}all.{2:s}.dat'.format(int(1000*sigz),d,varname) for d in divlist]
     rhogrid=np.array([read_rhodat_wfile(mapdir+f) for f in files])
@@ -1065,8 +1065,8 @@ def caltest_get_reclist(varlist,shape='g',width=10.,lmin=0,lmax=30,recminell=1):
 def caltest_iswrec(Nreal,varlist,shape='g',width=10.,lmin=0,lmax=30,overwritecalibmap=False,scaletovar=False,recminell=1):
     fidcl=caltest_get_clfid()
     dummyglm=caltest_apply_caliberrors(varlist,0,shape,width,lmin,lmax,overwritecalibmap,scaletovar)
-    reclist=caltest_get_reclist(varlist,shape,width,lmin,lmax,recminell=1)
-    doiswrec_formaps(dummyglm,fidcl,Nreal,reclist=reclist,domaps=True)
+    reclist=caltest_get_reclist(varlist,shape,width,lmin,lmax,recminell=recminell)
+
 
 #---------------------------------------------------------------
 # rhocalc utils
@@ -1081,7 +1081,56 @@ def caltest_get_logspaced_varlist(minvar=1.e-9,maxvar=.1,Nperlog=10):
     varout=10**logout
     return varout
 
-def caltest_compare_clcal_shapes(varlist,shapelist=['g','l2'],varname='rho',lmaxlist=[],lminlist=[],widthlist=[]):
+#assuming many realizations of maps have been run, read in the rho data
+# and return a tuple which can be used to add those points to a plot
+def caltest_getrhodat_fromfiles(varlist,shape='g',width=10.,lmin=0,lmax=30,recminell=1,varname='rho'):
+    Nvar=len(varlist)
+    #read in rho values
+    modnames=[getmodtag_fixedvar(v,shape,lmin,lmax,width) for v in varlist]
+    mapdir='output/depthtest/map_output/'
+    files=['iswREC.eucz07.{0:s}.fullsky.depthtest.{1:s}.dat'.format(modname,varname) for modname in modnames]
+    rhogrid=np.array([read_rhodat_wfile(mapdir+f) for f in files])#filesxrho
+    return rhogrid
+
+def caltest_getdataplot_forshapecompare(varname='rho'):
+    print "Reading in rho data"
+    #just hard coding these in, since they depend on what realizations
+    # I've run, so I don't expect a ton of variation here
+    varlist=[1.e-6,1.e-5,1.e-4,1.e-3] #for testing datapoints
+    Nvar=len(varlist)
+    shapelist=['g']
+    widthlist=[10.]
+    lminlist=[0]
+    lmaxlist=[30]
+    recminelllist=[1]
+    labellist=['']
+    colorlist=['#e41a1c']
+    plotdatalist=[]
+    #loop through lists, for each set up a tuple, add to list
+    for i in xrange(len(shapelist)):
+        shape=shapelist[i]
+        caliblmin=lminlist[i]
+        caliblmax=lmaxlist[i]
+        col=colorlist[i]
+        if shape=='g':
+            shapetag='g{0:d}_{2:d}l{1:d}'.format(int(widthlist[i]),caliblmax,caliblmin)
+        elif shape=='l2':
+            shapetag='l2_{1:d}l{0:d}'.format(caliblmax,caliblmin)
+        rhogrid=caltest_getrhodat_fromfiles(varlist,shape,widthlist[i],caliblmin,caliblmax,recminelllist[i],varname)
+        Nreal=rhogrid.shape[1]
+        if not labellist[i]:
+            label=shapetag+' Nreal={0:d}'.format(Nreal)
+        else:
+            label=labellist[i]
+        #find mean, sigmas
+        means=np.array([np.mean(rhogrid[j,:]) for j in xrange(Nvar)])
+        sigs=np.array([np.std(rhogrid[j,:]) for j in xrange(Nvar)])
+        plotdatalist.append((varlist,means,label,col,sigs))
+        #(datvar,datrho,datlabel,datcol,datsig),...]
+
+    return plotdatalist
+    
+def caltest_compare_clcal_shapes(varlist,shapelist=['g','l2'],varname='rho',lmaxlist=[],lminlist=[],widthlist=[],dodataplot=True):
     Nshapes=len(shapelist)
     if not lmaxlist:
         lmaxlist=[30]*Nshapes
@@ -1106,7 +1155,13 @@ def caltest_compare_clcal_shapes(varlist,shapelist=['g','l2'],varname='rho',lmax
     print 'rhoexplist.shape',np.array(rhoexplist).shape
     print 'Nshapes',Nshapes
     print "Nvar",len(varlist)
-    caltest_rhoexpplot(varlist,rhoexplist,labels,legtitle=r'$C_{{\ell}}^{{\rm cal}}$ shape',outtag='shapecompare',varname=varname)
+
+    if dodataplot:
+        dataplot=caltest_getdataplot_forshapecompare(varname)
+    else:
+        dataplot=[]
+                        
+    caltest_rhoexpplot(varlist,rhoexplist,labels,legtitle=r'$C_{{\ell}}^{{\rm cal}}$ shape',outtag='shapecompare',varname=varname,datplot=dataplot)
 
 #caltest_get_rhoexp - approximating calib errors as additive only,
 #                     compute expectation value of rho for number of calibration
@@ -1187,9 +1242,9 @@ def caltest_get_rhoexp(varlist=[1.e-4],lmax=30,lmin=1,shape='g',width=10.,overwr
 def caltest_getmapmods_onebin(lssbintag,varlist=[1.e-1,1.e-2,1.e-3,1.e-4],lmax=30,lmin=0,shape='g',width=10.):
     #construct map-mod combos for the variances given
     if shape=='g':
-        mapmods=[(lssbintag,getmodtag_fixedvar_gauss(v,width,lmax)) for v in varlist]
+        mapmods=[(lssbintag,getmodtag_fixedvar_gauss(v,width,lmax,lmin)) for v in varlist]
     elif shape=='l2':
-        mapmods=[(lssbintag,getmodtag_fixedvar_l2(v,lmax)) for v in varlist]
+        mapmods=[(lssbintag,getmodtag_fixedvar_l2(v,lmax,lmin)) for v in varlist]
     return mapmods
 
 #---------------------------------------------------------------
@@ -1244,22 +1299,22 @@ def caltest_rhoexpplot(varlist,rhoarraylist,labellist=[],outname='',legtitle='',
         ax2.semilogx(varlist[:-1], rhoarraylist[i][:-1]/rhoarraylist[i][-1]-1.,label=labellist[i],color=colorlist[i%len(colorlist)])
 
     for i in xrange(len(datplot)):
-        datvar=datplot[0]#array
-        datrho=datplot[1]#array
-        datlabel=datplot[2] #string
+        datvar=datplot[i][0]#array
+        datrho=datplot[i][1]#array
+        datlabel=datplot[i][2] #string
         datsig=0
         datcol=''
-        if len(datplot)>3:
-            datcol=datplot[3]
-            if len(datplot)>4:
-                datsig=datplot[4] #if one value, same for all points
+        if len(datplot[i])>3:
+            datcol=datplot[i][3]
+            if len(datplot[i])>4:
+                datsig=datplot[i][4] #if one value, same for all points
                 #   if array, sets different
         if not datcol:
             datcol=colorlist[(i+len(rhoarraylist))%len(colorlist)]
         if type(datsig)==0:
+            ax1.plot(datvar,datrho,label=datlabel,color=datcol,linestyle='None',marker='o')
         else: #uniform error bars if datsig is a number, nonuni if array
-            ax1.errorbar(datvar,datrho,yerr=datsig,label=datlabel,color=datcol)
-        #working here, need to finish setting up and test data point plotting
+            ax1.errorbar(datvar,datrho,yerr=datsig,label=datlabel,color=datcol,linestyle='None',marker='o')
     plt.sca(ax1)
     if labellist and labellist[0]:
         plt.legend(fontsize=12,title=legtitle)
@@ -1316,14 +1371,15 @@ if __name__=="__main__":
 
     shortvarlist=[1.e-6,1.e-5,1.e-4,1.e-3] #for testing datapoints
 
-    if 0: #cal test, rho expectation value calcs
+    if 1: #cal test, rho expectation value calcs
         varlist=list(caltest_get_logspaced_varlist(minvar=1.e-8,maxvar=.1,Nperlog=10))    
         #caltest_get_rhoexp(varlist,overwrite=1,doplot=1,saverho=1,varname='rho')
         #caltest_get_rhoexp(varlist,overwrite=1,doplot=1,saverho=1,varname='s')
+        #caltest_compare_clcal_shapes(varlist,shapelist=['g','l2'],varname='rho',lmaxlist=[],lminlist=[],widthlist=[],dodataplot=True)
         caltest_compare_clcal_shapes(varlist,shapelist=['g','l2'],varname='rho')
         caltest_compare_clcal_shapes(varlist,shapelist=['g','l2'],varname='s')
 
-    if 1: #caltest, rho for many realizations
+    if 0: #caltest, rho for many realizations
         nomaps=False
         #caltest_get_scaleinfo(shortvarlist,scaletovar=False)
         Nreal=10000

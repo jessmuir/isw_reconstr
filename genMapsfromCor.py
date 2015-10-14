@@ -985,15 +985,15 @@ def gen_error_cl_fixedvar_l2(sig2=0.1,caliblmax=30,lmin=1):
     return clcal
 
 def getmodtag_fixedvar_l2(sig2,caliblmax,caliblmin):
-    modtag='l2_var{0:.2e}_{2:d}l{1:d}'.format(cvar,caliblmax,caliblmin)
+    modtag='l2_var{0:.2e}_{2:d}l{1:d}'.format(sig2,caliblmax,caliblmin)
     return modtag
 
 def parsemodtag_fixedvar_l2(ctag): #ctag = modtag
     aftervar=ctag.find('_var')+4
-    preell=ctag[aftervar:].find('_')
+    preell=ctag[aftervar:].find('_')+aftervar
     variance=float(ctag[aftervar:preell])
     ell=ctag.rfind('l')
-    minl=int(ctag[prell+1:ell])
+    minl=int(ctag[preell+1:ell])
     maxl=int(ctag[ell+1:])
     return variance, maxl,minl
     
