@@ -18,6 +18,9 @@ from scipy.special import sph_jn
 def nobias(z):
     return 1
 
+def quadbias(z,b0=1.,b2=5.):
+    return b0*(1.+b2*(1.+z)**2)
+
 def dndz_DESlike(z):
     z0=.3
     n0=.054
@@ -46,20 +49,21 @@ def get_DESlike_SurveyType(sigz,tag=''):
     longtag='DES-like survey w bias=1'
     return SurveyType(tag,zedges,sigz,nbar,dndz,bias,longtag,addnoise=False)
 
-def get_Euclidlike_SurveyType(sigz=0.05,z0=0.7,nbar=3.5e8,onebin=False,tag='',zedges=np.array([])):
+def get_Euclidlike_SurveyType(sigz=0.05,z0=0.7,nbar=3.5e8,onebin=False,tag='',zedges=np.array([]),b0=1.,b2=0):
     if not tag:
         tag='euc_z0{0:0.2f}sz{1:0.3f}'.format(z0,sigz)
-    bias=nobias
+    bias=quadbias
+    biasargs=[b0,b2]
     dndz=dndz_Euclidlike
     dndzargs=[z0]
     nbar=3.5e8
-    longtag='Euclid-like survey w bias=1, z0={0:0.2f}, sigz={1:0.3f}'.format(z0,sigz)
+    longtag='Euclid-like survey, z0={0:0.2f}, sigz={1:0.3f}, b0={2:0.2f}, b2={3:0.2f}'.format(z0,sigz,b0,b2)
     if not zedges.size:
         if onebin:
             zedges=np.array([.01,5*z0])
         else:
             zedges=np.array([.01,.4,.8,1.2,1.6,2.,5*z0])
-    return SurveyType(tag,zedges,sigz,nbar,dndz,bias,dndzargs,[],longtag,addnoise=False)
+    return SurveyType(tag,zedges,sigz,nbar,dndz,bias,dndzargs,biasargs,longtag,addnoise=False)
     
     
 

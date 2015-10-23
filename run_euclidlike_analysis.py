@@ -939,6 +939,8 @@ def bintest_plot_cl_vals(finestN=6,z0=0.7,sigz=0.05):
     plt.savefig(outdir+outname)
     plt.close()
 
+
+
 #================================================================
 # caltest - Overlay calibration error maps on depthtest fiducial map
 #   varying variance of calibration error and lmin used in reconstruction 
@@ -1426,17 +1428,17 @@ def caltest_TTscatter(r=0,varlist=[1.e-7,1.e-6,1.e-5,1.e-4],savepngmaps=False):
         recpngf.append(plotdir+'mapplot_'+recfbase+'.png')
         plt.savefig(plotdir+'mapplot_'+recfbase+'.png')
 
-        #stitch together, make gif
-        combof=[plotdir+'mapplot_caltest_combo_{0:.0e}.png'.format(v) for v in varlist]
-        combof.append(plotdir+'mapplot_caltest_combo_{0:.0e}.png'.format(0))
-        for i in xrange(Nvar+1):
-            print 'saving',combof[i]
-            command='convert -append '+' '.join([lsspngf[i],recpngf[i],iswpngf,combof[i]])
-            print command
-            #subprocess.call(['convert',arg])
+        # #stitch together, make gif
+        # combof=[plotdir+'mapplot_caltest_combo_{0:.0e}.png'.format(v) for v in varlist]
+        # combof.append(plotdir+'mapplot_caltest_combo_{0:.0e}.png'.format(0))
+        # for i in xrange(Nvar+1):
+        #     print 'saving',combof[i]
+        #     command='convert -append '+' '.join([lsspngf[i],recpngf[i],iswpngf,combof[i]])
+        #     print command
+        #     #subprocess.call(['convert',arg])
 
-        gifcommand='convert -delay 50 -loop 0 '+' '.join(combof)+' '+plotdir+'mapplot_caltest_animated.gif'
-        print gifcommand
+        # gifcommand='convert -delay 50 -loop 0 '+' '.join(combof)+' '+plotdir+'mapplot_caltest_animated.gif'
+        # print gifcommand
         #subprocess.call(['convert','-delay 50 -loop '+' '.join([combof])+'.gif'])
     #set up plot
     #colors=['#253494','#2c7fb8','#41b6c4','#a1dab4','#ffffcc']
@@ -1444,6 +1446,49 @@ def caltest_TTscatter(r=0,varlist=[1.e-7,1.e-6,1.e-5,1.e-4],savepngmaps=False):
 
     plotname='TrecTisw_scatter_caltest.r{0:05d}'.format(r)
     plot_Tin_Trec(iswmapfiles,recmapfiles,reclabels,plotdir,plotname,colors)
+
+
+#================================================================
+# zdisttest - vary shape of b(z)*dn/dz and see what happens
+#  z0test - look at different values of z0, mismatch sim and rec cl
+#  bztest - look at effect of introducing quadratic z dep in bias
+#================================================================
+# z0test_getz0vals - return list of z0 values, varying by percent errors
+#     above and below the fiducial value. includes fid value
+def z0test_getz0vals(percenterrors=np.array([1,10]),fid=0.7):
+    Nerror=len(percenterrors)
+    Nz0=2*Nerror+1
+    z0=np.zeros(Nz0)
+    percenterrors.sort() #smallest to largest
+    z0[Nerror]=fid
+    for n in xrange(Nerror):
+        z0[n]=fid*(1.-.01*percenterrors[-1-n])
+        z0[-1-n]=fid*(1+.01*percenterrors[-1-n])
+    return z0
+
+def z0test_get_binmaps(perrors=np.array([1,10]),fid=0.7,includeisw=True):
+    z0=z0test_getz0vals(perrors,fid)
+    maptags=['eucz{0:04d}_b2{1:03d}'.format(int(z*10000),0.) for z in z0]
+    surveys=[get_Euclidlike_SurveyType(z0=z0[i],onebin=True,tag=maptags[i]) for i in xrange(z0.size)]
+    bins=[s.binmaps[0] for s in surveys] #surveys all just have one bin
+    if includeisw:
+        iswmaptype=get_fullISW_MapType(zmax=10)
+        iswbins=iswmaptype.binmaps
+        bins=iswbins+bins
+    return bins
+    
+def z0test_get_Cl(justread=True,perrors=np.array([1,10]),fid=0.7):
+    bins=z0test_get_binmaps(perrors,fid)
+    pairs=[]
+    #working here; set up pairs for cross corr
+    zmax=max(m.zmax for m in bins)
+    rundat = ClRunData(tag='z0test',rundir='output/zdisttest/',lmax=95,zmax=zmax)
+    return getCl(bins,rundat,dopairs=['all'],DoNotOverwrite=justread)
+    
+    
+#================================================================
+# lmintest - vary lmin used for reconstruction to study fsky effects
+#================================================================
 
 
 #################################################################
@@ -1509,8 +1554,8 @@ if __name__=="__main__":
         Nreal=10000
         #caltest_apply_caliberrors(Nreal=Nreal,varlist=shortvarlist,overwritecalibmap=False,scaletovar=1.e-3)
         caltest_iswrec(Nreal=Nreal,varlist=shortvarlist)
-    if 1: #scatter plots for calib test
+    if 0: #scatter plots for calib test
         for r in xrange(5):
-            #caltest_TTscatter(r)
+            caltest_TTscatter(r)
             pass
-        caltest_TTscatter(4,savepngmaps=True)
+        #caltest_TTscatter(4,savepngmaps=True)
