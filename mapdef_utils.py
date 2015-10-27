@@ -57,7 +57,7 @@ def get_Euclidlike_SurveyType(sigz=0.05,z0=0.7,nbar=3.5e8,onebin=False,tag='',ze
     dndz=dndz_Euclidlike
     dndzargs=[z0]
     nbar=3.5e8
-    longtag='Euclid-like survey, z0={0:0.2f}, sigz={1:0.3f}, b0={2:0.2f}, b2={3:0.2f}'.format(z0,sigz,b0,b2)
+    longtag='Euclid-like survey, z0={0:0.3f}, sigz={1:0.3f}, b0={2:0.3f}, b2={3:0.3f}'.format(z0,sigz,b0,b2)
     if not zedges.size:
         if onebin:
             zedges=np.array([.01,5*z0])

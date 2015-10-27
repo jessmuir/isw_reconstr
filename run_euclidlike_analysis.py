@@ -1468,7 +1468,7 @@ def z0test_getz0vals(percenterrors=np.array([1,10]),fid=0.7):
 
 def z0test_get_binmaps(perrors=np.array([1,10]),fid=0.7,includeisw=True):
     z0=z0test_getz0vals(perrors,fid)
-    maptags=['eucz{0:04d}_b2{1:03d}'.format(int(z*10000),0.) for z in z0]
+    maptags=['eucz{0:04d}_b2{1:04d}'.format(int(np.rint(z*10000)),0) for z in z0]
     surveys=[get_Euclidlike_SurveyType(z0=z0[i],onebin=True,tag=maptags[i]) for i in xrange(z0.size)]
     bins=[s.binmaps[0] for s in surveys] #surveys all just have one bin
     if includeisw:
@@ -1479,12 +1479,121 @@ def z0test_get_binmaps(perrors=np.array([1,10]),fid=0.7,includeisw=True):
     
 def z0test_get_Cl(justread=True,perrors=np.array([1,10]),fid=0.7):
     bins=z0test_get_binmaps(perrors,fid)
-    pairs=[]
-    #working here; set up pairs for cross corr
+    pairs=[] #set up pairs for cross corr (autocorr automatic)
+    #pair up isw and each LSS maps, but not lss maps together 
+    for b in bins:
+        if b.isGal:
+            pairs.append((b.typetag,'isw'))
+            
     zmax=max(m.zmax for m in bins)
-    rundat = ClRunData(tag='z0test',rundir='output/zdisttest/',lmax=95,zmax=zmax)
-    return getCl(bins,rundat,dopairs=['all'],DoNotOverwrite=justread)
+    rundat = ClRunData(tag='z0test',rundir='output/zdisttest/',lmax=95,zmax=zmax,iswilktag='fidisw',noilktag=True)
+    return getCl(bins,rundat,dopairs=pairs,DoNotOverwrite=justread)
+#--------------------------------------------------------------------
+# simz0 are z0 values for which simulated maps were generated
+# recz0 are z0 values used in the Cl for estimator
+# returns 2d Nsimz0xNrecz0 list of RecData objects
+def z0test_get_recgrid(simz0=np.array([]),recz0=np.array([]),perrors=np.array([1,10]),fidz0=.7):
+    if not simz0.size:
+        simz0=z0test_getz0vals(perrors,fidz0)
+    if not recz0.size:
+        recz0=z0test_getz0vals(perrors,fidz0)
+    simmaptags=['eucz{0:04d}_b2{1:04d}'.format(int(np.rint(z*10000)),0) for z in simz0]
+    recmaptags=['eucz{0:04d}_b2{1:04d}'.format(int(np.rint(z*10000)),0) for z in recz0]
+    recgrid=[]
+    Nsim=simz0.size
+    Nrec=recz0.size
+    for ns in xrange(Nsim):
+        reclist=[]
+        for nr in xrange(Nrec):
+            recdat=RecData(includeglm=[simmaptags[ns]+'_bin0'],includecl=[recmaptags[nr]+'_bin0'],inmaptag=simmaptags[ns],rectag=recmaptags[nr])
+            reclist.append(recdat)
+        recgrid.append(reclist)
+    return recgrid
     
+# will output rhodat in len(simz0)xlen(rez0) array
+# if simz0 and recz0 are passed as arrays, use those as the z0 vals
+# if either are passed as an empty array, replace it with all vals indicated
+#    by the perrors, fidz0 parameters
+# will use perrors and fidz0 to get Cl data, so they should match in either case
+def z0test_get_rhoexp(simz0=np.array([]),recz0=np.array([]),perrors=np.array([1,10]),fidz0=.7,overwrite=False,saverho=True,doplot=False,varname='rho',filetag=''):
+    if not simz0.size:
+        simz0=z0test_getz0vals(perrors,fidz0)
+    if not recz0.size:
+        recz0=z0test_getz0vals(perrors,fidz0)
+
+    if saverho:
+        outdir='output/zdisttest/'
+        if filetag:
+            filetagstr='_'+filetag
+        else:
+            filetagstr=filetag
+        datfile='z0test_{0:s}exp{1:s}.dat'.format(varname,filetagstr)
+        if not overwrite and os.pah.isfile(outdir+datfile):#file exists
+            print "Reading data file:",datfile
+            x=np.loadtxt(outdir+datfile,skiprows=1)#CHECK SKIPROWS
+            insimz0=x[1:,0] #row labels
+            inrecz0=x[0,1:] #column labels
+            if not np.all(insimz0==simz0) or not np.all(inrecz0==recz0):
+                print "WARNING, input z0 lists don't match requested."
+            else:
+                rhoarray=x[1:,1:] #rho data
+                return rhoarray
+        else:
+            print "Writing to data file:",datfile
+    
+    Nsim=simz0.size
+    Nrec=recz0.size
+    recgrid=z0test_get_recgrid(simz0,recz0,perrors,fidz0) #Nsim x Nrec
+    cldat=z0test_get_Cl(True,perrors,fidz0) #read cl already containing all z0's
+
+    rhoarray=np.zeros((Nsim,Nrec))
+    for ns in xrange(Nsim):
+        for nr in xrange(Nrec):
+            if varname=='rho':
+                rhoarray[ns,nr]=compute_rho_fromcl(cldat,recgrid[ns,nr])
+            elif varname=='s':
+                rhoarray[ns,nr]=compute_s_fromcl(cldat,recgrid[ns,nr])
+    if saverho:
+        #write to file, working here
+        f=open(outdir+datfile,'w')
+        f.write('{0:9.4f} '.format(0.)+''.join(['{0:9.4f} '.format(z0r) for z0r in z0rec])+'\n')
+        for ns in xrange(Nsim):
+            f.write('{0:9.4f} '.format(z0sim[ns])+''.join(['{0:9.4f} '.format(rhoarray[ns,nr]) for nr in xrange(Nrec)])+'\n')
+        f.close()
+    if doplot:
+        z0test_rhoexplot(simz0,recz0,rhoarray,varname) #need to write this
+        
+    return rhoarray
+    
+    
+#--------------------------------------------------------------------
+# bztest funcs
+#--------------------------------------------------------------------
+def bztest_get_binmaps(b2vals=np.array([0.,.01,.1,.5]),fid=0,z0=0.7):
+    addfid=fid not in b2vals
+    maptags=['eucz{0:04d}_b2{1:03d}'.format(int(z0*10000),int(b2*1000)) for b2 in b2vals]
+    surveys=[get_Euclidlike_SurveyType(z0=z0,onebin=True,tag=maptags[i],b2=b2vals[i]) for i in xrange(b2vals.size)]
+    if addfid:
+        maptags.append('eucz{0:04d}_b2{1:04d}'.format(int(z0*10000),int(fid*1000)))
+        surveys.append(get_Euclidlike_SurveyType(z0=z0,onebin=True,tag=maptags[-1],b2=fid) )
+    bins=[s.binmaps[0] for s in surveys] #surveys all just have one bin
+    if includeisw:
+        iswmaptype=get_fullISW_MapType(zmax=10)
+        iswbins=iswmaptype.binmaps
+        bins=iswbins+bins
+    return bins
+
+def bztest_get_Cl(justread=True,b2vals=np.array([0.,.01,.1,.5]),fid=0,z0=0.7):
+    bins=bztest_get_binmaps(b2vals,fid,z0)
+    pairs=[] #set up pairs for cross corr (autocorr automatic)
+    #pair up isw and each LSS maps, but not lss maps together 
+    for b in bins:
+        if b.isGal:
+            pairs.append((b.typetag,'isw'))
+            
+    zmax=max(m.zmax for m in bins)
+    rundat = ClRunData(tag='bztest',rundir='output/zdisttest/',lmax=95,zmax=zmax,iswilktag='fidisw',noilktag=True)
+    return getCl(bins,rundat,dopairs=pairs,DoNotOverwrite=justread)
     
 #================================================================
 # lmintest - vary lmin used for reconstruction to study fsky effects
