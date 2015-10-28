@@ -1505,6 +1505,7 @@ def z0test_get_recgrid(simz0=np.array([]),recz0=np.array([]),perrors=np.array([1
     for ns in xrange(Nsim):
         reclist=[]
         for nr in xrange(Nrec):
+            #print 'SIM: '+simmaptags[ns]+'_bin0  REC: '+recmaptags[nr]+'_bin0'
             recdat=RecData(includeglm=[simmaptags[ns]+'_bin0'],includecl=[recmaptags[nr]+'_bin0'],inmaptag=simmaptags[ns],rectag=recmaptags[nr])
             reclist.append(recdat)
         recgrid.append(reclist)
@@ -1522,15 +1523,15 @@ def z0test_get_rhoexp(simz0=np.array([]),recz0=np.array([]),perrors=np.array([1,
         recz0=z0test_getz0vals(perrors,fidz0)
 
     if saverho:
-        outdir='output/zdisttest/'
+        outdir='output/zdisttest/plots/'
         if filetag:
             filetagstr='_'+filetag
         else:
             filetagstr=filetag
         datfile='z0test_{0:s}exp{1:s}.dat'.format(varname,filetagstr)
-        if not overwrite and os.pah.isfile(outdir+datfile):#file exists
+        if not overwrite and os.path.isfile(outdir+datfile):#file exists
             print "Reading data file:",datfile
-            x=np.loadtxt(outdir+datfile,skiprows=1)#CHECK SKIPROWS
+            x=np.loadtxt(outdir+datfile)
             insimz0=x[1:,0] #row labels
             inrecz0=x[0,1:] #column labels
             if not np.all(insimz0==simz0) or not np.all(inrecz0==recz0):
@@ -1550,28 +1551,68 @@ def z0test_get_rhoexp(simz0=np.array([]),recz0=np.array([]),perrors=np.array([1,
     for ns in xrange(Nsim):
         for nr in xrange(Nrec):
             if varname=='rho':
-                rhoarray[ns,nr]=compute_rho_fromcl(cldat,recgrid[ns,nr])
+                rhoarray[ns,nr]=compute_rho_fromcl(cldat,recgrid[ns][nr],reccldat=cldat)
             elif varname=='s':
-                rhoarray[ns,nr]=compute_s_fromcl(cldat,recgrid[ns,nr])
+                rhoarray[ns,nr]=compute_s_fromcl(cldat,recgrid[ns][nr],reccldat=cldat)
+
     if saverho:
-        #write to file, working here
+        #write to file, 
         f=open(outdir+datfile,'w')
-        f.write('{0:9.4f} '.format(0.)+''.join(['{0:9.4f} '.format(z0r) for z0r in z0rec])+'\n')
+        f.write('{0:9.6f} '.format(0.)+''.join(['{0:9.6f} '.format(z0r) for z0r in recz0])+'\n')
         for ns in xrange(Nsim):
-            f.write('{0:9.4f} '.format(z0sim[ns])+''.join(['{0:9.4f} '.format(rhoarray[ns,nr]) for nr in xrange(Nrec)])+'\n')
+            f.write('{0:9.6f} '.format(simz0[ns])+''.join(['{0:9.6f} '.format(rhoarray[ns,nr]) for nr in xrange(Nrec)])+'\n')
         f.close()
     if doplot:
-        z0test_rhoexplot(simz0,recz0,rhoarray,varname) #need to write this
+        z0test_rhoexpplot(simz0,recz0,rhoarray,varname) 
         
     return rhoarray
+
+
+def z0test_rhoexpplot(simz0,recz0,rhogrid,varname='rho',outtag='',outname='',legtitle='',colorlist=[]):
+    scattercolors=['#e41a1c','#377eb8','#4daf4a','#984ea3','#ff7f00','#ffff33','#a65628','#f781bf']
+    if not colorlist:
+        colorlist=scattercolors
     
+    Nsim=simz0.size
+    Nrec=recz0.size
+    plotdir='output/zdisttest/plots/'
+    if outtag:
+        outtag='_'+outtag
+    if not outname:
+        outname='z0test_'+varname+'_exp'+outtag+'.png'
+
+    fig=plt.figure(0)
+    plt.suptitle('Effect of incorrectly modeled median redshift')
+    #plot a line for each simz0, data points for each recz0
+    ax1=plt.subplot(1,1,1)
+    ax1.grid(True)
+    if varname=='rho':
+        ax1.set_ylabel(r'$\langle \rho \rangle/\langle \rho \rangle_{{\rm best}} -1$')
+    elif varname=='s':
+        ax1.set_ylabel(r'$\langle s \rangle/\langle s \rangle_{{\rm best}} $')
+    ax1.set_xlabel(r"$z_0$ used for ISW reconstruction")
+    xvals=np.arange(Nrec)
+    ax1.set_xlim((-.5,Nrec-.5))
+    ax1.set_yscale('symlog',linthreshy=1.e-7)
+    ax1.set_ylim((-1.,1.e-8))
+    plt.xticks(xvals,recz0)
+    for i in xrange(Nsim):
+        maxrho=max(rhogrid[i,:])
+        ax1.plot(xvals,rhogrid[i,:]/maxrho -1 ,label=r'{0:0.3f}; $\langle \rho\rangle_{{\rm best}}=${1:0.3f}'.format(simz0[i],maxrho),color=colorlist[i%len(colorlist)],marker='d')
+
+    if not legtitle:
+        legtitle=r'$z_0$ used for simulations'
+    plt.legend(title=legtitle,loc='lower center')
+    print 'Saving plot to ',plotdir+outname
+    plt.savefig(plotdir+outname)
+    plt.close()
     
 #--------------------------------------------------------------------
 # bztest funcs
 #--------------------------------------------------------------------
-def bztest_get_binmaps(b2vals=np.array([0.,.01,.1,.5]),fid=0,z0=0.7):
+def bztest_get_binmaps(b2vals=np.array([0.,.01,.1,.5]),fid=0,z0=0.7,includeisw=True):
     addfid=fid not in b2vals
-    maptags=['eucz{0:04d}_b2{1:03d}'.format(int(z0*10000),int(b2*1000)) for b2 in b2vals]
+    maptags=['eucz{0:04d}_b2{1:04d}'.format(int(z0*10000),int(b2*1000)) for b2 in b2vals]
     surveys=[get_Euclidlike_SurveyType(z0=z0,onebin=True,tag=maptags[i],b2=b2vals[i]) for i in xrange(b2vals.size)]
     if addfid:
         maptags.append('eucz{0:04d}_b2{1:04d}'.format(int(z0*10000),int(fid*1000)))
@@ -1594,7 +1635,115 @@ def bztest_get_Cl(justread=True,b2vals=np.array([0.,.01,.1,.5]),fid=0,z0=0.7):
     zmax=max(m.zmax for m in bins)
     rundat = ClRunData(tag='bztest',rundir='output/zdisttest/',lmax=95,zmax=zmax,iswilktag='fidisw',noilktag=True)
     return getCl(bins,rundat,dopairs=pairs,DoNotOverwrite=justread)
+
+#--------------------------------------------------------------------
+# simz0 are z0 values for which simulated maps were generated
+# recz0 are z0 values used in the Cl for estimator
+# returns 2d Nsimz0xNrecz0 list of RecData objects
+def bztest_get_recgrid(simb2=np.array([0.,.01,.1,.5]),recb2=np.array([0.,.01,.1,.5])):
+    z0=.7
+    simmaptags=['eucz{0:04d}_b2{1:04d}'.format(int(z0*10000),int(b2*1000)) for b2 in simb2]
+    recmaptags=['eucz{0:04d}_b2{1:04d}'.format(int(z0*10000),int(b2*1000)) for b2 in recb2]
+    recgrid=[]
+    Nsim=simb2.size
+    Nrec=recb2.size
+    for ns in xrange(Nsim):
+        reclist=[]
+        for nr in xrange(Nrec):
+            #print 'SIM: '+simmaptags[ns]+'_bin0  REC: '+recmaptags[nr]+'_bin0'
+            recdat=RecData(includeglm=[simmaptags[ns]+'_bin0'],includecl=[recmaptags[nr]+'_bin0'],inmaptag=simmaptags[ns],rectag=recmaptags[nr])
+            reclist.append(recdat)
+        recgrid.append(reclist)
+    return recgrid
+
+# will output rhodat in len(simb2)xlen(recb2) array
+# if simb2 and recb2 are passed as arrays, use those as the b2 vals
+def bztest_get_rhoexp(simb2=np.array([0.,.01,.1,.5]),recb2=np.array([0.,.01,.1,.5]),overwrite=False,saverho=True,doplot=False,varname='rho',filetag=''):
+    if saverho:
+        outdir='output/zdisttest/plots/'
+        if filetag:
+            filetagstr='_'+filetag
+        else:
+            filetagstr=filetag
+        datfile='b2test_{0:s}exp{1:s}.dat'.format(varname,filetagstr)
+        if not overwrite and os.path.isfile(outdir+datfile):#file exists
+            print "Reading data file:",datfile
+            x=np.loadtxt(outdir+datfile)
+            insimb2=x[1:,0] #row labels
+            inrecb2=x[0,1:] #column labels
+            if not np.all(insimb2==simb2) or not np.all(inrecb2==recb2):
+                print "WARNING, input b2 lists don't match requested."
+            else:
+                rhoarray=x[1:,1:] #rho data
+                return rhoarray
+        else:
+            print "Writing to data file:",datfile
     
+    Nsim=simb2.size
+    Nrec=recb2.size
+    recgrid=bztest_get_recgrid(simb2,recb2) #Nsim x Nrec WRITE THIS
+    simcldat=bztest_get_Cl(True,simb2) 
+    reccldat=bztest_get_Cl(True,recb2)
+
+    rhoarray=np.zeros((Nsim,Nrec))
+    for ns in xrange(Nsim):
+        for nr in xrange(Nrec):
+            if varname=='rho':
+                rhoarray[ns,nr]=compute_rho_fromcl(simcldat,recgrid[ns][nr],reccldat=reccldat)
+            elif varname=='s':
+                rhoarray[ns,nr]=compute_s_fromcl(simcldat,recgrid[ns][nr],reccldat=reccldat)
+
+    if saverho:
+        #write to file, 
+        f=open(outdir+datfile,'w')
+        f.write('{0:9.6f} '.format(0.)+''.join(['{0:9.6f} '.format(b2r) for b2r in recb2])+'\n')
+        for ns in xrange(Nsim):
+            f.write('{0:9.6f} '.format(simb2[ns])+''.join(['{0:9.6f} '.format(rhoarray[ns,nr]) for nr in xrange(Nrec)])+'\n')
+        f.close()
+    if doplot:
+        bztest_rhoexpplot(simb2,recb2,rhoarray,varname) 
+        
+    return rhoarray
+
+def bztest_rhoexpplot(simb2,recb2,rhogrid,varname='rho',outtag='',outname='',legtitle='',colorlist=[]):
+    scattercolors=['#e41a1c','#377eb8','#4daf4a','#984ea3','#ff7f00','#ffff33','#a65628','#f781bf']
+    if not colorlist:
+        colorlist=scattercolors
+    
+    Nsim=simb2.size
+    Nrec=recb2.size
+    plotdir='output/zdisttest/plots/'
+    if outtag:
+        outtag='_'+outtag
+    if not outname:
+        outname='b2test_'+varname+'_exp'+outtag+'.png'
+
+    fig=plt.figure(0)
+    plt.suptitle(r'Effect of incorrectly modeled $b(z)=1+b_2(1+z)^2$')
+
+    ax1=plt.subplot(1,1,1)
+    ax1.grid(True)
+    if varname=='rho':
+        ax1.set_ylabel(r'$\langle \rho \rangle/\langle \rho \rangle_{{\rm best}} -1$')
+    elif varname=='s':
+        ax1.set_ylabel(r'$\langle s \rangle/\langle s \rangle_{{\rm best}} $')
+    ax1.set_xlabel(r"$b_2$ used for ISW reconstruction")
+    xvals=np.arange(Nrec)
+    ax1.set_xlim((-.5,Nrec-.5))
+    ax1.set_yscale('symlog',linthreshy=1.e-7)
+    ax1.set_ylim((-1.,1.e-8))
+    plt.xticks(xvals,recb2)
+    for i in xrange(Nsim):
+        maxrho=max(rhogrid[i,:])
+        ax1.plot(xvals,rhogrid[i,:]/maxrho -1 ,label=r'{0:0.3f}; $\langle \rho\rangle_{{\rm best}}=${1:0.3f}'.format(simb2[i],maxrho),color=colorlist[i%len(colorlist)],marker='d')
+
+    if not legtitle:
+        legtitle=r'$b_2$ used for simulations'
+    plt.legend(title=legtitle,loc='lower center')
+    print 'Saving plot to ',plotdir+outname
+    plt.savefig(plotdir+outname)
+    plt.close()
+
 #================================================================
 # lmintest - vary lmin used for reconstruction to study fsky effects
 #================================================================
@@ -1667,4 +1816,8 @@ if __name__=="__main__":
         for r in xrange(5):
             caltest_TTscatter(r)
             pass
-        #caltest_TTscatter(4,savepngmaps=True)
+        #caltest_TTscatter(4,savepngmaps=True)'
+
+    if 1: #z0test theory calcs
+        z0test_get_rhoexp(overwrite=True,doplot=True,varname='rho')
+        bztest_get_rhoexp(overwrite=True,doplot=True,varname='rho')

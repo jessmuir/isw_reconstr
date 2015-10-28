@@ -893,11 +893,14 @@ def read_relldat_wfile(filename):
 #     if it is 1: use only bin-isw, bin-auto, and bin-nearest neighbor
 #                 etc.
 def compute_rho_fromcl(cldat,recdat,Nneighbors=-1,reccldat=0):
+    #print 'recdat.includeglm',recdat.includeglm
+    #print 'recdat.includecl',recdat.includecl
     #Dl is a matrix of Cls, with isw at zero index
     #  and other maps in order specified by recdat.includecl
     if not reccldat:
         DIFFREC=False
     else:
+        #print 'DIFREC=True'
         DIFFREC=True #are the Cl's for rec and sim different?
 
     if Nneighbors>-1:
@@ -950,7 +953,8 @@ def compute_rho_fromcl(cldat,recdat,Nneighbors=-1,reccldat=0):
         recDl=Dl
         recDinv=Dinv
         recNl=Nl
-        
+
+    #print 'Are rec and sim Dl different?',np.any(recDl-Dl)
     # construct estimator operators
     estop=np.zeros((NLSS,Nell))#"estimator operator"
     for i in xrange(NLSS):
