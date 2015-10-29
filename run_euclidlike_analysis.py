@@ -1,5 +1,7 @@
 import numpy as np
 import matplotlib.pyplot as plt
+import matplotlib.colors as colors
+import matplotlib.cm as cmx
 from itertools import permutations
 from MapParams import *
 from ClRunUtils import *
@@ -1348,6 +1350,88 @@ def caltest_rhoexpplot(varlist,rhoarraylist,labellist=[],outname='',legtitle='',
     plt.savefig(plotdir+outname)
     plt.close()
 #---------------------------------------------------------------
+# plot comparison bewteen Cl cal and Cl gal or Cl gal-ISW to understand
+# why the transition in rho happens where it is
+def caltest_Clcomp(varlist=[1.e-7,1.e-6,1.e-5,1.e-4],shape='g',callmin=0,callmax=30,width=10.):
+    Nvar=len(varlist)
+    #get Clcal and Cl
+    fidbins=caltest_get_fidbins()
+    iswbin=fidbins[0].tag #will be the isw map
+    iswind=0
+    lssbin=fidbins[1].tag #will just be the depthtest bin map
+    lssind=1
+    fidcl=caltest_get_clfid()
+    l=np.arange(fidcl.Nell)
+    
+    #construct map-mod combos for the variances given
+    mapmods=caltest_getmapmods_onebin(lssbin,varlist,callmax,callmin,shape,width)
+    clcal=np.zeros((Nvar,fidcl.Nell))
+    for i in xrange(Nvar):
+        ctag=mapmods[i][1]
+        if ctag[:2]=='l2':#power law
+            var,maxl,minl=parsemodtag_fixedvar_l2(ctag)
+            thiscalcl=gen_error_cl_fixedvar_l2(var,maxl,minl)
+        elif ctag[:1]=='g':#gaussian
+            var,maxl,minl,width=parsemodtag_fixedvar_gauss(ctag)
+            thiscalcl=gen_error_cl_fixedvar_gauss(var,maxl,minl,width=width)
+        clcal[i,:callmax+1]=thiscalcl
+        #Working here
+        
+    #plot Cl cal for various variance values in color gradient
+    # http://matplotlib.org/xkcd/examples/color/colormaps_reference.html
+    cm=plt.get_cmap('Spectral_r')
+    cNorm=colors.LogNorm()#max and min numbers colors need to span
+    scalarMap=cmx.ScalarMappable(norm=cNorm,cmap=cm)
+    varcols=scalarMap.to_rgba(varlist)
+    clscaling=l*(l+1.)/(2*np.pi)
+    #to get colorbar key, need ot set up a throw-away map
+    dummyz=[[0,0],[0,0]]
+    dummylevels=varlist
+    dummyplot=plt.contourf(dummyz,dummylevels,cmap=cm,norm=colors.LogNorm())
+    plt.clf()
+    fig=plt.gcf()
+    
+    fig=plt.figure(0)
+    ax=plt.subplot()
+    plt.title(r'Comparing $C_{{\ell}}$ of galaxies, ISW, and calib. errors')
+    plt.ylabel(r'$\ell(\ell+1)C_{{\ell}}/2\pi$')
+    plt.xlabel(r'Multipole $\ell$')
+    plt.xlim((0,30))
+    plt.ylim((1.e-11,1.))
+    plt.yscale('log')
+    for i in xrange(Nvar):
+        plt.plot(l,np.fabs(clcal[i,:])*clscaling,color=varcols[i])
+        
+    #plto fid cl
+    #overlay Clgal, Clgal-isw in bolded lines
+    lssauto=fidcl.crossinds[lssind,lssind]
+    lssisw=fidcl.crossinds[iswind,lssind]
+    iswauto=fidcl.crossinds[iswind,iswind]
+    plt.plot(l,np.fabs(fidcl.cl[lssauto,:])*clscaling,color='black',linestyle='-',linewidth=2,label='gal-gal')
+    plt.plot(l,np.fabs(fidcl.cl[lssisw,:])*clscaling,color='black',linestyle='--',linewidth=2,label='ISW-gal')
+    plt.plot(l,np.fabs(fidcl.cl[iswauto,:])*clscaling,color='black',linestyle=':',linewidth=2,label='ISW-ISW')
+
+    #set up colorbar
+    logminvar=int(np.log10(min(varlist)))
+    logmaxvar=int(np.log10(max(varlist)))+1
+    Nlog=logmaxvar-logminvar
+    varticks=[10**(logminvar+n) for n in xrange(Nlog)]
+    #cbaxes=fig.add_axes([.8,.1,.03,.8])#controls location of colorbar
+    colbar=fig.colorbar(dummyplot,ticks=varticks)
+    colbar.set_label(r'Variance of error field $\langle c^2(\hat{{n}})\rangle$')
+    plt.legend()
+
+    plotdir='output/caltest_plots/'
+    plotname='caltest_cl_compare'
+    outname=plotdir+plotname+'.png'
+    print 'saving',outname
+    plt.savefig(outname)
+    plt.close()
+    
+
+
+
+#---------------------------------------------------------------
 # do TT scatter plot for a few realizations
 
 # do TT scatter plot for one realization
@@ -1805,6 +1889,10 @@ if __name__=="__main__":
         caltest_compare_clcal_shapes(varlist,shapelist=['g','l2'],varname='rho',shortvarlist=shortvarlist)
         caltest_compare_clcal_shapes(varlist,shapelist=['g','l2'],varname='s',shortvarlist=shortvarlist)
 
+    if 0: #plotting cl for caltest
+        varlist=list(caltest_get_logspaced_varlist(minvar=1.e-8,maxvar=.1,Nperlog=10))    
+        caltest_Clcomp(varlist)
+        
     if 0: #caltest, rho for many realizations
         shortvarlist=[1.e-7,1.e-2]
         nomaps=False
@@ -1812,12 +1900,22 @@ if __name__=="__main__":
         Nreal=10000
         #caltest_apply_caliberrors(Nreal=Nreal,varlist=shortvarlist,overwritecalibmap=False,scaletovar=1.e-3)
         caltest_iswrec(Nreal=Nreal,varlist=shortvarlist)
+
+    
     if 0: #scatter plots for calib test
         for r in xrange(5):
             caltest_TTscatter(r)
             pass
         #caltest_TTscatter(4,savepngmaps=True)'
 
-    if 1: #z0test theory calcs
+    if 0: #z0test theory calcs
         z0test_get_rhoexp(overwrite=True,doplot=True,varname='rho')
         bztest_get_rhoexp(overwrite=True,doplot=True,varname='rho')
+
+    if 1: #plots for Dragan's grant proposal
+        #depth test histogram for only z0=.3,.7; no title, clean up legend
+        #  maybe put inset of dndz distributions?
+
+        #scatter plot for one realization for calib errors; clean up legend
+
+        #binning test plot; only one sigma z point, remove title
