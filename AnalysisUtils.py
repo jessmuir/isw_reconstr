@@ -1141,7 +1141,7 @@ def compute_rell_fromcl(cldat,recdat):
 #------------------------------------------------------------------------------
 #plot_Tin_Trec  - make scatter plot comparing true to reconstructed isw
 #------------------------------------------------------------------------------
-def plot_Tin_Trec(iswmapfiles,recmapfiles,reclabels,plotdir='output/',plotname='',colorlist=[]):
+def plot_Tin_Trec(iswmapfiles,recmapfiles,reclabels,plotdir='output/',plotname='',colorlist=[],dotitle=False):
     if not colorlist:
         colors=['#404040','#c51b8a','#0571b0','#66a61e','#ffa319','#d7191c']
     else:
@@ -1157,7 +1157,8 @@ def plot_Tin_Trec(iswmapfiles,recmapfiles,reclabels,plotdir='output/',plotname='
         iswmaps.append(misw)
     rhovals=[rho_onereal(iswmaps[n],recmaps[n]) for n in xrange(Nmap)]
     plt.figure(1,figsize=(10,8))
-    plt.title('Pixel-by-pixel scatterplot',fontsize=20)
+    if dotitle:
+        plt.title('Pixel-by-pixel scatterplot',fontsize=20)
     plt.rcParams['axes.linewidth'] =2
     ax=plt.subplot()
     plt.xlabel(r'$\rm{T}^{\rm ISW}_{\rm input}$  $(10^{-5}\rm{K})$',fontsize=20)

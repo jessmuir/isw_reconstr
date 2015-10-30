@@ -682,7 +682,7 @@ def bintest_read_rell_wfiles(divlist=['6','222','111111'],sigz=0.05,varname='rel
 #plot expectation value of rho for different binning strategy
 # with illustrative y axis
 # also works for s, switch in variable varname
-def bintest_rhoexpplot(allzedges,labels,rhoarraylist,labellist=[],outname='',legtitle='',markerlist=[],colorlist=[],outtag='',varname='rho'):
+def bintest_rhoexpplot(allzedges,labels,rhoarraylist,labellist=[],outname='',legtitle='',markerlist=[],colorlist=[],outtag='',varname='rho',dotitle=False):
     if type(rhoarraylist[0])!=np.ndarray: #just one array passed,not list of arr
         rhoarraylist=[rhoarraylist]
     plotdir='output/eucbintest/plots/'
@@ -698,10 +698,11 @@ def bintest_rhoexpplot(allzedges,labels,rhoarraylist,labellist=[],outname='',leg
 
     #divide fiture up into two vertical pieces
     fig=plt.figure(0)
-    if varname=='rho':
-        plt.suptitle(r'Expected correlation coef. between $T^{{\rm ISW}}$ and $T^{{\rm rec}}$', size=18)
-    elif varname=='s':
-        plt.suptitle(r'Expected ratio between RMS of  $T^{{\rm rec}}-T^{{\rm ISW}}$ and $\sigma_{{T}}^{{\rm ISW}}$', size=18)
+    if dotitle:
+        if varname=='rho':
+            plt.suptitle(r'Expected correlation coef. between $T^{{\rm ISW}}$ and $T^{{\rm rec}}$', size=18)
+        elif varname=='s':
+            plt.suptitle(r'Expected ratio between RMS of  $T^{{\rm rec}}-T^{{\rm ISW}}$ and $\sigma_{{T}}^{{\rm ISW}}$', size=18)
     ax1 = plt.subplot(1,3,1)
     ax2 = plt.subplot(1,3,(2,3),sharey=ax1)
     fig.subplots_adjust(hspace=0, wspace=0) #put them right next to eachother
@@ -710,7 +711,7 @@ def bintest_rhoexpplot(allzedges,labels,rhoarraylist,labellist=[],outname='',leg
     plt.sca(ax1)
     plt.ylim((-1,Npoints))
     plt.xlim((0,6.1))#at 6, plots butt up against each other
-    plt.xlabel(r'Redshift bin edges $z$')
+    plt.xlabel(r'Redshift bin edges $z$',fontsize=16)
     ax1.xaxis.set_ticks_position('bottom')
     plt.yticks(yvals, labels)
     plt.xticks(np.arange(Nz),['{0:0.1f}'.format(z) for z in zvals])
@@ -738,12 +739,12 @@ def bintest_rhoexpplot(allzedges,labels,rhoarraylist,labellist=[],outname='',leg
     ax2.yaxis.set_ticks_position('left')
     ax2.xaxis.set_ticks_position('bottom')
     if varname=='rho':
-        ax2.set_xlabel(r'$\langle \rho \rangle$')
+        ax2.set_xlabel(r'$\langle \rho \rangle$',fontsize=16)
     elif varname=='s':
-        ax2.set_xlabel(r'$\langle s \rangle$')
+        ax2.set_xlabel(r'$\langle s \rangle$',fontsize=16)
     ax2.grid(True)
     if not markerlist:
-        markerlist=['D']*len(labellist)
+        markerlist=['D']*len(rhoarraylist)
     if not colorlist:
         colorlist=scattercolors
     for i in xrange(len(rhoarraylist)):
@@ -1911,11 +1912,3 @@ if __name__=="__main__":
     if 0: #z0test theory calcs
         z0test_get_rhoexp(overwrite=True,doplot=True,varname='rho')
         bztest_get_rhoexp(overwrite=True,doplot=True,varname='rho')
-
-    if 1: #plots for Dragan's grant proposal
-        #depth test histogram for only z0=.3,.7; no title, clean up legend
-        #  maybe put inset of dndz distributions?
-
-        #scatter plot for one realization for calib errors; clean up legend
-
-        #binning test plot; only one sigma z point, remove title
