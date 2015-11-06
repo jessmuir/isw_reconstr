@@ -892,7 +892,7 @@ def read_relldat_wfile(filename):
 #     if it is 0: set everything that's not bin-isw or bin-auto to zero
 #     if it is 1: use only bin-isw, bin-auto, and bin-nearest neighbor
 #                 etc.
-def compute_rho_fromcl(cldat,recdat,Nneighbors=-1,reccldat=0):
+def compute_rho_fromcl(cldat,recdat,Nneighbors=-1,reccldat=0,varname='rho'):
     #print 'recdat.includeglm',recdat.includeglm
     #print 'recdat.includecl',recdat.includecl
     #Dl is a matrix of Cls, with isw at zero index
@@ -1028,6 +1028,8 @@ def rho_sampledist(r,rho,NSIDE=32,Nsample=0): #here rho is the expected mean
 # compute expectation value of s, the rms of the difference between
 # true and rec ISW maps, in units of true ISW rms
 def compute_s_fromcl(cldat,recdat,reccldat=0):
+    #print '\nrecdat.includeglm',recdat.includeglm
+    #print 'recdat.includecl',recdat.includecl
     #Dl is a matrix of Cls, with isw at zero index
     #  and other maps in order specified by recdat.includecl
     if not reccldat:
@@ -1036,7 +1038,8 @@ def compute_s_fromcl(cldat,recdat,reccldat=0):
         DIFFREC=True #are the Cl's for rec and sim different?
     
     lmin=recdat.lmin
-    Dl,dtags=get_Dl_matrix(cldat,recdat.includecl,recdat.zerotagstr)
+    Dl,dtags=get_Dl_matrix(cldat,recdat.includeglm,recdat.zerotagstr)
+    #print 'dtags',dtags
     #print Dl[5,:,:]
     Dinv=invert_Dl(Dl)
     Nell=Dinv.shape[0]
@@ -1052,6 +1055,7 @@ def compute_s_fromcl(cldat,recdat,reccldat=0):
     #if DIFFREC, get Dl data for those Cl
     if DIFFREC: #assumes cldat and reccldat have same ell info
         recDl,recdtags=get_Dl_matrix(reccldat,recdat.includecl,recdat.zerotagstr)
+        #print 'recdtags',recdtags
         recDinv=invert_Dl(recDl)
         recNl=np.zeros(Nell)
         for l in xrange(Nell):
@@ -1061,7 +1065,7 @@ def compute_s_fromcl(cldat,recdat,reccldat=0):
         recDl=Dl
         recDinv=Dinv
         recNl=Nl
-
+    #print 'Are rec and sim Dl different?',np.any(recDl-Dl)
     # construct estimator operators
     estop=np.zeros((NLSS,Nell))#"estimator operator"
     for i in xrange(NLSS):

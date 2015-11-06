@@ -87,13 +87,13 @@ def depthtest_plot_rhohist_forproposal(z0vals=np.array([.3,.7])):
         if len(predvals):
             predval=predvals[i]
             plt.axvline(predval,linestyle='-',color=colstr)
-            label=r'{0:s}: $\langle {4:s}\rangle={3:0.3f}$'.format(reclabels[i],mean,sigma,predval,varstr)
+            label=r'{0:s}: $\langle {4:s}\rangle_{{\rm theory}}={3:0.3f}$'.format(reclabels[i],mean,sigma,predval,varstr)
         plt.axvline(mean,linestyle='--',color=colstr)
         nvals,evals,patches=plt.hist(rhogrid[i,:],bins=Nbins,range=vallim,histtype='stepfilled',label=label)
         plt.setp(patches,'facecolor',colstr,'alpha',0.7)
 
-    plt.plot(np.array([]),np.array([]),linestyle='--',color='black',label='mean from sample')
-    plt.plot(np.array([]),np.array([]),linestyle='-',color='black',label='expectation value')
+    plt.plot(np.array([]),np.array([]),linestyle='--',color='black',label='mean from simulation')
+    plt.plot(np.array([]),np.array([]),linestyle='-',color='black',label='mean from theory')
     plt.legend(loc='best')
 
     #plot window functions as inset
@@ -105,8 +105,8 @@ def depthtest_plot_rhohist_forproposal(z0vals=np.array([.3,.7])):
     zgrid=np.arange(nperz*zmax)/float(nperz)
     ax.set_yticklabels([])
     #plt.title(r'Depth test: redshift distributions')
-    plt.xlabel('Redshift z')#,fontsize=20)
-    plt.ylabel('Arbitrary units')#,fontsize=20)
+    plt.xlabel('Redshift z',fontsize=10)
+    plt.ylabel(r'$dn/dz$ (arb. units)',fontsize=10)
     plt.ylim(0,.7)
     plt.xlim(0,zmax)
     #ax.tick_params(axis='x', labelsize=18)
@@ -128,7 +128,7 @@ def depthtest_plot_rhohist_forproposal(z0vals=np.array([.3,.7])):
     plt.close()
 
 #---------------------------------------------------
-def bintest_rhoexp_comparesigs(finestN=6,z0=0.7,sigzlist=[0.05]):
+def bintest_rhoexp_comparesigs_forprop(finestN=6,z0=0.7,sigzlist=[0.05]):
     rholist=[]
     for s in sigzlist:
         divstr,rho=bintest_get_rhoexp(finestN,z0,s,overwrite=False,doplot=False)
@@ -138,14 +138,18 @@ def bintest_rhoexp_comparesigs(finestN=6,z0=0.7,sigzlist=[0.05]):
     zedges0=bintest_get_finest_zedges(finestN,z0)
     allzedges=bintest_get_zedgeslist(zedges0,['all'],False)
     markerlist=[]
-    colorlist=[]
+    colorlist=['black']
     outtag='_forprop'
     outname='eucbintest_rhoexp'+outtag+'.png'
     bintest_rhoexpplot(allzedges,divstr,rholist,labellist,outname,legtitle,markerlist,colorlist,outtag)
+#---------------------------------------------------
 
 
 #################################################################
 if __name__=="__main__":
-    #depthtest_plot_rhohist_forproposal(z0vals=np.array([.3,.7]))
-    #caltest_TTscatter_forprop(r=0,varlist=[1.e-7,1.e-6,1.e-5,1.e-4])
-    bintest_rhoexp_comparesigs(finestN=6,z0=0.7,sigzlist=[0.05])
+    depthtest_plot_rhohist_forproposal(z0vals=np.array([.3,.7]))
+    #caltest_TTscatter_forprop(r=2,varlist=[1.e-7,1.e-6,1.e-5,1.e-4])
+    bintest_rhoexp_comparesigs_forprop(finestN=6,z0=0.7,sigzlist=[0.05])
+    varlist=list(caltest_get_logspaced_varlist(minvar=1.e-8,maxvar=.1,Nperlog=10))
+    shortvarlist=[1.e-7,1.e-6,1.e-5,1.e-4,1.e-3,1.e-2]
+    #caltest_compare_clcal_shapes(varlist,shapelist=['g'],varname='rho',shortvarlist=shortvarlist,outtag='forprop',cleanplot=True)
