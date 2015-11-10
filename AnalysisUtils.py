@@ -399,6 +399,27 @@ def s_onereal(truemap,recmap):
     return s
 
 #-------------------------------------------------------------------------
+# chisq: compute chisq (variance of difference) between pixels of two maps
+#   #input: two heapy map arrays with equal NSIDE
+#   #output: chisq; take out ell using healpy, sum  over l
+def chisq_onereal(truemap,recmap):
+    if truemap.size!=recmap.size:
+        print "Can't compute correlation between maps with different NSIDE.***"
+        return 0
+    almtrue=np.map2alm(truemap)
+    almrec =np.map2alm(recmap)
+    cltrue=hp.alm2cl(almtrue)
+    almdiff2=(almrec-almtrue)**2
+    lmax=cltrue.size - 1.
+    lm=hp.sphtfunc.Alm.getlm(lmax)
+    l,m=lm
+    chisq=0
+    for i in xrange(almtrue.size):
+        ell=l[i]
+        chisq+=almdiff2[i]/cltrue[ell]
+    return chisq
+
+#-------------------------------------------------------------------------
 # rell_onereal: compute correlation coef between true and rec alm given two maps
 # input: two healpy map arrays with equal NSIDE
 # output: rell - array of size Nell correlation for each ell value
@@ -586,7 +607,7 @@ def doiswrec_formaps(dummyglm,cldat,Nreal=1,rlzns=np.array([]),reclist=[],Nglm=0
 #      if savedat, writes rho values to file
 #          if overwrite, will makenew rho output file
 #          otherwise, will add rho data to that in existing file
-def calc_rho_forreclist(glmdat,almdat,reclist,rlzns,savedat=True,overwrite=False,rhofiletag=''):
+def calc_rho_forreclist(glmdat,almdat,reclist,rlzns,savedat=True,overwrite=False,filetag='',varname='rho'):
     #print "Computing rho statistics"
     rhogrid=[]
     for i in xrange(len(reclist)):
@@ -594,29 +615,28 @@ def calc_rho_forreclist(glmdat,almdat,reclist,rlzns,savedat=True,overwrite=False
         truemapbase=truemapf[:truemapf.rfind('.r')]
         recmapf=almdat.get_mapfile(0,i,'fits')
         recmapbase=recmapf[:recmapf.rfind('.r')]
-
-        rhovals=rho_manyreal(truemapbase,recmapbase,rlzns=rlzns,savedat=False)
+        rhovals=rho_manyreal(truemapbase,recmapbase,rlzns=rlzns,savedat=False,varname=varname)           
         rhogrid.append(rhovals)
         if savedat:
-            save_rhodat(rhovals,rlzns,truemapbase,recmapbase,overwrite=overwrite,filetag=rhofiletag)
+            save_rhodat(rhovals,rlzns,truemapbase,recmapbase,overwrite=overwrite,filetag=filetag,varname=varname)
         
     return np.array(rhogrid)
 
-def calc_s_forreclist(glmdat,almdat,reclist,rlzns,savedat=True,overwrite=False,sfiletag=''):
-    #print "Computing s statistics"
-    sgrid=[]
-    for i in xrange(len(reclist)):
-        truemapf=glmdat.get_mapfile_fortags(0,reclist[i].zerotagstr)
-        truemapbase=truemapf[:truemapf.rfind('.r')]
-        recmapf=almdat.get_mapfile(0,i,'fits')
-        recmapbase=recmapf[:recmapf.rfind('.r')]
+# def calc_s_forreclist(glmdat,almdat,reclist,rlzns,savedat=True,overwrite=False,sfiletag=''):
+#     #print "Computing s statistics"
+#     sgrid=[]
+#     for i in xrange(len(reclist)):
+#         truemapf=glmdat.get_mapfile_fortags(0,reclist[i].zerotagstr)
+#         truemapbase=truemapf[:truemapf.rfind('.r')]
+#         recmapf=almdat.get_mapfile(0,i,'fits')
+#         recmapbase=recmapf[:recmapf.rfind('.r')]
 
-        svals=s_manyreal(truemapbase,recmapbase,rlzns=rlzns,savedat=False)
-        sgrid.append(svals)
-        if savedat:
-            save_rhodat(svals,rlzns,truemapbase,recmapbase,overwrite=overwrite,filetag=sfiletag,varname='s')
+#         svals=s_manyreal(truemapbase,recmapbase,rlzns=rlzns,savedat=False)
+#         sgrid.append(svals)
+#         if savedat:
+#             save_rhodat(svals,rlzns,truemapbase,recmapbase,overwrite=overwrite,filetag=sfiletag,varname='s')
         
-    return np.array(sgrid)
+#     return np.array(sgrid)
 #------------------------------------------------------------------------
 #given list of reconstruction ojbects, and realizations, computes r_ell for them
 def calc_rell_forreclist(glmdat,almdat,reclist,rlzns,savedat=True,overwrite=False,filetag=''):
@@ -640,7 +660,7 @@ def calc_rell_forreclist(glmdat,almdat,reclist,rlzns,savedat=True,overwrite=Fals
 #        filebases - filename of maps, up to but not including '.rXXXXX.fits'
 #        rlzns, Nreal - if rlzns is empty, rlzns=np.arange(Nreal), otherwise Nreal=rlzns.size
 
-def rho_manyreal(truefilebase,recfilebase,Nreal=1,rlzns=np.array([]),savedat=False,overwrite=False,rhofiletag=''):
+def rho_manyreal(truefilebase,recfilebase,Nreal=1,rlzns=np.array([]),savedat=False,overwrite=False,filetag='',varname='rho'):
     if rlzns.size:
         Nreal=rlzns.size
     else:
@@ -653,28 +673,51 @@ def rho_manyreal(truefilebase,recfilebase,Nreal=1,rlzns=np.array([]),savedat=Fal
         map1=hp.read_map(f1,verbose=False)
         map2=hp.read_map(f2,verbose=False)
         #compute cross correlations and store the value
-        rhovals[r]=rho_onereal(map1,map2)
+        if varname=='rho':
+            rhovals[r]=rho_onereal(map1,map2)
+        elif varname=='s':
+            rhovals[r]=s_onereal(map1,map2)
+        elif varname=='chisq':
+            rhovals[r]=chisq_onereal(map1,map2)
     if savedat:
-        save_rhodat(rhovals,rlzns,truefilebase,recfilebase,overwrite=overwrite,filetag=rhofiletag)
+        save_rhodat(rhovals,rlzns,truefilebase,recfilebase,overwrite=overwrite,filetag=filetag,varname=varname)
     return rhovals
 
-def s_manyreal(truefilebase,recfilebase,Nreal=1,rlzns=np.array([]),savedat=False,overwrite=False,sfiletag=''):
-    if rlzns.size:
-        Nreal=rlzns.size
-    else:
-        rlzns=np.arange(Nreal)
-    svals=np.zeros(Nreal)
-    #read in the maps
-    for r in xrange(Nreal):
-        f1=''.join([truefilebase,'.r{0:05d}.fits'.format(rlzns[r])])#true
-        f2=''.join([recfilebase,'.r{0:05d}.fits'.format(rlzns[r])])#rec
-        map1=hp.read_map(f1,verbose=False)#true
-        map2=hp.read_map(f2,verbose=False)#rec
-        #compute cross correlations and store the value
-        svals[r]=s_onereal(map1,map2)#(true,rec)
-    if savedat:
-        save_rhodat(svals,rlzns,truefilebase,recfilebase,overwrite=overwrite,filetag=sfiletag,varname='s')
-    return svals
+d# ef s_manyreal(truefilebase,recfilebase,Nreal=1,rlzns=np.array([]),savedat=False,overwrite=False,sfiletag=''):
+#     if rlzns.size:
+#         Nreal=rlzns.size
+#     else:
+#         rlzns=np.arange(Nreal)
+#     svals=np.zeros(Nreal)
+#     #read in the maps
+#     for r in xrange(Nreal):
+#         f1=''.join([truefilebase,'.r{0:05d}.fits'.format(rlzns[r])])#true
+#         f2=''.join([recfilebase,'.r{0:05d}.fits'.format(rlzns[r])])#rec
+#         map1=hp.read_map(f1,verbose=False)#true
+#         map2=hp.read_map(f2,verbose=False)#rec
+#         #compute cross correlations and store the value
+#         svals[r]=s_onereal(map1,map2)#(true,rec)
+#     if savedat:
+#         save_rhodat(svals,rlzns,truefilebase,recfilebase,overwrite=overwrite,filetag=sfiletag,varname='s')
+#     return svals
+
+# def chisq_manyreal(truefilebase,recfilebase,Nreal=1,rlzns=np.array([]),savedat=False,overwrite=False,chisqfiletag=''):
+#     if rlzns.size:
+#         Nreal=rlzns.size
+#     else:
+#         rlzns=np.arange(Nreal)
+#     chisqvals=np.zeros(Nreal)
+#     #read in the maps
+#     for r in xrange(Nreal):
+#         f1=''.join([truefilebase,'.r{0:05d}.fits'.format(rlzns[r])])#true
+#         f2=''.join([recfilebase,'.r{0:05d}.fits'.format(rlzns[r])])#rec
+#         map1=hp.read_map(f1,verbose=False)#true
+#         map2=hp.read_map(f2,verbose=False)#rec
+#         #compute cross correlations and store the value
+#         chisqvals[r]=chisq_onereal(map1,map2)#(true,rec)
+#     if savedat:
+#         save_rhodat(chisqvals,rlzns,truefilebase,recfilebase,overwrite=overwrite,filetag=chisq,filetag,varname='chisq')
+#     return chisqvals
 
 #------------------------------------------------------------------------------
 def rell_manyreal(truefilebase,recfilebase,Nreal=1,rlzns=np.array([]),savedat=False,overwrite=False,filetag=''):
@@ -959,18 +1002,11 @@ def compute_rho_fromcl(cldat,recdat,Nneighbors=-1,reccldat=0,varname='rho'):
     estop=np.zeros((NLSS,Nell))#"estimator operator"
     for i in xrange(NLSS):
         estop[i,:]=-1*recNl*recDinv[:,0,i+1]
-    
-    #for each l sum over LSS maps for numerator, the sum over l
-    numell = np.zeros(lvals.size)
-    for i in xrange(NLSS):
-        numell+=estop[i,:]*Dl[:,0,i+1]
-    numell*=includel*(2.*lvals+1)
-    numerator=np.sum(numell)
 
     #for sigisw, just sum over l
     sig2iswl=includel*(2.*lvals+1)*Dl[:,0,0]
     sig2isw=np.sum(sig2iswl)
-
+    
     #for sigrec, sum over LSS maps 2x (ij), then l
     sig2recl=np.zeros(lvals.size)
     for i in xrange(NLSS):
@@ -981,14 +1017,45 @@ def compute_rho_fromcl(cldat,recdat,Nneighbors=-1,reccldat=0,varname='rho'):
     sig2recl*=includel*(2.*lvals+1)
     sig2rec=np.sum(sig2recl)
     
-    denom=np.sqrt(sig2isw*sig2rec)
-    #print '   FINAL   num,demon:',numerator,denom
-    result=numerator/denom
-    if Nneighbors>-1: #set Cl back to original values
-        cldat.cl=oldcl
-        cldat.noisecl=oldnoisecl
-    #print result
+    if varname=='rho':
+        #for each l sum over LSS maps for numerator, the sum over l
+        numell = np.zeros(lvals.size)
+        for i in xrange(NLSS):
+            numell+=estop[i,:]*Dl[:,0,i+1]
+        numell*=includel*(2.*lvals+1)
+        numerator=np.sum(numell)
+
+        denom=np.sqrt(sig2isw*sig2rec)
+        #print '   FINAL   num,demon:',numerator,denom
+        result=numerator/denom
+        if Nneighbors>-1: #set Cl back to original values
+            cldat.cl=oldcl
+            cldat.noisecl=oldnoisecl
+    elif varname=='s':
+        #for each l sum over LSS maps for numerator, the sum over l
+        crosspowerell = np.zeros(lvals.size)
+        for i in xrange(NLSS):
+            crosspowerell+=estop[i,:]*Dl[:,0,i+1]
+        crosspowerell*=includel*(2.*lvals+1)
+        numerator=np.sqrt(sig2rec+sig2isw -2*np.sum(crosspowerell))
+    
+        denom=np.sqrt(sig2isw)
+        result=numerator/denom
+        
+    elif varname=='chisq': 
+        # chisq is sum over l of |alm_true-alm_rec|^2
+        denom=Dl[:,0,0]#true isw autopower
+        crossnum=np.zeros(lvals.size) #crosspower piece of numerator
+        recnum=np.zeros(lvals.size) #gal-gal part of numerator
+        for i in xrange(NLSS):
+            crossnum+=estop[i,:]*Dl[:,0,i+1]
+            for j in xrange(NLSS):
+                recnum+=estop[i,:]*estop[j,:]*Dl[:,j+1,i+1]
+        chisqell=(2*ell+1.)*(1+(-2.*crossnum+recnum)/denom))
+        result =np.sum(chisqell)#sum over ell
     return result
+#Working here: need to test this redo of s, set up functions which call it
+#to take varname args
     
 def rho_sampledist(r,rho,NSIDE=32,Nsample=0): #here rho is the expected mean
     # doesn't integrate to 1 and Nsample=NSIDE seems way too big
@@ -1025,119 +1092,119 @@ def rho_sampledist(r,rho,NSIDE=32,Nsample=0): #here rho is the expected mean
         result=result[0]
     return result
 
-# compute expectation value of s, the rms of the difference between
-# true and rec ISW maps, in units of true ISW rms
-def compute_s_fromcl(cldat,recdat,reccldat=0):
-    #print '\nrecdat.includeglm',recdat.includeglm
-    #print 'recdat.includecl',recdat.includecl
-    #Dl is a matrix of Cls, with isw at zero index
-    #  and other maps in order specified by recdat.includecl
-    if not reccldat:
-        DIFFREC=False
-    else:
-        DIFFREC=True #are the Cl's for rec and sim different?
+# # compute expectation value of s, the rms of the difference between
+# # true and rec ISW maps, in units of true ISW rms
+# def compute_s_fromcl(cldat,recdat,reccldat=0):
+#     #print '\nrecdat.includeglm',recdat.includeglm
+#     #print 'recdat.includecl',recdat.includecl
+#     #Dl is a matrix of Cls, with isw at zero index
+#     #  and other maps in order specified by recdat.includecl
+#     if not reccldat:
+#         DIFFREC=False
+#     else:
+#         DIFFREC=True #are the Cl's for rec and sim different?
     
-    lmin=recdat.lmin
-    Dl,dtags=get_Dl_matrix(cldat,recdat.includeglm,recdat.zerotagstr)
-    #print 'dtags',dtags
-    #print Dl[5,:,:]
-    Dinv=invert_Dl(Dl)
-    Nell=Dinv.shape[0]
-    lvals=np.arange(Nell)
-    Nl=np.zeros(Nell)
-    for l in xrange(Nell):
-        if Dinv[l,0,0]!=0:
-            Nl[l]=1/Dinv[l,0,0]
+#     lmin=recdat.lmin
+#     Dl,dtags=get_Dl_matrix(cldat,recdat.includeglm,recdat.zerotagstr)
+#     #print 'dtags',dtags
+#     #print Dl[5,:,:]
+#     Dinv=invert_Dl(Dl)
+#     Nell=Dinv.shape[0]
+#     lvals=np.arange(Nell)
+#     Nl=np.zeros(Nell)
+#     for l in xrange(Nell):
+#         if Dinv[l,0,0]!=0:
+#             Nl[l]=1/Dinv[l,0,0]
 
-    includel=(lvals>=lmin)
-    NLSS=recdat.Nmap
+#     includel=(lvals>=lmin)
+#     NLSS=recdat.Nmap
     
-    #if DIFFREC, get Dl data for those Cl
-    if DIFFREC: #assumes cldat and reccldat have same ell info
-        recDl,recdtags=get_Dl_matrix(reccldat,recdat.includecl,recdat.zerotagstr)
-        #print 'recdtags',recdtags
-        recDinv=invert_Dl(recDl)
-        recNl=np.zeros(Nell)
-        for l in xrange(Nell):
-            if recDinv[l,0,0]!=0:
-                recNl[l]=1/recDinv[l,0,0]
-    else:
-        recDl=Dl
-        recDinv=Dinv
-        recNl=Nl
-    #print 'Are rec and sim Dl different?',np.any(recDl-Dl)
-    # construct estimator operators
-    estop=np.zeros((NLSS,Nell))#"estimator operator"
-    for i in xrange(NLSS):
-        estop[i,:]=-1*recNl*recDinv[:,0,i+1]
+#     #if DIFFREC, get Dl data for those Cl
+#     if DIFFREC: #assumes cldat and reccldat have same ell info
+#         recDl,recdtags=get_Dl_matrix(reccldat,recdat.includecl,recdat.zerotagstr)
+#         #print 'recdtags',recdtags
+#         recDinv=invert_Dl(recDl)
+#         recNl=np.zeros(Nell)
+#         for l in xrange(Nell):
+#             if recDinv[l,0,0]!=0:
+#                 recNl[l]=1/recDinv[l,0,0]
+#     else:
+#         recDl=Dl
+#         recDinv=Dinv
+#         recNl=Nl
+#     #print 'Are rec and sim Dl different?',np.any(recDl-Dl)
+#     # construct estimator operators
+#     estop=np.zeros((NLSS,Nell))#"estimator operator"
+#     for i in xrange(NLSS):
+#         estop[i,:]=-1*recNl*recDinv[:,0,i+1]
 
-    #for sigisw, just sum over l
-    sig2iswl=includel*(2.*lvals+1)*Dl[:,0,0]
-    sig2isw=np.sum(sig2iswl)
+#     #for sigisw, just sum over l
+#     sig2iswl=includel*(2.*lvals+1)*Dl[:,0,0]
+#     sig2isw=np.sum(sig2iswl)
 
-    #for sigrec, sum over LSS maps 2x (ij), then l
-    sig2recl=np.zeros(lvals.size)
-    for i in xrange(NLSS):
-        sig2recli=np.zeros(lvals.size)
-        for j in xrange(NLSS):
-            sig2recli+=estop[j,:]*Dl[:,j+1,i+1]
-        sig2recl+=sig2recli*estop[i,:]
-    sig2recl*=includel*(2.*lvals+1)
-    sig2rec=np.sum(sig2recl)
+#     #for sigrec, sum over LSS maps 2x (ij), then l
+#     sig2recl=np.zeros(lvals.size)
+#     for i in xrange(NLSS):
+#         sig2recli=np.zeros(lvals.size)
+#         for j in xrange(NLSS):
+#             sig2recli+=estop[j,:]*Dl[:,j+1,i+1]
+#         sig2recl+=sig2recli*estop[i,:]
+#     sig2recl*=includel*(2.*lvals+1)
+#     sig2rec=np.sum(sig2recl)
 
-    #for each l sum over LSS maps for numerator, the sum over l
-    crosspowerell = np.zeros(lvals.size)
-    for i in xrange(NLSS):
-        crosspowerell+=estop[i,:]*Dl[:,0,i+1]
-    crosspowerell*=includel*(2.*lvals+1)
-    numerator=np.sqrt(sig2rec+sig2isw -2*np.sum(crosspowerell))
+#     #for each l sum over LSS maps for numerator, the sum over l
+#     crosspowerell = np.zeros(lvals.size)
+#     for i in xrange(NLSS):
+#         crosspowerell+=estop[i,:]*Dl[:,0,i+1]
+#     crosspowerell*=includel*(2.*lvals+1)
+#     numerator=np.sqrt(sig2rec+sig2isw -2*np.sum(crosspowerell))
     
-    denom=np.sqrt(sig2isw)
-    #print '   FINAL   num,demon:',numerator,denom
-    result=numerator/denom
-    #print result
-    return result
+#     denom=np.sqrt(sig2isw)
+#     #print '   FINAL   num,demon:',numerator,denom
+#     result=numerator/denom
+#     #print result
+#     return result
 
-# compute expectation value of r_ell, the correlation coefficient between true
-#  and rec alm from theoretical cl
-def compute_rell_fromcl(cldat,recdat):
-    #Dl is a matrix of Cls, with isw at zero index
-    #  and other maps in order specified by recdat.includecl
-    lmin=recdat.lmin
-    Dl,dtags=get_Dl_matrix(cldat,recdat.includecl,recdat.zerotagstr)
-    #print Dl[5,:,:]
-    Dinv=invert_Dl(Dl)
-    Nell=Dinv.shape[0]
-    lvals=np.arange(Nell)
-    Nl=np.zeros(Nell)
-    for l in xrange(Nell):
-        if Dinv[l,0,0]!=0:
-            Nl[l]=1/Dinv[l,0,0]
+# # compute expectation value of r_ell, the correlation coefficient between true
+# #  and rec alm from theoretical cl
+# def compute_rell_fromcl(cldat,recdat):
+#     #Dl is a matrix of Cls, with isw at zero index
+#     #  and other maps in order specified by recdat.includecl
+#     lmin=recdat.lmin
+#     Dl,dtags=get_Dl_matrix(cldat,recdat.includecl,recdat.zerotagstr)
+#     #print Dl[5,:,:]
+#     Dinv=invert_Dl(Dl)
+#     Nell=Dinv.shape[0]
+#     lvals=np.arange(Nell)
+#     Nl=np.zeros(Nell)
+#     for l in xrange(Nell):
+#         if Dinv[l,0,0]!=0:
+#             Nl[l]=1/Dinv[l,0,0]
 
-    includel=(lvals>=lmin)
-    NLSS=recdat.Nmap
+#     includel=(lvals>=lmin)
+#     NLSS=recdat.Nmap
 
-    rell=np.zeros(Nell)
+#     rell=np.zeros(Nell)
 
-    clisw=Dl[:,0,0]#true ISW auto power
+#     clisw=Dl[:,0,0]#true ISW auto power
 
-    #for rec auto power, sum over LSS maps 2x (ij)
-    clrec=np.zeros(lvals.size)
-    for i in xrange(NLSS):
-        clreci=np.zeros(Nell)
-        for j in xrange(NLSS):
-            clreci+=-1*Nl*Dinv[:,0,j+1]*Dl[:,j+1,i+1]
-        clrec+=clreci*(-1)*Nl*Dinv[:,0,i+1]
+#     #for rec auto power, sum over LSS maps 2x (ij)
+#     clrec=np.zeros(lvals.size)
+#     for i in xrange(NLSS):
+#         clreci=np.zeros(Nell)
+#         for j in xrange(NLSS):
+#             clreci+=-1*Nl*Dinv[:,0,j+1]*Dl[:,j+1,i+1]
+#         clrec+=clreci*(-1)*Nl*Dinv[:,0,i+1]
 
-    #for cross power sum over LSS maps for numerator
-    clx = np.zeros(lvals.size)
-    for i in xrange(NLSS):
-        clx+=Dinv[:,0,i+1]*Dl[:,0,i+1]
-    clx*=-1*includel*Nl
+#     #for cross power sum over LSS maps for numerator
+#     clx = np.zeros(lvals.size)
+#     for i in xrange(NLSS):
+#         clx+=Dinv[:,0,i+1]*Dl[:,0,i+1]
+#     clx*=-1*includel*Nl
 
-    result= clx/np.sqrt(clrec*clisw)
-    #print result
-    return result
+#     result= clx/np.sqrt(clrec*clisw)
+#     #print result
+#     return result
 
 ###########################################################################
 # plotting functions
