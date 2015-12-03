@@ -79,13 +79,13 @@ def depthtest_get_reclist(z0vals=np.array([.3,.6,.7,.8])):
     return reclist
 
 #use cldat to generate glm, alm, and maps; saves maps but not alm
-def depthtest_get_glm_and_rec(Nreal=1,z0vals=np.array([.3,.6,.7,.8]),minreal=0,justgetrho=0,dorell=0):
+def depthtest_get_glm_and_rec(Nreal=1,z0vals=np.array([.3,.6,.7,.8]),minreal=0,justgetrho=0,dorell=0,dorho=1,dos=1,dochisq=1,dochisqell=0):
     t0=time.time()
     cldat=depthtest_get_Cl(justread=True,z0vals=z0vals)
     makeplots=Nreal==1
     rlzns=np.arange(minreal,minreal+Nreal)
     reclist=depthtest_get_reclist(z0vals)
-    getmaps_fromCl(cldat,rlzns=rlzns,reclist=reclist,justgetrho=justgetrho,dorell=dorell)
+    getmaps_fromCl(cldat,rlzns=rlzns,reclist=reclist,justgetrho=justgetrho,dorell=dorell,dorho=dorho,dos=dos,dochisq=dochisq,dochisqell=dochisqell)
     t1=time.time()
     print "total time for Nreal",Nreal,": ",t1-t0,'sec'
 
@@ -158,15 +158,17 @@ def depthtest_plot_rhohist(z0vals=np.array([.3,.6,.7,.8]),getrhopred=True,varnam
         plot_rhohist(rhogrid,reclabels,testname,plotdir,plotname,rhopred)
     elif varname=='s':
         plot_shist(rhogrid,reclabels,testname,plotdir,plotname,rhopred)
+    elif varname=='chisq':
+        plot_chisqhist(rhogrid,reclabels,testname,plotdir,plotname,rhopred)
 
 #--------------------------------
 # plot r_ell values
 def depthtest_plot_relldat(z0vals=np.array([.3,.6,.7,.8]),getpred=True,varname='rell'):
     plotdir='output/depthtest/plots/'
     testname="Depth test"
-    rellgrid=depthtest_read_rell_wfiles(z0vals,varname)
+    rellgrid=depthtest_read_rell_wfiles(z0vals,varname=varname)
+    print 'rellgrid.shape',rellgrid.shape
     Nreal=rellgrid.shape[1]
-    Nell=rellgrid.shape[2]
     if getpred:
         rellpred=depthtest_get_expected_rell(z0vals,varname)
     else:
@@ -174,8 +176,7 @@ def depthtest_plot_relldat(z0vals=np.array([.3,.6,.7,.8]),getpred=True,varname='
     plotname ='depthtest_{1:s}dat_r{0:05d}'.format(Nreal,varname)
     reclabels=['$z_0={0:0.1f}$'.format(z0) for z0 in z0vals]
 
-    if varname=='rell':
-        plot_relldat(reclabels,testname,plotdir,plotname,rellgrid,rellpred)
+    plot_relldat(reclabels,testname,plotdir,plotname,rellgrid,rellpred,varname=varname)
         
 #--------------------------------
 # get expectation values of rho or s, choose variable via varname
@@ -183,11 +184,8 @@ def depthtest_get_expected_rho(z0vals=np.array([0.3,0.6,0.7,0.8]),varname='rho')
     cldat=depthtest_get_Cl(z0vals=z0vals)
     reclist=depthtest_get_reclist(z0vals)
     rhopred=np.zeros_like(z0vals)
-    for i in xrange(z0vals.size):
-        if varname=='rho':
-            rhopred[i]=compute_rho_fromcl(cldat,reclist[i])
-        elif varname=='s':
-            rhopred[i]=compute_s_fromcl(cldat,reclist[i])
+    for i in xrange(len(z0vals)):
+        rhopred[i]=compute_rho_fromcl(cldat,reclist[i],varname=varname)
     return rhopred
 
 def depthtest_get_expected_rell(z0vals=np.array([0.3,0.6,0.7,0.8]),varname='rell'):
@@ -195,9 +193,9 @@ def depthtest_get_expected_rell(z0vals=np.array([0.3,0.6,0.7,0.8]),varname='rell
     reclist=depthtest_get_reclist(z0vals)
     rellpred=[]
     for i in xrange(z0vals.size):
-        if varname=='rell':
-            rellpred.append(compute_rell_fromcl(cldat,reclist[i]))
+        rellpred.append(compute_rell_fromcl(cldat,reclist[i],varname=varname))
     rellpred=np.array(rellpred)#[Nrec,Nell]
+    #print rellpred
     return rellpred
 
 #--------------------------------
@@ -531,10 +529,7 @@ def bintest_get_rhoexp(finestN=6,z0=0.7,sigz=0.05,overwrite=False,doplot=True,Nn
             else:
                 divstr=getdivs
             for r in xrange(Nrec):
-                if varname=='rho':
-                    rhoarray[r]=compute_rho_fromcl(cldat,reclist[r],Nneighb)
-                elif varname=='s':
-                    rhoarray[r]=compute_s_fromcl(cldat,reclist[r])
+                rhoarray[r]=compute_rho_fromcl(cldat,reclist[r],Nneighb,varname=varname)
             #write rhoarray to file
             f=open(outdir+datfile,'w')
             f.write(''.join(['{0:8s} {1:8.3f}\n'.format(divstr[i],rhoarray[i]) for i in xrange(Nrec)]))
@@ -553,10 +548,7 @@ def bintest_get_rhoexp(finestN=6,z0=0.7,sigz=0.05,overwrite=False,doplot=True,Nn
         else:
             divstr=getdivs
         for r in xrange(Nrec):
-            if varname=='rho':
-                rhoarray[r]=compute_rho_fromcl(cldat,reclist[r],Nneighb)
-            elif varname=='s':
-                rhoarray[r]=compute_s_fromcl(cldat,reclist[r])
+            rhoarray[r]=compute_rho_fromcl(cldat,reclist[r],Nneighb,varname=varname)
 
     if doplot:
         zedges0=bintest_get_finest_zedges(finestN,z0)
@@ -565,10 +557,10 @@ def bintest_get_rhoexp(finestN=6,z0=0.7,sigz=0.05,overwrite=False,doplot=True,Nn
     return divstr,rhoarray
 
 #if we've computed Cl stuff for multiple values of sigz0, compare them
-def bintest_rhoexp_comparesigs(finestN=6,z0=0.7,sigzlist=[0.03,0.05],checkautoonly=True):
+def bintest_rhoexp_comparesigs(finestN=6,z0=0.7,sigzlist=[0.03,0.05],checkautoonly=True,varname='rho'):
     rholist=[]
     for s in sigzlist:
-        divstr,rho=bintest_get_rhoexp(finestN,z0,s,overwrite=False,doplot=False)
+        divstr,rho=bintest_get_rhoexp(finestN,z0,s,overwrite=False,doplot=False,varname=varname)
         rholist.append(rho)
     legtitle='$\\sigma_z(z)*(1+z)^{{-1}}$'
     labellist=['${0:0.3f}$'.format(s) for s in sigzlist]
@@ -586,15 +578,15 @@ def bintest_rhoexp_comparesigs(finestN=6,z0=0.7,sigzlist=[0.03,0.05],checkautoon
         for n in [1,0]:
             i=0
             for s in sigzlist:
-                divstr,rho=bintest_get_rhoexp(finestN,z0,s,overwrite=False,doplot=False,Nneighb=n)
+                divstr,rho=bintest_get_rhoexp(finestN,z0,s,overwrite=False,doplot=False,Nneighb=n,varname=varname)
                 #print divstr,rho
                 rholist.append(rho)
                 markerlist.append(marks[n])
                 labellist.append('${0:0.3f}$,{1:1d}nb'.format(s,n))
                 colorlist.append(scattercolors[i])
                 i+=1
-    outname='eucbintest_rhoexp'+outtag+'.png'
-    bintest_rhoexpplot(allzedges,divstr,rholist,labellist,outname,legtitle,markerlist,colorlist,outtag)
+    outname='eucbintest_'+varname+'exp'+outtag+'.png'
+    bintest_rhoexpplot(allzedges,divstr,rholist,labellist,outname,legtitle,markerlist,colorlist,outtag,varname=varname)
 
 #--------------------
 def bintest_test_rhoexp():
@@ -628,7 +620,7 @@ def bintest_get_expected_rell(divstr,varname='rell'):
     rellpred=[]
     for i in xrange(len(reclist)):
         if varname=='rell':
-            rellpred.append(compute_rell_fromcl(cldat,reclist[i]))
+            rellpred.append(compute_rell_fromcl(cldat,reclist[i],varname=varname))
     rellpred=np.array(rellpred)#[Nrec,Nell]
     return rellpred
     
@@ -704,6 +696,8 @@ def bintest_rhoexpplot(allzedges,labels,rhoarraylist,labellist=[],outname='',leg
             plt.suptitle(r'Expected correlation coef. between $T^{{\rm ISW}}$ and $T^{{\rm rec}}$', size=18)
         elif varname=='s':
             plt.suptitle(r'Expected ratio between RMS of  $T^{{\rm rec}}-T^{{\rm ISW}}$ and $\sigma_{{T}}^{{\rm ISW}}$', size=18)
+        elif varname=='chisq':
+            plt.suptitle(r'Expected $\chi^2=\sum_{{\ell}}|a_{{\ell m})^{{\rm ISW}} - a_{{\ell m})^{{\rm rec}}|^2/C_{{\ell}}^{{\rm ISW}}$', size=18)
     ax1 = plt.subplot(1,3,1)
     ax2 = plt.subplot(1,3,(2,3),sharey=ax1)
     fig.subplots_adjust(hspace=0, wspace=0) #put them right next to eachother
@@ -742,8 +736,16 @@ def bintest_rhoexpplot(allzedges,labels,rhoarraylist,labellist=[],outname='',leg
     ax2.xaxis.set_ticks_position('bottom')
     if varname=='rho':
         ax2.set_xlabel(r'$\langle \rho \rangle$',fontsize=14)
+        ax2.set_xlim((.87,.92))
+        legloc='upper left'
     elif varname=='s':
         ax2.set_xlabel(r'$\langle s \rangle$',fontsize=14)
+        #ax2.set_xlim((.87,.92))
+        legloc='upper right'
+    elif varname=='chisq':
+        ax2.set_xlabel(r'$\langle \chi^2\rangle$',fontsize=14)
+        #ax2.set_xlim((.87,.92))
+        legloc='upper right'
     ax2.grid(True)
     if not markerlist:
         markerlist=['D']*len(rhoarraylist)
@@ -761,8 +763,8 @@ def bintest_rhoexpplot(allzedges,labels,rhoarraylist,labellist=[],outname='',leg
             ax2.scatter(rhoarray,yvals,color=colorlist[i],marker=m)
 
     if labellist:
-        plt.legend(loc='upper left',fontsize=12,title=legtitle)
-    ax2.set_xlim((.87,.92))
+        plt.legend(loc=legloc,fontsize=12,title=legtitle)
+
     plt.setp(ax2.get_yticklabels(), visible=False)
     plt.setp(ax2.get_xticklabels()[0], visible=False)#don't show number at first label
     print 'Saving plot to ',plotdir+outname
@@ -787,6 +789,9 @@ def bintest_plot_rhohist(divstr=['6','222','111111'],getrhopred=True,reclabels=[
         plot_rhohist(rhogrid,reclabels,testname,plotdir,plotname,rhopred)
     elif varname=='s':
         plot_shist(rhogrid,reclabels,testname,plotdir,plotname,rhopred)
+    elif varname=='chisq':
+        plot_chisqhist(rhogrid,reclabels,testname,plotdir,plotname,rhopred)
+        
         
 #--------------------------------
 # plot r_ell values
@@ -1248,16 +1253,13 @@ def caltest_get_rhoexp(varlist=[1.e-4],lmax=30,lmin=1,shape='g',width=10.,overwr
     Nrec=len(varlist)
     rhoarray=np.zeros(Nrec)
     for r in xrange(Nrec):
-        if varname=='rho':
-            rhoarray[r]=compute_rho_fromcl(fidcl,recdat,reccldat=clmodlist[r])
-        elif varname=='s':
-            rhoarray[r]=compute_s_fromcl(fidcl,recdat,reccldat=clmodlist[r])
+        rhoarray[r]=compute_rho_fromcl(fidcl,recdat,reccldat=clmodlist[r],varname=varname)
 
     #if save, write to file
     if saverho:
         f=open(outdir+datfile,'w')
         f.write('Calib error test: Clcal shape={0:s}, ell={1:d}-{2:d}\n'.format(shape,lmin,lmax))
-        f.write('var(c(nhat))   <rho>\n')
+        f.write('var(c(nhat))   <{0:s}>\n'.format(varname))
         f.write(''.join(['{0:.2e} {1:8.3f}\n'.format(varlist[i],rhoarray[i]) for i in xrange(Nrec)]))
         f.close()
 
@@ -1303,6 +1305,8 @@ def caltest_rhoexpplot(varlist,rhoarraylist,labellist=[],outname='',legtitle='',
             plt.suptitle(r'Calibration error test: Expected correlation coef. between $T^{{\rm ISW}}$ and $T^{{\rm rec}}$', size=14)
         elif varname=='s':
             plt.suptitle(r'Calibration error test: Expected [RMS of  $T^{{\rm rec}}-T^{{\rm ISW}}$]/$\sigma_{{T}}^{{\rm ISW}}$', size=14)
+        elif varname=='chisq':
+            plt.suptitle(r'Calibration error test: Expected $\chi^2$ for reconstructed $a_{{\ell m}}$', size=14)
     ax1 = plt.subplot(3,1,(1,2)) #top part has rho
     ax2 = plt.subplot(3,1,3,sharex=ax1) #bottom has rho/rhofid
     if not labellist:
@@ -1322,6 +1326,9 @@ def caltest_rhoexpplot(varlist,rhoarraylist,labellist=[],outname='',legtitle='',
     elif varname=='s':
         ax1.set_ylabel(r'$\langle s \rangle$')
         ax2.set_ylabel(r'$\langle s \rangle /\langle s_{{c=0}} \rangle - 1$')
+    elif varname=='chisq':
+        ax1.set_ylabel(r'$\langle \chi^2 \rangle$')
+        ax2.set_ylabel(r'$\langle \chi^2 \rangle /\langle \chi^2_{{c=0}} \rangle - 1$')
     ax2.set_xlabel(r'Variance of calib. error field ${\rm var}[c(\hat{{n}})]$')
     for i in xrange(len(rhoarraylist)):
         print len(varlist[:-1]),rhoarraylist[i][:-1].shape
@@ -1357,6 +1364,8 @@ def caltest_rhoexpplot(varlist,rhoarraylist,labellist=[],outname='',legtitle='',
         if varname=='rho':
             plt.legend(fontsize=12,title=legtitle,loc='lower left')
         elif varname=='s':
+            plt.legend(fontsize=12,title=legtitle,loc='upper left')
+        elif varname=='chisq':
             plt.legend(fontsize=12,title=legtitle,loc='upper left')
 
     print 'Saving plot to ',plotdir+outname
@@ -1653,10 +1662,7 @@ def z0test_get_rhoexp(simz0=np.array([]),recz0=np.array([]),perrors=np.array([1,
     #print '***cldat.bintaglist',cldat.bintaglist
     for ns in xrange(Nsim):
         for nr in xrange(Nrec):
-            if varname=='rho':
-                rhoarray[ns,nr]=compute_rho_fromcl(cldat,recgrid[ns][nr],reccldat=cldat)
-            elif varname=='s':
-                rhoarray[ns,nr]=compute_s_fromcl(cldat,recgrid[ns][nr],reccldat=cldat)
+            rhoarray[ns,nr]=compute_rho_fromcl(cldat,recgrid[ns][nr],reccldat=cldat,varname=varname)
 
     if saverho:
         #write to file, 
@@ -1698,6 +1704,11 @@ def z0test_rhoexpplot(simz0,recz0,rhogrid,varname='rho',outtag='',outname='',leg
         #ax1.set_yscale('symlog',linthreshy=1.e-4)
         #ax1.set_yscale('log')
         ax1.set_ylim((.5,8.))
+    elif varname=='chisq':
+        ax1.set_ylabel(r'$\langle \chi^2 \rangle/\langle \chi^2 \rangle_{{\rm best}}$')
+        #ax1.set_yscale('symlog',linthreshy=1.e-4)
+        #ax1.set_yscale('log')
+        #ax1.set_ylim((.5,8.))
     ax1.set_xlabel(r"$z_0$ used for ISW reconstruction")
     xvals=np.arange(Nrec)
     ax1.set_xlim((-.5,Nrec-.5))
@@ -1711,13 +1722,18 @@ def z0test_rhoexpplot(simz0,recz0,rhogrid,varname='rho',outtag='',outname='',leg
             maxrho=min(rhogrid[i,:])#best value for s is smallest
             varstr='s'
             ax1.plot(xvals,rhogrid[i,:]/maxrho ,label=r'{0:0.3f}; $\langle {2:s}\rangle_{{\rm best}}=${1:0.3f}'.format(simz0[i],maxrho,varstr),color=colorlist[i%len(colorlist)],marker='d')
-
+        elif varname=='chisq':
+            maxrho=min(rhogrid[i,:])#best value for s is smallest
+            varstr=r'\chi^2'
+            ax1.plot(xvals,rhogrid[i,:]/maxrho ,label=r'{0:0.3f}; $\langle {2:s}\rangle_{{\rm best}}=${1:0.3f}'.format(simz0[i],maxrho,varstr),color=colorlist[i%len(colorlist)],marker='d')
     if not legtitle:
         legtitle=r'$z_0$ used for simulations'
     if varname=='rho':
         plt.legend(title=legtitle,loc='lower center')
     elif varname=='s':
         plt.legend(title=legtitle,loc='upper left')
+    elif varname=='chisq':
+        plt.legend(title=legtitle,loc='upper center')
     print 'Saving plot to ',plotdir+outname
     plt.savefig(plotdir+outname)
     plt.close()
@@ -1867,10 +1883,7 @@ def bztest_get_rhoexp(simb2=np.array([0.,.01,.1,.5]),recb2=np.array([0.,.01,.1,.
     rhoarray=np.zeros((Nsim,Nrec))
     for ns in xrange(Nsim):
         for nr in xrange(Nrec):
-            if varname=='rho':
-                rhoarray[ns,nr]=compute_rho_fromcl(simcldat,recgrid[ns][nr],reccldat=reccldat)
-            elif varname=='s':
-                rhoarray[ns,nr]=compute_s_fromcl(simcldat,recgrid[ns][nr],reccldat=reccldat)
+            rhoarray[ns,nr]=compute_rho_fromcl(simcldat,recgrid[ns][nr],reccldat=reccldat,varname=varname)
 
     if saverho:
         #write to file, 
@@ -1909,6 +1922,9 @@ def bztest_rhoexpplot(simb2,recb2,rhogrid,varname='rho',outtag='',outname='',leg
     elif varname=='s':
         ax1.set_ylim((.5,10.))
         ax1.set_ylabel(r'$\langle s \rangle/\langle s \rangle_{{\rm best}} $')
+    elif varname=='chisq':
+        ax1.set_ylim((.5,50.))
+        ax1.set_ylabel(r'$\langle \chi^2 \rangle/\langle \chi^2 \rangle_{{\rm best}} $')
     ax1.set_xlabel(r"$b_2$ used for ISW reconstruction")
     xvals=np.arange(Nrec)
     ax1.set_xlim((-.5,Nrec-.5))
@@ -1922,6 +1938,11 @@ def bztest_rhoexpplot(simb2,recb2,rhogrid,varname='rho',outtag='',outname='',leg
             maxrho=min(rhogrid[i,:])#best value for s is smallest
             varstr='s'
             ax1.plot(xvals,rhogrid[i,:]/maxrho,label=r'{0:0.3f}; $\langle {2:s}\rangle_{{\rm best}}=${1:0.3f}'.format(simb2[i],maxrho,varstr),color=colorlist[i%len(colorlist)],marker='d')
+        elif varname=='chisq':
+            maxrho=min(rhogrid[i,:])#best value for s is smallest
+            varstr=r'\chi^2'
+            ax1.plot(xvals,rhogrid[i,:]/maxrho,label=r'{0:0.3f}; $\langle {2:s}\rangle_{{\rm best}}=${1:0.3f}'.format(simb2[i],maxrho,varstr),color=colorlist[i%len(colorlist)],marker='d')
+
 
     if not legtitle:
         legtitle=r'$b_2$ used for simulations'
@@ -1929,6 +1950,8 @@ def bztest_rhoexpplot(simb2,recb2,rhogrid,varname='rho',outtag='',outname='',leg
         plt.legend(title=legtitle,loc='lower center')
     elif varname=='s':
         plt.legend(title=legtitle,loc='upper left')
+    elif varname=='chisq':
+        plt.legend(title=legtitle,loc='upper right')
     print 'Saving plot to ',plotdir+outname
     plt.savefig(plotdir+outname)
     plt.close()
@@ -2019,13 +2042,16 @@ if __name__=="__main__":
         print "time:",str(t1-t0),"sec"
     if 0: #generate depthhtest maps
         nomaps=True
-        depthtest_get_glm_and_rec(Nreal=10000,z0vals=depthtestz0,justgetrho=nomaps,minreal=0,dorell=1)
-    if 0: #plot info about depthtest maps
+        #depthtest_get_glm_and_rec(Nreal=10000,z0vals=depthtestz0,justgetrho=nomaps,minreal=0,dorell=1)
+        depthtest_get_glm_and_rec(Nreal=10000,z0vals=depthtestz0,justgetrho=True,minreal=0,dorho=False,dos=False,dochisq=False,dorell=False,dochisqell=True)
+    if 1: #plot info about depthtest maps
         #depthtest_TTscatter(0,depthtestz0,False)
         #depthtest_plot_zwindowfuncs(depthtestz0)
         #depthtest_plot_rhohist(depthtestz0,'rho')
         #depthtest_plot_rhohist(depthtestz0,varname='s')
-        depthtest_plot_relldat(depthtestz0,getpred=True,varname='rell')
+        #depthtest_plot_rhohist(depthtestz0,varname='chisq')
+        #depthtest_plot_relldat(depthtestz0,getpred=True,varname='rell')
+        depthtest_plot_relldat(depthtestz0,getpred=True,varname='chisqell')
         #depthtest_rho_tests()
 
     if 0: #bin test rho expectation value calculations
@@ -2036,7 +2062,9 @@ if __name__=="__main__":
         #cldat100=bintest_get_Clvals(finestN=6,z0=0.7,sigz=0.1,justread=0)
         
         #compute and save expectation values for rho[0.001,0.03,0.05,0.1]
-        bintest_rhoexp_comparesigs(finestN=6,z0=0.7,sigzlist=[0.001,0.03,0.05],checkautoonly=1)
+        bintest_rhoexp_comparesigs(finestN=6,z0=0.7,sigzlist=[0.001,0.03,0.05],checkautoonly=0)
+        bintest_rhoexp_comparesigs(finestN=6,z0=0.7,sigzlist=[0.001,0.03,0.05],checkautoonly=0,varname='s')
+        bintest_rhoexp_comparesigs(finestN=6,z0=0.7,sigzlist=[0.001,0.03,0.05],checkautoonly=0,varname='chisq')
 
         for s in [0.001,0.03,0.05,0.1]:
             #bintest_plot_cl_vals(finestN=6,z0=0.7,sigz=s)
@@ -2047,8 +2075,9 @@ if __name__=="__main__":
         nomaps=True
         bintest_get_glm_and_rec(Nreal=10000,divlist=['6','222','111111'],minreal=0,justgetrho=nomaps,dorell=1)
     if 0: #bin test with many realizations, make plots
-        #bintest_plot_rhohist(getrhopred=True,varname='rho')
-        #bintest_plot_rhohist(getrhopred=True,varname='s')
+        bintest_plot_rhohist(getrhopred=True,varname='rho')
+        bintest_plot_rhohist(getrhopred=True,varname='s')
+        bintest_plot_rhohist(getrhopred=True,varname='chisq')
         bintest_plot_relldat()
 
     #shortvarlist=[1.e-6,1.e-5,1.e-4,1.e-3] #for testing datapoints
@@ -2083,13 +2112,14 @@ if __name__=="__main__":
             pass
         #caltest_TTscatter(4,savepngmaps=True)'
 
-    if 1: #z0test theory calcs
+    if 0: #z0test theory calcs
         simz0=np.array([.35,.7,1.05])
         #z0test_get_rhoexp(overwrite=True,doplot=True,varname='rho',simz0=simz0)
         #z0test_get_rhoexp(overwrite=True,doplot=True,varname='s',simz0=simz0)
+        z0test_get_rhoexp(overwrite=True,doplot=True,varname='chisq',simz0=simz0)
         simb2=np.array([0.,.5,1.,10.])
         recb2=np.array([0.,.01,.1,.5,1.,2.,5.,10.])
         #bztest_get_rhoexp(simb2,recb2,overwrite=True,doplot=True,varname='rho')
-        #bztest_get_rhoexp(simb2,recb2,overwrite=True,doplot=True,varname='s')
-        z0test_Clcomp()
-        bztest_Clcomp()
+        bztest_get_rhoexp(simb2,recb2,overwrite=True,doplot=True,varname='chisq')
+        #z0test_Clcomp()
+        #bztest_Clcomp()
