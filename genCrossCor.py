@@ -149,7 +149,7 @@ def LimberCl_intwrapper(argtuple):
 
     #use info in binmaps to figure out zmin and zmax
     zmin=max(binmap1.zmin,binmap2.zmin)
-    zmin=max(0.01,zmin)
+    #zmin=max(0.01,zmin) #CHECK THAT REMOVING THIS IS OK
     zmax=min(binmap1.zmax,binmap2.zmax)
     if zmax<=zmin:
         return 0.
