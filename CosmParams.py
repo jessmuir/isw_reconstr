@@ -137,7 +137,7 @@ class Cosmology(object):
                 #check for existing file
                 print '    using z data from',tabzfile
                 #if it exists, read it in
-                inzrhgf=np.loadtxt(tabzfile,skiprows=1)
+                inzrhgf=np.loadtxt(tabzfile,skiprows=0)#1)#set to 1 if header included
                 #for now, assumes that this is the array we want
                 
                 self.z_array=inzrhgf[:,0]
@@ -172,9 +172,10 @@ class Cosmology(object):
                 zrhgf_grid[:,2]=self.H_array
                 zrhgf_grid[:,3]=self.g_array
                 zrhgf_grid[:,4]=self.f_array
-                header='columns: z r h g f; cosm file {0:s}; zmax {1:f}; nperz {2:f}'.format(cosmtag,zmax,nperz)
+                #numpy version on flux can't handle header arg, take it out
+                #header='columns: z r h g f; cosm file {0:s}; zmax {1:f}; nperz {2:f}'.format(cosmtag,zmax,nperz)
                 print '    Saving z tab data to ',tabzfile
-                np.savetxt(tabzfile,zrhgf_grid,header=header)
+                np.savetxt(tabzfile,zrhgf_grid)#,header=header)#header removed for flux's numpy version
                 
         #set up interpolating functions
         print '     Setting up interpolating functions.'
