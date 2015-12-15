@@ -292,13 +292,17 @@ def calc_isw_est(cldat,glmdat,recdat,writetofile=True,getmaps=True,redofits=True
         b02inv,_,_,_=np.linalg.lstsq(clobs,cltheory)
         # this minimizes ||cltheory[l] - clobs[l,r]*b02inv[r]||^2
         b0[:,i]=1./np.sqrt(b02inv)
+    #print 'b0:',b0
 
     #scaling according to bias will make Dl and Dinv depend on realization
+    print "Scaling by best-fit constant bias. Looping through realizations..."
     Dlr=np.zeros((Nreal,Nell,NLSS+1,NLSS+1))
     Dinvr=np.zeros((Nreal,Nell,NLSS+1,NLSS+1))
     for r in xrange(Nreal):
         Dlr[r,:,:,:]=scale_Dl_byb0(Dl,b0[r,:])
-        Dinv[r,:,:,:] = invert_Dl(Dlr[r,:,:,:])
+        #print 'Dlr.shape',Dlr.shape
+        #print 'Dinvr[r].shape',Dinvr[r,:,:,:].shape
+        Dinvr[r,:,:,:] = invert_Dl(Dlr[r,:,:,:])
 
     #compute estimator; will have same number of realizations as glmdat
     almest=np.zeros((glmgrid.shape[0],1,glmgrid.shape[2]),dtype=np.complex)
@@ -308,9 +312,9 @@ def calc_isw_est(cldat,glmdat,recdat,writetofile=True,getmaps=True,redofits=True
         if ell<lmin_forrec: 
             #print 'continuing since ell is too small'
             continue
-        Nl=1./Dinv[:,ell,0,0] #Nreal sized array
+        Nl=1./Dinvr[:,ell,0,0] #Nreal sized array
         for i in xrange(recdat.Nmap): #loop through non-isw maps
-            almest[:,0,lmind]-=Dinv[:,ell,0,i+1]*glmgrid[:,i,lmind]
+            almest[:,0,lmind]-=Dinvr[:,ell,0,i+1]*glmgrid[:,i,lmind]
             #print 'just added',-1*Dinv[ell,0,i]*glmgrid[:,i,lmind]
         almest[:,0,lmind]*=Nl
 
@@ -1047,9 +1051,6 @@ def compute_rho_fromcl(cldat,recdat,reccldat=0,varname='rho'):
         denom=np.sqrt(sig2isw*sig2rec)
         #print '   FINAL   num,demon:',numerator,denom
         result=numerator/denom
-        if Nneighbors>-1: #set Cl back to original values
-            cldat.cl=oldcl
-            cldat.noisecl=oldnoisecl
     elif varname=='s':
         #for each l sum over LSS maps for numerator, the sum over l
         crosspowerell = np.zeros(lvals.size)

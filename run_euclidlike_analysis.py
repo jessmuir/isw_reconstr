@@ -500,15 +500,10 @@ def bintest_get_reclist(finestN=6,z0=0.7,sigz=0.05,getdivs=['all']):
 # and computes expectation values for rho, saving that data to file
 # if overwrite==False and that file exists, just read it in
 #also works for s; switch is in varname 
-def bintest_get_rhoexp(finestN=6,z0=0.7,sigz=0.05,overwrite=False,doplot=True,Nneighb=-1,getdivs=['all'],saverho=True,varname='rho'):
+def bintest_get_rhoexp(finestN=6,z0=0.7,sigz=0.05,overwrite=False,doplot=True,getdivs=['all'],saverho=True,varname='rho'):
     if saverho:
         outdir = 'output/eucbintest/plots/'
-        if Nneighb>-1:
-            if varname!='rho':
-                print "**WARNING: only rho stat set up to handle Neighb>-1."
-            datfile='eucbintest{0:03d}_{2:s}exp_neighb{1:1d}.dat'.format(int(1000*sigz),Nneighb,varname)
-        else:
-            datfile='eucbintest{0:03d}_{1:s}exp.dat'.format(int(1000*sigz),varname)
+        datfile='eucbintest{0:03d}_{1:s}exp.dat'.format(int(1000*sigz),varname)
     
         print datfile
         if not overwrite and os.path.isfile(outdir+datfile): #file exists
@@ -529,7 +524,7 @@ def bintest_get_rhoexp(finestN=6,z0=0.7,sigz=0.05,overwrite=False,doplot=True,Nn
             else:
                 divstr=getdivs
             for r in xrange(Nrec):
-                rhoarray[r]=compute_rho_fromcl(cldat,reclist[r],Nneighb,varname=varname)
+                rhoarray[r]=compute_rho_fromcl(cldat,reclist[r],varname=varname)
             #write rhoarray to file
             f=open(outdir+datfile,'w')
             f.write(''.join(['{0:8s} {1:8.3f}\n'.format(divstr[i],rhoarray[i]) for i in xrange(Nrec)]))
@@ -538,17 +533,17 @@ def bintest_get_rhoexp(finestN=6,z0=0.7,sigz=0.05,overwrite=False,doplot=True,Nn
         #get cl
         cldat=bintest_get_Clvals(finestN,z0,sigz,justread=True)
         #set up recdata objects for each bin combo
-        reclist=bintest_get_reclist(finestN,z0,sigz,getdivs) 
-        Nrec=len(reclist)
-        rhoarray=np.zeros(Nrec)
         if getdivs==['all']:
             divstr=bintest_get_divstr_all(finestN) #string div labels
         elif getdivs==['equal']:
             divstr=bintest_get_divstr_equal(finestN)
         else:
             divstr=getdivs
+        reclist=bintest_get_reclist(finestN,z0,sigz,getdivs) 
+        Nrec=len(reclist)
+        rhoarray=np.zeros(Nrec)
         for r in xrange(Nrec):
-            rhoarray[r]=compute_rho_fromcl(cldat,reclist[r],Nneighb,varname=varname)
+            rhoarray[r]=compute_rho_fromcl(cldat,reclist[r],varname=varname)
 
     if doplot:
         zedges0=bintest_get_finest_zedges(finestN,z0)
@@ -569,28 +564,26 @@ def bintest_rhoexp_comparesigs(finestN=6,z0=0.7,sigzlist=[0.03,0.05],checkautoon
     markerlist=[]
     colorlist=[]
     outtag=''
-    if checkautoonly: #see what happens if cross bin power info not included
-        outtag='_varyneighb'
-        scattercolors=['#e41a1c','#377eb8','#4daf4a','#984ea3','#ff7f00','#ffff33','#a65628','#f781bf']
-        colorlist=scattercolors[:len(labellist)]
-        markerlist=['D']*len(labellist)
-        marks=['x','*']
-        for n in [1,0]:
-            i=0
-            for s in sigzlist:
-                divstr,rho=bintest_get_rhoexp(finestN,z0,s,overwrite=False,doplot=False,Nneighb=n,varname=varname)
-                #print divstr,rho
-                rholist.append(rho)
-                markerlist.append(marks[n])
-                labellist.append('${0:0.3f}$,{1:1d}nb'.format(s,n))
-                colorlist.append(scattercolors[i])
-                i+=1
+    # if checkautoonly: #see what happens if cross bin power info not included
+    #     scattercolors=['#e41a1c','#377eb8','#4daf4a','#984ea3','#ff7f00','#ffff33','#a65628','#f781bf']
+    #     colorlist=scattercolors[:len(labellist)]
+    #     markerlist=['D']*len(labellist)
+    #     marks=['x','*']
+    #     for n in [1,0]:
+    #         i=0
+    #         for s in sigzlist:
+    #             divstr,rho=bintest_get_rhoexp(finestN,z0,s,overwrite=False,doplot=False,Nneighb=n,varname=varname)
+    #             #print divstr,rho
+    #             rholist.append(rho)
+    #             markerlist.append(marks[n])
+    #             labellist.append('${0:0.3f}$,{1:1d}nb'.format(s,n))
+    #             colorlist.append(scattercolors[i])
+    #             i+=1
     outname='eucbintest_'+varname+'exp'+outtag+'.png'
     bintest_rhoexpplot(allzedges,divstr,rholist,labellist,outname,legtitle,markerlist,colorlist,outtag,varname=varname)
 
 #--------------------
 def bintest_test_rhoexp():
-    Nneighb=0
     finestN=6
     z0=0.7
     sigzlist=[0.1]
@@ -611,7 +604,7 @@ def bintest_test_rhoexp():
         recgrid.append(reclist)
         for r in xrange(Ndiv):
             print '  div:',divstrlist[r],'----------'
-            rhogrid[s,r]=compute_rho_fromcl(cldat,reclist[r],Nneighb)
+            rhogrid[s,r]=compute_rho_fromcl(cldat,reclist[r])
             print '    rho=',rhogrid[s,r]
 
 def bintest_get_expected_rell(divstr,varname='rell'):
@@ -2042,16 +2035,16 @@ if __name__=="__main__":
         print "time:",str(t1-t0),"sec"
     if 0: #generate depthhtest maps
         nomaps=True
-        #depthtest_get_glm_and_rec(Nreal=10000,z0vals=depthtestz0,justgetrho=nomaps,minreal=0,dorell=1)
-        depthtest_get_glm_and_rec(Nreal=10000,z0vals=depthtestz0,justgetrho=True,minreal=0,dorho=False,dos=False,dochisq=False,dorell=False,dochisqell=True)
-    if 1: #plot info about depthtest maps
+        Nreal=10000
+        depthtest_get_glm_and_rec(Nreal=Nreal,z0vals=depthtestz0,justgetrho=nomaps,minreal=0,dorho=1,dos=False,dochisq=False,dorell=0,dochisqell=False)
+    if 0: #plot info about depthtest maps
         #depthtest_TTscatter(0,depthtestz0,False)
         #depthtest_plot_zwindowfuncs(depthtestz0)
-        #depthtest_plot_rhohist(depthtestz0,'rho')
+        depthtest_plot_rhohist(depthtestz0,'rho')
         #depthtest_plot_rhohist(depthtestz0,varname='s')
         #depthtest_plot_rhohist(depthtestz0,varname='chisq')
         #depthtest_plot_relldat(depthtestz0,getpred=True,varname='rell')
-        depthtest_plot_relldat(depthtestz0,getpred=True,varname='chisqell')
+        #depthtest_plot_relldat(depthtestz0,getpred=True,varname='chisqell')
         #depthtest_rho_tests()
 
     if 0: #bin test rho expectation value calculations

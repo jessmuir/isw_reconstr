@@ -1,5 +1,4 @@
- &
- import numpy as np
+import numpy as np
 from scipy.integrate import quad
 from scipy.special import jv
 from scipy.optimize import brentq
@@ -161,7 +160,7 @@ def LimberCl_intwrapper(argtuple):
     if Nisw:
         prefactor= (100.)**2 #H0^2 in units h^2km^2/Mpc^2/s^2 
         prefactor*= 3./cosm.c**2 #h^2/Mpc^2
-        iswpref =lambda z: prefactor*(1.-f(z))/(kofz(z)**2) #unitless function
+        iswpref =lambda z: prefactor*(1.-f(z))/(kofz(z)**2) if kofz(z)!=0 else 0. #unitless function
         if Nisw==1:
             iswprefactor= iswpref
         elif Nisw==2:
@@ -179,7 +178,7 @@ def LimberCl_integrand(z,hubble,growth,cor,Pz_interpfn,iswprefactor,window1,wind
     #print 'hubble*growth*r^2',hubble(z)*(growth(z)**2)/(cor(z)**2)
     if result==0 or z==0 or cor(z)==0.:
         return 0
-    result*=Pz_interpfn(z)*hubble(z)*(growth(z)**2)/(cor(z)**2)/c
+    result*=Pz_interpfn(z)*hubble(z)*(growth(z)**2)/(cor(z)**2)/c 
     result*=iswprefactor(z)
     result=np.nan_to_num(result)#if nan, will get replaced with zero
     return result
