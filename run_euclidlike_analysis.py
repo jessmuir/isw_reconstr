@@ -1617,7 +1617,7 @@ def z0test_get_recgrid(simz0=np.array([]),recz0=np.array([]),perrors=np.array([1
 # if either are passed as an empty array, replace it with all vals indicated
 #    by the perrors, fidz0 parameters
 # will use perrors and fidz0 to get Cl data, so they should match in either case
-def z0test_get_rhoexp(simz0=np.array([]),recz0=np.array([]),perrors=np.array([1,10,20,30,50]),fidz0=.7,overwrite=False,saverho=True,doplot=False,varname='rho',filetag='',plotdir='output/zdisttest/plots/'):
+def z0test_get_rhoexp(simz0=np.array([]),recz0=np.array([]),perrors=np.array([1,10,20,50]),fidz0=.7,overwrite=False,saverho=True,doplot=False,varname='rho',filetag='',plotdir='output/zdisttest/plots/'):
     if not simz0.size:
         simz0=z0test_getz0vals(perrors,fidz0)
     if not recz0.size:
@@ -1662,19 +1662,54 @@ def z0test_get_rhoexp(simz0=np.array([]),recz0=np.array([]),perrors=np.array([1,
             f.write('{0:9.6f} '.format(simz0[ns])+''.join(['{0:9.6f} '.format(rhoarray[ns,nr]) for nr in xrange(Nrec)])+'\n')
         f.close()
     if doplot:
-        z0test_rhoexpplot(simz0,recz0,rhoarray,varname) 
+        z0test_rhoexpplot(simz0,recz0,rhoarray,varname,plotdir=plotdir) 
         
     return rhoarray
 
+def z0test_rhoexpplot(simz0,recz0,rhogrid,varname='rho',outtag='',outname='',legtitle='',colorlist=[],plotdir='output/zdisttest/plots/'):
+    #working here
+    Nsim=simz0.size
+    Nrec=recz0.size
+    if outtag:
+        outtag='_'+outtag
+    if not outname:
+        outname='z0test_'+varname+'_exp'+outtag+'.png'
+    plotnums=np.zeros((Nsim,Nrec))
+    bestforsim=np.zeros(Nsim)
+    for i in xrange(Nsim):
+        if varname=='rho':
+            normi=max(rhogrid[i,:])
+        elif varname=='s':
+            normi=min(rhogrid[i,:])
+        bestforsim[i]=normi
+        plotnums[i,:] = rhogrid[i,:]/normi - 1.
+    #make heatmap of rho vs rhobest
+    plt.figure(0)
+    #plt.imshow(plotnums,cmap=cmx.jet)
+    #check that x and y are set up correctly
+    plt.pcolor(simz0, recz0, plotnums, norm=colors.LogNorm(), cmap=cmx.jet)
+    #turn off blendinb between squares
+    # make each simz0 and rez0 get same space, individual labels
+    cb=plt.colorbar()
+    if varname=='rho':
+        cb.set_label(r'$\langle \rho \rangle/\langle \rho \rangle_{{\rm best}} -1$')
+    #fix labeling on colorbar
+    elif varname=='s':
+        cb.set_label(r'$\langle s \rangle/\langle s \rangle_{{\rm best}}$')
+    plt.xlabel(r"$z_0$ used for ISW reconstruction")
+    plt.ylabel(r"$z_0$ used for simulations")
+    
+    print 'Saving plot to ',plotdir+outname
+    plt.savefig(plotdir+outname)
+    plt.close()
 
-def z0test_rhoexpplot(simz0,recz0,rhogrid,varname='rho',outtag='',outname='',legtitle='',colorlist=[]):
+def z0test_rhoexpplot_lines(simz0,recz0,rhogrid,varname='rho',outtag='',outname='',legtitle='',colorlist=[],plotdir='output/zdisttest/plots/'):
     scattercolors=['#e41a1c','#377eb8','#4daf4a','#984ea3','#ff7f00','#ffff33','#a65628','#f781bf']
     if not colorlist:
         colorlist=scattercolors
     
     Nsim=simz0.size
     Nrec=recz0.size
-    plotdir='output/zdisttest/plots/'
     if outtag:
         outtag='_'+outtag
     if not outname:
@@ -2031,11 +2066,11 @@ if __name__=="__main__":
         depthtest_get_Cl(justread=False,z0vals=depthtestz0)
         t1=time.time()
         print "time:",str(t1-t0),"sec"
-    if 1: #generate depthhtest maps
+    if 0: #generate depthhtest maps
         nomaps=False#True
         Nreal=10000
         depthtest_get_glm_and_rec(Nreal=Nreal,z0vals=depthtestz0,justgetrho=nomaps,minreal=0,dorho=1,dos=True,dochisq=False,dorell=0,dochisqell=False)
-    if 1: #plot info about depthtest maps
+    if 0: #plot info about depthtest maps
         #depthtest_TTscatter(0,depthtestz0,False)
         #depthtest_plot_zwindowfuncs(depthtestz0)
         depthtest_plot_rhohist(depthtestz0,varname='rho')
@@ -2047,10 +2082,10 @@ if __name__=="__main__":
 
     if 0: #bin test rho expectation value calculations
         #compute cl
-        #cldat05=bintest_get_Clvals(finestN=6,z0=0.7,sigz=0.05,justread=0)
-        #cldat03=bintest_get_Clvals(finestN=6,z0=0.7,sigz=0.03,justread=0)
-        #cldat001=bintest_get_Clvals(finestN=6,z0=0.7,sigz=0.001,justread=0)
-        #cldat100=bintest_get_Clvals(finestN=6,z0=0.7,sigz=0.1,justread=0)
+        cldat05=bintest_get_Clvals(finestN=6,z0=0.7,sigz=0.05,justread=0)
+        cldat03=bintest_get_Clvals(finestN=6,z0=0.7,sigz=0.03,justread=0)
+        cldat001=bintest_get_Clvals(finestN=6,z0=0.7,sigz=0.001,justread=0)
+        cldat100=bintest_get_Clvals(finestN=6,z0=0.7,sigz=0.1,justread=0)
         
         #compute and save expectation values for rho[0.001,0.03,0.05,0.1]
         bintest_rhoexp_comparesigs(finestN=6,z0=0.7,sigzlist=[0.001,0.03,0.05],checkautoonly=0)
@@ -2103,10 +2138,11 @@ if __name__=="__main__":
             pass
         #caltest_TTscatter(4,savepngmaps=True)'
 
-    if 0: #z0test theory calcs
+    if 1: #z0test theory calcs
         simz0=np.array([.35,.56,.63,.693,.7,.707,.7700,.84,1.05])
-        z0test_get_rhoexp(overwrite=True,doplot=True,varname='rho',simz0=simz0)
-        z0test_get_rhoexp(overwrite=True,doplot=True,varname='s',simz0=simz0)
+        perrors=[1,10,20,50]
+        z0test_get_rhoexp(overwrite=True,doplot=True,varname='rho',perrors=perrors)
+        #z0test_get_rhoexp(overwrite=True,doplot=True,varname='s',perrors=perrors)
         #z0test_get_rhoexp(overwrite=True,doplot=True,varname='chisq',simz0=simz0)
         simb2=np.array([0.,.5,1.,10.])
         recb2=np.array([0.,.01,.1,.5,1.,2.,5.,10.])

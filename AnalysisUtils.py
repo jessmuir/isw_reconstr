@@ -80,11 +80,23 @@ class RecData(object):
 #fitcl_for_constbias - given observed cl and theory cl (1d arrays of same size)
 #  find for best fit constant bias via cl_obs = (b0**2)*cl_theory
 #  intended to be used on galaxy autopower
-def fitcl_forb0_onereal(obscl,theorycl):
-    x=theorycl[:,np.newaxis]
-    slope,_,_,_=np.linalg.lstsq(x,obscl)
-    b0=np.sqrt(slope)
-    return np.sqrt(b0)
+def fitcl_forb0_onereal(cltheory,clobs):
+    if len(clobs.shape)==1:
+        Nreal=1
+        b0inv,_=leastsq(b0fit_residuals_onereal,1., args=(cltheory,clobs))
+    else:
+        Nreal=clobs.shape[1]
+        b0inv=np.ones(Nreal)
+        for r in xrange(Nreal):
+            b0inv[r],_=leastsq(b0fit_residuals_onereal,1., args=(cltheory,clobs[:,r]))
+    b0=1./np.fabs(b0inv)#np.sqrt(b0inv)
+    return  b0
+
+def b0fit_residuals_onereal(b0inv,cltheory,clobs):
+    b02inv=b0inv*b0inv
+    ymeas=clobs*b02inv
+    err=cltheory - ymeas
+    return err
 
 # for inDl = Nellx(NLSS+1)x(NLSS+1) matrix and b0 = NLSS size array, scale
 # all cl according to the appropriate b0 values, assuming index order matches
@@ -289,22 +301,8 @@ def calc_isw_est(cldat,glmdat,recdat,writetofile=True,getmaps=True,redofits=True
         #for each realization, get clobs from glm and do a fit
         for r in xrange(Nreal):
             clobs[:,r]=hp.alm2cl(glmgrid[r,i,:])
-            
-        ## fit for b0 for all realizations at once; this setup sometimes gives <0
-        # b02inv,_,_,_=np.linalg.lstsq(clobs,cltheory)
-        # print b02inv
-        # # this minimizes ||cltheory[l] - clobs[l,r]*b02inv[r]||^2
-        # NO LONGER USING; NEED TO MIN EACH REALIZATION INDIVIDUALLY
-
-        def b0fit_residuals_onereal(b0inv,cltheory,clobs):
-            b02inv=b0inv*b0inv
-            ymeas=clobs*b02inv
-            err=cltheory - ymeas
-            return err
-        b0inv=np.ones(Nreal)
-        for r in xrange(Nreal):
-            b0inv[r],_=leastsq(b0fit_residuals_onereal,1., args=(cltheory,clobs[:,r]))
-        b0[:,i]=1./np.fabs(b0inv)#np.sqrt(b0inv)
+        b0[:,i]=fitcl_forb0_onereal(cltheory,clobs)
+        
         #print b0[:,i]
         showtestplot=False
         if showtestplot:
@@ -1180,7 +1178,7 @@ def compute_rell_fromcl(cldat,recdat,reccldat=0,varname='rell'):
         #fit for b0 for each LSS map by compareing Dl Cl to recDl
         b0=np.ones(NLSS)
         for i in xrange(NLSS):
-            b0[i]=fitcl_forb0_onereal(Dl[:,i+1,i+1],recDl[:,i+1,i+1])
+            b0[i]=np.squeeze(fitcl_forb0_onereal(recDl[:,i+1,i+1],Dl[:,i+1,i+1]))
         recDl=scale_Dl_byb0(recDl,b0)
         recDinv=invert_Dl(recDl)
         recNl=np.zeros(Nell)
