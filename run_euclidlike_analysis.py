@@ -552,7 +552,7 @@ def bintest_get_rhoexp(finestN=6,z0=0.7,sigz=0.05,overwrite=False,doplot=True,ge
     return divstr,rhoarray
 
 #if we've computed Cl stuff for multiple values of sigz0, compare them
-def bintest_rhoexp_comparesigs(finestN=6,z0=0.7,sigzlist=[0.03,0.05],checkautoonly=True,varname='rho'):
+def bintest_rhoexp_comparesigs(finestN=6,z0=0.7,sigzlist=[0.03,0.05],checkautoonly=True,varname='rho',plotdir='output/eucbintest/plots/',markerlist=[],colorlist=[]):
     rholist=[]
     for s in sigzlist:
         divstr,rho=bintest_get_rhoexp(finestN,z0,s,overwrite=False,doplot=False,varname=varname)
@@ -561,8 +561,6 @@ def bintest_rhoexp_comparesigs(finestN=6,z0=0.7,sigzlist=[0.03,0.05],checkautoon
     labellist=['${0:0.3f}$'.format(s) for s in sigzlist]
     zedges0=bintest_get_finest_zedges(finestN,z0)
     allzedges=bintest_get_zedgeslist(zedges0,['all'],False)
-    markerlist=[]
-    colorlist=[]
     outtag=''
     # if checkautoonly: #see what happens if cross bin power info not included
     #     scattercolors=['#e41a1c','#377eb8','#4daf4a','#984ea3','#ff7f00','#ffff33','#a65628','#f781bf']
@@ -580,7 +578,7 @@ def bintest_rhoexp_comparesigs(finestN=6,z0=0.7,sigzlist=[0.03,0.05],checkautoon
     #             colorlist.append(scattercolors[i])
     #             i+=1
     outname='eucbintest_'+varname+'exp'+outtag+'.png'
-    bintest_rhoexpplot(allzedges,divstr,rholist,labellist,outname,legtitle,markerlist,colorlist,outtag,varname=varname)
+    bintest_rhoexpplot(allzedges,divstr,rholist,labellist,outname,legtitle,markerlist,colorlist,outtag,varname=varname,plotdir=plotdir)
 
 #--------------------
 def bintest_test_rhoexp():
@@ -668,10 +666,9 @@ def bintest_read_rell_wfiles(divlist=['6','222','111111'],sigz=0.05,varname='rel
 #plot expectation value of rho for different binning strategy
 # with illustrative y axis
 # also works for s, switch in variable varname
-def bintest_rhoexpplot(allzedges,labels,rhoarraylist,labellist=[],outname='',legtitle='',markerlist=[],colorlist=[],outtag='',varname='rho',dotitle=False):
+def bintest_rhoexpplot(allzedges,labels,rhoarraylist,labellist=[],outname='',legtitle='',markerlist=[],colorlist=[],outtag='',varname='rho',dotitle=False,plotdir='output/eucbintest/plots/'):
     if type(rhoarraylist[0])!=np.ndarray: #just one array passed,not list of arr
         rhoarraylist=[rhoarraylist]
-    plotdir='output/eucbintest/plots/'
     if not outname:
         outname='eucbintest_'+varname+'exp'+outtag+'.png'
     colors=['#1b9e77','#d95f02','#7570b3','#e7298a','#66a61e','#e6ab02']
@@ -684,6 +681,7 @@ def bintest_rhoexpplot(allzedges,labels,rhoarraylist,labellist=[],outname='',leg
 
     #divide fiture up into two vertical pieces
     fig=plt.figure(0,figsize=(7,6))
+    plt.subplots_adjust(left=0.1, bottom=.17, right=.95, top=.95, wspace=0, hspace=0)
     if dotitle:
         if varname=='rho':
             plt.suptitle(r'Expected correlation coef. between $T^{{\rm ISW}}$ and $T^{{\rm rec}}$', size=18)
@@ -699,7 +697,7 @@ def bintest_rhoexpplot(allzedges,labels,rhoarraylist,labellist=[],outname='',leg
     plt.sca(ax1)
     plt.ylim((-1,Npoints))
     plt.xlim((0,6.1))#at 6, plots butt up against each other
-    plt.xlabel(r'Redshift bin edges $z$',fontsize=12)
+    plt.xlabel(r'Redshift bin edges $z$',fontsize=14)
     ax1.xaxis.set_ticks_position('bottom')
     plt.tick_params(axis='x', which='major', labelsize=11)
     plt.yticks(yvals, labels)
@@ -727,10 +725,12 @@ def bintest_rhoexpplot(allzedges,labels,rhoarraylist,labellist=[],outname='',leg
     plt.sca(ax2)
     ax2.yaxis.set_ticks_position('left')
     ax2.xaxis.set_ticks_position('bottom')
+    plt.tick_params(axis='x', which='major', labelsize=14)
     if varname=='rho':
-        ax2.set_xlabel(r'$\langle \rho \rangle$',fontsize=14)
+        ax2.set_xlabel(r'$\langle \rho \rangle$',fontsize=20)
         ax2.set_xlim((.87,.92))
-        legloc='upper left'
+        #legloc='upper left'
+        legloc='lower right'
     elif varname=='s':
         ax2.set_xlabel(r'$\langle s \rangle$',fontsize=14)
         #ax2.set_xlim((.87,.92))
@@ -748,15 +748,12 @@ def bintest_rhoexpplot(allzedges,labels,rhoarraylist,labellist=[],outname='',leg
         rhoarray=rhoarraylist[i]
         m=markerlist[i]
         if labellist:
-            if m=='D':
-                ax2.scatter(rhoarray,yvals,label=labellist[i],color=colorlist[i],marker=m)#,edgecolor='black')
-            else:
-                ax2.scatter(rhoarray,yvals,label=labellist[i],color=colorlist[i],marker=m)
+            ax2.scatter(rhoarray,yvals,label=labellist[i],color=colorlist[i],marker=m,s=50)
         else:
             ax2.scatter(rhoarray,yvals,color=colorlist[i],marker=m)
 
     if labellist:
-        plt.legend(loc=legloc,fontsize=12,title=legtitle)
+        plt.legend(loc=legloc,fontsize=16,title=legtitle)
 
     plt.setp(ax2.get_yticklabels(), visible=False)
     plt.setp(ax2.get_xticklabels()[0], visible=False)#don't show number at first label
@@ -1620,14 +1617,14 @@ def z0test_get_recgrid(simz0=np.array([]),recz0=np.array([]),perrors=np.array([1
 # if either are passed as an empty array, replace it with all vals indicated
 #    by the perrors, fidz0 parameters
 # will use perrors and fidz0 to get Cl data, so they should match in either case
-def z0test_get_rhoexp(simz0=np.array([]),recz0=np.array([]),perrors=np.array([1,10,20,30,50]),fidz0=.7,overwrite=False,saverho=True,doplot=False,varname='rho',filetag=''):
+def z0test_get_rhoexp(simz0=np.array([]),recz0=np.array([]),perrors=np.array([1,10,20,30,50]),fidz0=.7,overwrite=False,saverho=True,doplot=False,varname='rho',filetag='',plotdir='output/zdisttest/plots/'):
     if not simz0.size:
         simz0=z0test_getz0vals(perrors,fidz0)
     if not recz0.size:
         recz0=z0test_getz0vals(perrors,fidz0)
 
     if saverho:
-        outdir='output/zdisttest/plots/'
+        outdir=plotdir
         if filetag:
             filetagstr='_'+filetag
         else:

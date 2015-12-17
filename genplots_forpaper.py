@@ -121,8 +121,9 @@ def bintest_plot_rhohist_forpaper(divstr=['6','222','111111']):
     minval=np.min(rhogrid)
     vallim=(minval,maxval)
     #rholim=(0.,maxrho)
-    #colors=['#1b9e77','#e7298a']'#7570b3','#1b9e77'
-    colors=['#e7298a','#e6ab02','#66a61e']
+    #colors=['#1b9e77','#d95f02','#e7298a','#7570b3','#66a61e','#e6ab02']
+    colors=['#d95f02','#1b9e77','#e7298a']
+    #colors=['#e7298a','#e6ab02','#66a61e']
     plt.figure(0)
     plt.subplots_adjust(left=0.15, bottom=.17, right=.95, top=.95, wspace=0, hspace=0)
     #plt.title(plotname)
@@ -188,7 +189,7 @@ def bintest_plot_rhohist_forpaper(divstr=['6','222','111111']):
     #plt.legend(loc='upper right',fancybox=False, framealpha=0.,prop={'size':16},handlelength=3.5)
     
     #plot bin envelopes
-    linewidths=[3,2,1]
+    linewidths=[6,4,2]
     linestyles=['-','-','-']
     for n in xrange(Nrecs):
         for i in xrange(len(binsetlist[n])):#loop through individual bins
@@ -204,10 +205,69 @@ def bintest_plot_rhohist_forpaper(divstr=['6','222','111111']):
     plt.savefig(outname)
     plt.close()
 
+#==========================================
+#do Tisw-Trec scatter plot for a given realization r
+def depthtest_TTscatter_forpaper(r=0, z0vals=np.array([0.3,0.6,0.7,0.8]),savepngmaps=False):
+    plotdir='output/plots_forpaper/'
+    colors=['#1b9e77','#d95f02','#e7298a','#7570b3','#66a61e','#e6ab02']
+    Nrec=z0vals.size
+    #get map names and read in maps
+    recmapfiles=[]
+    recmaps=[]
+    iswmapfiles=[]
+    iswmaps=[]
+    #get dummy glm and alm for filenames
+    cldat=depthtest_get_Cl(z0vals=z0vals)
+    reclist=depthtest_get_reclist(z0vals)
+    glmdat=get_glm(cldat,Nreal=0,runtag=cldat.rundat.tag)
+    almdat=get_dummy_recalmdat(glmdat,reclist,outruntag=glmdat.runtag)
+    for i in xrange(Nrec):
+        truemapf=glmdat.get_mapfile_fortags(r,reclist[i].zerotagstr)
+        truemap=hp.read_map(truemapf,verbose=False)
+        iswmapfiles.append(truemapf)
+        iswmaps.append(truemap)
+        recmapf=almdat.get_mapfile(r,i,'fits')
+        recmap=hp.read_map(recmapf,verbose=False)
+        recmapfiles.append(recmapf)
+        recmaps.append(recmap)
+        if savepngmaps:
+            #set up color scheme for lss map
+            mono_cm=matplotlib.cm.Greys_r
+            mono_cm.set_under("w") #set background to white
+            lssmapfs=[]
+            for glmstr in reclist[i].includeglm: #assumes default mod and mask
+                lssmapfs.append(glmdat.get_mapfile_fortags(r,glmstr))
+            for lssf in lssmapfs:
+                lssm=hp.read_map(lssf,verbose=False)
+                plotmax=0.7*np.max(np.fabs(lssm))
+                lssfbase=lssf[lssf.rfind('/')+1:lssf.rfind('.fits')]
+                hp.mollview(lssm,title=lssfbase,unit=r' $\delta\rho/\rho$',max=plotmax,min=-1*plotmax,cmap=mono_cm)
+                plt.savefig(plotdir+'mapplot_'+lssfbase+'.png')
+            maxtemp=np.max(truemap)
+            maxtemp=max(maxtemp,np.max(recmap))
+            plotmax=0.7*maxtemp
+            truefbase=truemapf[truemapf.rfind('/')+1:truemapf.rfind('.fits')]
+            hp.mollview(truemap,title=truefbase,unit='K',max=plotmax,min=-1*plotmax)
+            plt.savefig(plotdir+'mapplot_'+truefbase+'.png')
+            recfbase=recmapf[recmapf.rfind('/')+1:recmapf.rfind('.fits')]
+            hp.mollview(recmap,title=recfbase,unit='K',max=plotmax,min=-1*plotmax)
+            plt.savefig(plotdir+'mapplot_'+recfbase+'.png')
+
+            
+    #compute rho (could also read from file but this seams simplest)
+    rhovals=[rho_onereal(iswmaps[n],recmaps[n]) for n in xrange(Nrec)]
+    reclabels=['z0={0:0.1f}'.format(z0) for z0 in z0vals]
+
+    #set up plot
+    plotname='TrecTisw_scatter_depthtest.r{0:05d}'.format(r)
+    plot_Tin_Trec(iswmapfiles,recmapfiles,reclabels,plotdir,plotname,colors)
+    
+
 
 #################################################################
 if __name__=="__main__":
     #depthtest_plot_rhohist_forpaper(z0vals=np.array([.3,.6,.7,.8]))
     #bintest_plot_rhohist_forpaper()
-    depthtest_TTscatter_forpaper()
-    
+    #depthtest_TTscatter_forpaper()
+    #bintest_rhoexp_comparesigs(sigzlist=[0.001,0.03,0.05,.1],markerlist=['v','d','o','^'],plotdir='output/plots_forpaper/')
+    z0test_get_rhoexp(simz0=np.array([]),recz0=np.array([]),perrors=np.array([1,10,20,30,50]),fidz0=.7,doplot=True,varname='rho',plotdir='output/plots_forpaper/')
