@@ -51,7 +51,7 @@ def depthtest_get_binmaps(z0vals=np.array([.3,.6,.7,.8]),includeisw=True):
     surveys=[get_Euclidlike_SurveyType(z0=z0,onebin=True,tag='eucz{0:02d}'.format(int(10*z0))) for z0 in z0vals]
     bins=[s.binmaps[0] for s in surveys] #all surveys have only one bin
     if includeisw:
-        iswmaptype=get_fullISW_MapType(zmax=10)
+        iswmaptype=get_fullISW_MapType(zmax=15)
         iswbins=iswmaptype.binmaps
         bins=iswbins+bins
     return bins
@@ -393,7 +393,7 @@ def bintest_get_maptypelist(finestN=6,getdivs=['all'],z0=0.7,sigz=0.05,includeis
     maptypes=[] #list of maptype objects, put finest div first
     maintag='euc{0:d}bins{1:03d}div'.format(finestN,int(1000*sigz))
     if includeisw:
-        iswmaptype=get_fullISW_MapType(zmax=10)
+        iswmaptype=get_fullISW_MapType(zmax=15)
         maptypes.append(iswmaptype)
     for i in xrange(Ntypes):
         #print 'getting survey for zedges=',zedges[i]
@@ -1576,7 +1576,7 @@ def z0test_get_binmaps(perrors=np.array([1,10]),fid=0.7,includeisw=True):
     surveys=[get_Euclidlike_SurveyType(z0=z0[i],onebin=True,tag=maptags[i]) for i in xrange(z0.size)]
     bins=[s.binmaps[0] for s in surveys] #surveys all just have one bin
     if includeisw:
-        iswmaptype=get_fullISW_MapType(zmax=10)
+        iswmaptype=get_fullISW_MapType(zmax=15)
         iswbins=iswmaptype.binmaps
         bins=iswbins+bins
     return bins
@@ -1620,7 +1620,7 @@ def z0test_get_recgrid(simz0=np.array([]),recz0=np.array([]),perrors=np.array([1
 # if either are passed as an empty array, replace it with all vals indicated
 #    by the perrors, fidz0 parameters
 # will use perrors and fidz0 to get Cl data, so they should match in either case
-def z0test_get_rhoexp(simz0=np.array([]),recz0=np.array([]),perrors=np.array([1,10,20,30,50]),fidz0=.7,overwrite=False,saverho=True,doplot=False,varname='rho',filetag=''):
+def z0test_get_rhoexp(simz0=np.array([]),recz0=np.array([]),perrors=np.array([1,10,20,50]),fidz0=.7,overwrite=False,saverho=True,doplot=False,varname='rho',filetag=''):
     if not simz0.size:
         simz0=z0test_getz0vals(perrors,fidz0)
     if not recz0.size:
@@ -2027,14 +2027,14 @@ def bztest_Clcomp(b2vals=np.array([0.,.01,.1,.5,1.,2.,5.,10.])):
 #################################################################
 if __name__=="__main__":
     #plot_isw_kernel()
-    depthtestz0=np.array([.3,.6,.7,.8])
+    depthtestz0=np.array([.3,.5,.6,.7,.8])
     if 0: #compute Cl
         t0=time.time()
         depthtest_get_Cl(justread=False,z0vals=depthtestz0)
         t1=time.time()
         print "time:",str(t1-t0),"sec"
     if 0: #generate depthhtest maps
-        nomaps=True
+        nomaps=False#True
         Nreal=10000
         depthtest_get_glm_and_rec(Nreal=Nreal,z0vals=depthtestz0,justgetrho=nomaps,minreal=0,dorho=1,dos=False,dochisq=False,dorell=0,dochisqell=False)
     if 0: #plot info about depthtest maps
@@ -2105,14 +2105,14 @@ if __name__=="__main__":
             pass
         #caltest_TTscatter(4,savepngmaps=True)'
 
-    if 0: #z0test theory calcs
-        simz0=np.array([.35,.7,1.05])
-        #z0test_get_rhoexp(overwrite=True,doplot=True,varname='rho',simz0=simz0)
-        #z0test_get_rhoexp(overwrite=True,doplot=True,varname='s',simz0=simz0)
-        z0test_get_rhoexp(overwrite=True,doplot=True,varname='chisq',simz0=simz0)
+    if 1: #z0test theory calcs
+        simz0=np.array([.35,.56,.63,.693,.7,.707,.7700,.84,1.05])
+        z0test_get_rhoexp(overwrite=True,doplot=True,varname='rho',simz0=simz0)
+        z0test_get_rhoexp(overwrite=True,doplot=True,varname='s',simz0=simz0)
+        #z0test_get_rhoexp(overwrite=True,doplot=True,varname='chisq',simz0=simz0)
         simb2=np.array([0.,.5,1.,10.])
         recb2=np.array([0.,.01,.1,.5,1.,2.,5.,10.])
         #bztest_get_rhoexp(simb2,recb2,overwrite=True,doplot=True,varname='rho')
-        bztest_get_rhoexp(simb2,recb2,overwrite=True,doplot=True,varname='chisq')
+        #bztest_get_rhoexp(simb2,recb2,overwrite=True,doplot=True,varname='chisq')
         #z0test_Clcomp()
         #bztest_Clcomp()
