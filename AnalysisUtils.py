@@ -7,6 +7,7 @@ import matplotlib.pyplot as plt
 import matplotlib.ticker as mtick
 import matplotlib
 import itertools
+from scipy.optimize import fmin_slsqp,leastsq
 
 from MapParams import * #Classes w info about map properties
 from CosmParams import Cosmology #class w/info about cosm params P(k), etc
@@ -288,12 +289,34 @@ def calc_isw_est(cldat,glmdat,recdat,writetofile=True,getmaps=True,redofits=True
         #for each realization, get clobs from glm and do a fit
         for r in xrange(Nreal):
             clobs[:,r]=hp.alm2cl(glmgrid[r,i,:])
-        #fit for b0 for all realizations at once
-        b02inv,_,_,_=np.linalg.lstsq(clobs,cltheory)
-        # this minimizes ||cltheory[l] - clobs[l,r]*b02inv[r]||^2
-        b0[:,i]=1./np.sqrt(b02inv)
-    #print 'b0:',b0
+            
+        ## fit for b0 for all realizations at once; this setup sometimes gives <0
+        # b02inv,_,_,_=np.linalg.lstsq(clobs,cltheory)
+        # print b02inv
+        # # this minimizes ||cltheory[l] - clobs[l,r]*b02inv[r]||^2
+        # NO LONGER USING; NEED TO MIN EACH REALIZATION INDIVIDUALLY
 
+        def b0fit_residuals_onereal(b0inv,cltheory,clobs):
+            b02inv=b0inv*b0inv
+            ymeas=clobs*b02inv
+            err=cltheory - ymeas
+            return err
+        b0inv=np.ones(Nreal)
+        for r in xrange(Nreal):
+            b0inv[r],_=leastsq(b0fit_residuals_onereal,1., args=(cltheory,clobs[:,r]))
+        b0[:,i]=1./np.fabs(b0inv)#np.sqrt(b0inv)
+        #print b0[:,i]
+        showtestplot=False
+        if showtestplot:
+            plt.figure(0)
+            col=['#a6cee3','#1f78b4','#b2df8a','#33a02c','#fb9a99','#e31a1c','#fdbf6f','#ff7f00','#cab2d6','#6a3d9a','#ffff99','#b15928']
+            for r in xrange(Nreal):
+                plt.plot(cltheory,clobs[:,r],linestyle='none',marker='x',color=col[r%len(col)])
+                plt.plot(cltheory,cltheory*(b0[r,i]**2),color=col[r%len(col)])
+                plt.xscale('log')
+                plt.yscale('log')
+                plt.show()
+        
     #scaling according to bias will make Dl and Dinv depend on realization
     print "Scaling by best-fit constant bias. Looping through realizations..."
     Dlr=np.zeros((Nreal,Nell,NLSS+1,NLSS+1))
@@ -956,8 +979,12 @@ def read_rhodat_wfile(filename):
     #can also be used for s data 
     print 'reading',filename
     dat=np.loadtxt(filename,skiprows=6)
-    rlzns=dat[:,0]
-    rho=dat[:,1]
+    if len(dat.shape)>1: #more than one realization
+        rlzns=dat[:,0]
+        rho=dat[:,1]
+    else:
+        rlzns=np.array([dat[0]])
+        rho=np.array([dat[1]])
     return rho
 
 def read_relldat_wfile(filename):
@@ -1222,9 +1249,10 @@ def plot_Tin_Trec(iswmapfiles,recmapfiles,reclabels,plotdir='output/',plotname='
         misw=hp.read_map(f)*1.e5
         iswmaps.append(misw)
     rhovals=[rho_onereal(iswmaps[n],recmaps[n]) for n in xrange(Nmap)]
-    plt.figure(1,figsize=(10,8))
+    plt.figure(1)#,figsize=(10,8))
+    plt.subplots_adjust(left=0.15, bottom=.17, right=.95, top=.95, wspace=0, hspace=0)
     if dotitle:
-        plt.title('Pixel-by-pixel scatterplot',fontsize=20)
+        plt.title('Pixel-by-pixel scatterplot',fontsize=18)
     plt.rcParams['axes.linewidth'] =2
     ax=plt.subplot()
     plt.xlabel(r'$\rm{T}^{\rm ISW}_{\rm input}$  $(10^{-5}\rm{K})$',fontsize=20)
@@ -1236,8 +1264,8 @@ def plot_Tin_Trec(iswmapfiles,recmapfiles,reclabels,plotdir='output/',plotname='
     ax.set_aspect('equal')#make it square
     
     xmax=np.max(np.fabs(iswmaps))
-    plt.xlim(-1.0*xmax,1.8*xmax) 
-    plt.ylim(-1.2*xmax,1.2*xmax)
+    plt.xlim(-1.1*xmax,1.5*xmax) 
+    plt.ylim(-1.1*xmax,1.1*xmax)
     for i in xrange(len(recmaps)):
         rhoi=rhovals[i]
         coli=colors[i]
@@ -1245,18 +1273,18 @@ def plot_Tin_Trec(iswmapfiles,recmapfiles,reclabels,plotdir='output/',plotname='
         mrec=recmaps[i]
         misw=iswmaps[i]
         plt.plot(misw,mrec,linestyle='None',marker='o',alpha=1,label=labeli,markersize=4.,color=coli,markeredgecolor='None')#markerfacecolor='None',markeredgecolor=coli
-    plt.plot(10*np.array([-xmax,xmax]),10*np.array([-xmax,xmax]),linestyle='--',linewidth=4.,color='grey')
+    plt.plot(10*np.array([-xmax,xmax]),10*np.array([-xmax,xmax]),linestyle='--',linewidth=4.,color='black')
 
     # try doing text boxes instead of legends?
     startboxes=.7
     totlines=3*len(recmaps)
-    fperline=1/20. #estimate by eye
+    fperline=1/15. #estimate by eye
     startheight=startboxes
     for i in range(Nmap)[::-1]:
         li=reclabels[i]+'\n$\\rho={0:0.3f}$'.format(rhovals[i])
         Nline=li.count('\n')+1#.5
         leftside=.975#.69
-        textbox=ax.text(leftside, startheight, li, transform=ax.transAxes, fontsize=15,verticalalignment='top', ha='right',multialignment      = 'left',bbox={'boxstyle':'round,pad=.3','alpha':1.,'facecolor':'none','edgecolor':colors[i],'linewidth':4})
+        textbox=ax.text(leftside, startheight, li, transform=ax.transAxes, fontsize=18,verticalalignment='top', ha='right',multialignment      = 'left',bbox={'boxstyle':'round,pad=.3','alpha':1.,'facecolor':'none','edgecolor':colors[i],'linewidth':4})
         startheight-=Nline*fperline+.03
     
     #plt.show()
