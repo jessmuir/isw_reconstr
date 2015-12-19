@@ -235,9 +235,9 @@ def depthtest_rho_tests(z0vals=np.array([0.7])):
     plt.show()
 
 #do Tisw-Trec scatter plot for a given realization r
-def depthtest_TTscatter(r=0, z0vals=np.array([0.3,0.6,0.7,0.8]),savepngmaps=True):
+def depthtest_TTscatter(r=0, z0vals=np.array([0.3,0.6,0.7,0.8]),savepngmaps=True,colors=['#1b9e77','#d95f02','#7570b3','#e7298a','#66a61e','#e6ab02']):
     plotdir='output/depthtest/plots/'
-    colors=['#1b9e77','#d95f02','#7570b3','#e7298a','#66a61e','#e6ab02']
+    #colors=['#1b9e77','#d95f02','#7570b3','#e7298a','#66a61e','#e6ab02']
     Nrec=z0vals.size
     #get map names and read in maps
     recmapfiles=[]
@@ -1018,6 +1018,7 @@ def caltest_apply_caliberrors(varlist,Nreal=0,shape='g',width=10.,lmin=0,lmax=30
     #apply calibration errors
     for v in varlist:
         scaling=np.sqrt(v/refvar)
+        print 'scaling=',scaling
         newcaltag=getmodtag_fixedvar(v,shape,lmin,lmax)
         print 'Applying calibration errors, newcaltag',newcaltag
         outglmdatlist.append(apply_caliberror_to_manymaps(glmdat,dothesemods,Nreal=Nreal,calmap_scaling=scaling,newmodtags=[newcaltag])) #returns dummyglmdat
@@ -1839,7 +1840,7 @@ def bztest_get_binmaps(b2vals=np.array([0.,.01,.1,.5]),fid=0,z0=0.7,includeisw=T
         surveys.append(get_Euclidlike_SurveyType(z0=z0,onebin=True,tag=maptags[-1],b2=fid) )
     bins=[s.binmaps[0] for s in surveys] #surveys all just have one bin
     if includeisw:
-        iswmaptype=get_fullISW_MapType(zmax=10)
+        iswmaptype=get_fullISW_MapType(zmax=15)
         iswbins=iswmaptype.binmaps
         bins=iswbins+bins
     return bins
@@ -2052,6 +2053,75 @@ def bztest_Clcomp(b2vals=np.array([0.,.01,.1,.5,1.,2.,5.,10.])):
     plt.close()
     
 #================================================================
+# catztest - test how knowledge of fractin of catastrophic photo-z errors
+#             impact recosntruction
+#================================================================
+def catz_get_maptypes(badfracs=np.array([1.e-3,1.e-2,.1]),Nbins=3,z0=.7,sigz=.05,includeISW=True):
+    maintag='euc{0:d}bincatz'.format(Nbins)
+    zedges=bintest_get_finest_zedges(finestN=Nbins,z0=z0)
+    maptypes=[]
+    if includeISW:
+        iswmaptype=get_fullISW_MapType(zmax=15)
+        maptypes.append(iswmaptype)
+    for x in badfracs:
+        tag=maintag+'{0:.0e}'.format(x)
+        eucmapx=get_Euclidlike_SurveyType(sigz=sigz,z0=z0,tag=tag,zedges=zedges,b0=1.,b2=0,fracbadz=x)
+        maptypes.append(eucmapx)
+    return maptypes
+
+def catz_get_binmaps(badfracs=np.array([1.e-3,1.e-2,.1]),Nbins=3,z0=.7,sigz=.05,includeISW=True):
+    maptypes=catz_get_maptypes(badfracs,Nbins,z0,sigz,includeISW)
+    binmaps,bintags=get_binmaplist(maptypes)
+    return binmaps
+
+def catz_get_Cl(badfracs=np.array([1.e-3,1.e-2,.1]),Nbins=3,z0=.7,sigz=.05,justread=True):
+    maptypes=catz_get_maptypes(badfracs,Nbins,z0,sigz,includeISW=True)
+    binmaps,bintags=get_binmaplist(maptypes)
+    pairs=[]
+    for mt in maptypes:
+        if mt.isGal:
+            pairs.append(mt.tag,'isw')
+    zmax=max(m.zmax for m in binmaps)
+    rundat = ClRunData(tag='catztest',rundir='output/zdisttest/',lmax=95,zmax=zmax,iswilktag='fidisw',noilktag=True)
+    return getCl(binmaps,rundat,dopairs=pairs,DoNotOverwrite=justread)
+
+
+#--------------------------------------------------------------------    
+def catz_windowtest(): #check that my modeling of catastrophic photo-zs works
+    badfracs=np.array([.5,.1,.01,.001])
+    maptypes=catz_get_maptypes(badfracs=badfracs,includeISW=False)
+    plotdir='output/zdisttest/plots/'
+    Nfrac=len(badfracs)
+    zmax=3.
+    nperz=100
+    zgrid=np.arange(nperz*zmax)/float(nperz)
+    colors=['#1b9e77','#d95f02','#7570b3','#e7298a','#66a61e','#e6ab02']
+    for i in xrange(Nfrac):
+        plt.figure(i)
+        plt.rcParams['axes.linewidth'] =2
+        ax=plt.subplot()
+        ax.set_yticklabels([])
+        plt.title(r'Cat. z frac {0:.0e}: z distributions'.format(badfracs[i]))
+        plt.xlabel('Redshift z',fontsize=20)
+        plt.ylabel('Source distribution (arbitrary units)',fontsize=20)
+        #plt.ylim(0,.7)
+        plt.xlim(0,zmax)
+        ax.tick_params(axis='x', labelsize=18)
+        bins=maptypes[i].binmaps
+        Nbins=len(bins)
+        for n in xrange(Nbins):
+            m=bins[n]
+            #wgrid=m.window(zgrid)*m.nbar/1.e9 #unnorm
+            wgrid=m.window(zgrid)/1.e9 #normalized
+            colstr=colors[n%len(colors)]
+            plt.plot(zgrid,wgrid,color=colstr,linestyle='-',linewidth=2)
+        plotname='catztest_zbins_catz{0:.0e}'.format(badfracs[i])
+        outname=plotdir+plotname+'.png'
+        print 'saving',outname
+        plt.savefig(outname)
+        plt.close()
+    
+#================================================================
 # lmintest - vary lmin used for reconstruction to study fsky effects
 #================================================================
 
@@ -2059,8 +2129,8 @@ def bztest_Clcomp(b2vals=np.array([0.,.01,.1,.5,1.,2.,5.,10.])):
 #################################################################
 if __name__=="__main__":
     #plot_isw_kernel()
-    #depthtestz0=np.array([.3,.5,.6,.7,.8])
-    depthtestz0=np.array([.5])
+    depthtestz0=np.array([.3,.5,.6,.7,.8])
+    #depthtestz0=np.array([.5])
     if 0: #compute Cl
         t0=time.time()
         depthtest_get_Cl(justread=False,z0vals=depthtestz0)
@@ -2071,7 +2141,8 @@ if __name__=="__main__":
         Nreal=10000
         depthtest_get_glm_and_rec(Nreal=Nreal,z0vals=depthtestz0,justgetrho=nomaps,minreal=0,dorho=1,dos=True,dochisq=False,dorell=0,dochisqell=False)
     if 0: #plot info about depthtest maps
-        #depthtest_TTscatter(0,depthtestz0,False)
+        depthtest_TTscatter(0,depthtestz0,savepngmaps=False)
+        #depthtest_TTscatter(0,np.array([.3,.6,.8]),colors=['#1b9e77','#7570b3','#66a61e'],savepngmaps=False)
         #depthtest_plot_zwindowfuncs(depthtestz0)
         depthtest_plot_rhohist(depthtestz0,varname='rho')
         depthtest_plot_rhohist(depthtestz0,varname='s')
@@ -2123,13 +2194,14 @@ if __name__=="__main__":
         varlist=list(caltest_get_logspaced_varlist(minvar=1.e-8,maxvar=.1,Nperlog=10))    
         caltest_Clcomp(varlist)
         
-    if 0: #caltest, rho for many realizations
-        shortvarlist=[1.e-7,1.e-2]
+    if 1: #caltest, rho for many realizations
+        shortvarlist=[1.e-7,1.e-6,1.e-5,1.e-4,1.e-3,1.e-2]
         nomaps=False
         #caltest_get_scaleinfo(shortvarlist,scaletovar=False)
         Nreal=10000
         #caltest_apply_caliberrors(Nreal=Nreal,varlist=shortvarlist,overwritecalibmap=False,scaletovar=1.e-3)
-        caltest_iswrec(Nreal=Nreal,varlist=shortvarlist)
+        #domaps= do we redo reconstructions?
+        caltest_iswrec(Nreal=Nreal,varlist=shortvarlist,scaletovar=1.e-3,domaps=False)
 
     
     if 0: #scatter plots for calib test
@@ -2138,7 +2210,7 @@ if __name__=="__main__":
             pass
         #caltest_TTscatter(4,savepngmaps=True)'
 
-    if 1: #z0test theory calcs
+    if 0: #z0test theory calcs
         simz0=np.array([.35,.56,.63,.693,.7,.707,.7700,.84,1.05])
         perrors=[1,10,20,50]
         z0test_get_rhoexp(overwrite=True,doplot=True,varname='rho',perrors=perrors)
@@ -2150,3 +2222,8 @@ if __name__=="__main__":
         #bztest_get_rhoexp(simb2,recb2,overwrite=True,doplot=True,varname='chisq')
         #z0test_Clcomp()
         #bztest_Clcomp()
+
+        
+    if 0: #catztest theory calcs
+        badfracs=np.array([1.e-3,1.e-2,.1,.2])
+        #catz_windowtest()

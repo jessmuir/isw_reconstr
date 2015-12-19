@@ -49,7 +49,7 @@ def get_DESlike_SurveyType(sigz,tag=''):
     longtag='DES-like survey w bias=1'
     return SurveyType(tag,zedges,sigz,nbar,dndz,bias,longtag,addnoise=False)
 
-def get_Euclidlike_SurveyType(sigz=0.05,z0=0.7,nbar=3.5e8,onebin=False,tag='',zedges=np.array([]),b0=1.,b2=0):
+def get_Euclidlike_SurveyType(sigz=0.05,z0=0.7,nbar=3.5e8,onebin=False,tag='',zedges=np.array([]),b0=1.,b2=0,fracbadz=0.):
     if not tag:
         tag='euc_z0{0:0.2f}sz{1:0.3f}'.format(z0,sigz)
     bias=quadbias
@@ -63,14 +63,14 @@ def get_Euclidlike_SurveyType(sigz=0.05,z0=0.7,nbar=3.5e8,onebin=False,tag='',ze
             zedges=np.array([.01,5*z0])
         else:
             zedges=np.array([.01,.4,.8,1.2,1.6,2.,5*z0])
-    return SurveyType(tag,zedges,sigz,nbar,dndz,bias,dndzargs,biasargs,longtag,addnoise=False)
+    return SurveyType(tag,zedges,sigz,nbar,dndz,bias,dndzargs,biasargs,longtag,addnoise=False,fracbadz=fracbadz)
     
     
 
 #===============================================================
 # This will return a mapType object for the full ISW effect
 #===============================================================
-def get_fullISW_MapType(zmax=10):
+def get_fullISW_MapType(zmax=15):
     tag='isw'
     zedges=[.01,zmax]
     sharpparam=.01/(zedges[-1]-zedges[0])

@@ -17,7 +17,7 @@ from run_euclidlike_analysis import *
 
 #--------------------------------
 # plot histogram of rho or s, switch between variables given by varname
-def depthtest_plot_rhohist_forpaper(z0vals=np.array([.3,.6,.7,.8])):
+def depthtest_plot_rhohist_forpaper(z0vals=np.array([.3,.5,.6,.7,.8])):
     varname='rho'
     plotdir='output/plots_forpaper/'
     rhogrid=depthtest_read_rho_wfiles(z0vals,varname)
@@ -63,10 +63,10 @@ def depthtest_plot_rhohist_forpaper(z0vals=np.array([.3,.6,.7,.8])):
 
     plt.plot(np.array([]),np.array([]),linestyle='--',color='black',label='mean from simulation')
     plt.plot(np.array([]),np.array([]),linestyle='-',color='black',label='mean from theory')
-    plt.legend(loc='upper left',frameon=False,fontsize=16)
+    plt.legend(loc='upper left',frameon=False,fontsize=14)
 
     #plot window functions as inset
-    ax=plt.axes([.21,.28,.33,.25])#lower left
+    ax=plt.axes([.18,.27,.33,.24])#lower left
     #ax=plt.axes([.2,.72,.33,.85])
     bins=depthtest_get_binmaps(z0vals,False) #just gal maps
     Nbins=len(bins)
@@ -79,11 +79,11 @@ def depthtest_plot_rhohist_forpaper(z0vals=np.array([.3,.6,.7,.8])):
     ax.xaxis.set_ticks_position('bottom')
     ax.yaxis.set_ticks_position('left')
     #plt.title(r'Depth test: redshift distributions')
-    plt.xlabel('Redshift z',fontsize=14)
+    plt.xlabel('Redshift z',fontsize=12)
     #plt.ylabel(r'arbitrary units',fontsize=14)
     plt.ylim(0,.7)
     plt.xlim(0,zmax)
-    #ax.tick_params(axis='x', labelsize=18)
+    ax.tick_params(axis='x', labelsize=12)
     for n in xrange(Nbins):
         m=bins[n]
         wgrid=m.window(zgrid)*m.nbar/1.e9
@@ -207,7 +207,7 @@ def bintest_plot_rhohist_forpaper(divstr=['6','222','111111']):
 
 #==========================================
 #do Tisw-Trec scatter plot for a given realization r
-def depthtest_TTscatter_forpaper(r=0, z0vals=np.array([0.3,0.6,0.7,0.8]),savepngmaps=False):
+def depthtest_TTscatter_forpaper(r=0, z0vals=np.array([0.3,0.5,0.6,0.7,0.8]),savepngmaps=False):
     plotdir='output/plots_forpaper/'
     colors=['#1b9e77','#d95f02','#e7298a','#7570b3','#66a61e','#e6ab02']
     Nrec=z0vals.size
@@ -266,8 +266,8 @@ def depthtest_TTscatter_forpaper(r=0, z0vals=np.array([0.3,0.6,0.7,0.8]),savepng
 
 #################################################################
 if __name__=="__main__":
-    #depthtest_plot_rhohist_forpaper(z0vals=np.array([.3,.6,.7,.8]))
+    depthtest_plot_rhohist_forpaper(z0vals=np.array([.3,.5, .6,.7,.8]))
     #bintest_plot_rhohist_forpaper()
     #depthtest_TTscatter_forpaper()
     #bintest_rhoexp_comparesigs(sigzlist=[0.001,0.03,0.05,.1],markerlist=['v','d','o','^'],plotdir='output/plots_forpaper/')
-    z0test_get_rhoexp(simz0=np.array([]),recz0=np.array([]),perrors=np.array([1,10,20,30,50]),fidz0=.7,doplot=True,varname='rho',plotdir='output/plots_forpaper/')
+    #z0test_get_rhoexp(simz0=np.array([]),recz0=np.array([]),perrors=np.array([1,10,20,30,50]),fidz0=.7,doplot=True,varname='rho',plotdir='output/plots_forpaper/')

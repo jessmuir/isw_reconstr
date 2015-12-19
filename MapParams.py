@@ -102,7 +102,7 @@ def flatdndz(z):
 class SurveyType(MapType):
     # note that dndzargs, biasargs are any argus those fns have other than z
     #   z must be the first argumetn, other should be in order
-    def __init__(self,idtag,zedges,sigz0=.01,nbar=1.e9,dndz=flatdndz,bias=nobias,dndzargs=[],biasargs=[],longtag='',epsilon=1.e-10,sharpness=.01,addnoise=False,sigcut=5.,sigatzmin=False,sigatzmax=False):
+    def __init__(self,idtag,zedges,sigz0=.01,nbar=1.e9,dndz=flatdndz,bias=nobias,dndzargs=[],biasargs=[],longtag='',epsilon=1.e-10,sharpness=.01,addnoise=False,sigcut=5.,sigatzmin=False,sigatzmax=False,fracbadz=0.,badzminz=0.01,badzmaxz=2.5):
         isISW=False
         isGal=True
         MapType.__init__(self,idtag,zedges,isISW,isGal,longtag,epsilon=epsilon,sharpness=sharpness)
@@ -116,6 +116,10 @@ class SurveyType(MapType):
         self.sigcut=sigcut #how many sig(z) past edge of bin to keep?
         self.sigatzmin=sigatzmin #do we smooth dndz at zmax?
         self.sigatzmax=sigatzmax #do we smooth dndz at zmax?
+        self.fracbadz = fracbadz #fraction of galaxies with catastrophic photo-z
+                                 # i.e. fraction whose redshifts get randomized
+        self.badzmaxz = badzmaxz #max of range over which bad z's get randomized
+        self.badzminz = badzminz #min of range over which bad z's get randomized
         self.infostr = 'Map type {0:s}: tag={1:s}, nbar={2:0.4g}, sigz0={3:0.3g}, z-bins= {4:s}, sharpness={5:f}, sigcut={6:f}, {7:s}'.format(self.typestr,self.tag,self.nbar,self.sigz0,self.zedges,self.sharpness,self.sigcut,self.longstr)
 
         #set up bin maps
@@ -141,7 +145,7 @@ class SurveyType(MapType):
             binint = quad(lambda z: self.F(n,z)*self.dndz(z,*self.dndzargs),binzmin,binzmax,epsabs=self.epsilon,epsrel=self.epsilon)[0]
             sourcefrac=binint/fullint
             binnbar = sourcefrac*nbar
-            b=SurveyBinMap(idtag=self.bintags[n],binnum=n,zmin=binzmin,zmax=binzmax,zminnom=zminnom,zmaxnom=zmaxnom,nbar=binnbar,sigz0=sigz0,dndz=self.dndz,bias=self.bias,dndzargs=self.dndzargs,biasargs=self.biasargs,maptypeinfostr=self.infostr,sharpness=self.sharpness,epsilon=self.epsilon,addnoise=addnoise)
+            b=SurveyBinMap(idtag=self.bintags[n],binnum=n,zmin=binzmin,zmax=binzmax,zminnom=zminnom,zmaxnom=zmaxnom,nbar=binnbar,sigz0=sigz0,dndz=self.dndz,bias=self.bias,dndzargs=self.dndzargs,biasargs=self.biasargs,maptypeinfostr=self.infostr,sharpness=self.sharpness,epsilon=self.epsilon,addnoise=addnoise,fracbadz=self.fracbadz,badzminz=self.badzminz,badzmaxz=self.badzmaxz)
             self.binmaps.append(b)
 
     def sigz(self,z): #assuming some form of z dependence...
@@ -203,7 +207,7 @@ class BinMap(MapWrapper):
 #        window function which combines bias with dndz, or is just 1 for ISW
 ###########################################################################
 class SurveyBinMap(BinMap):
-    def __init__(self,idtag,binnum,zmin,zmax,zminnom,zmaxnom,nbar,sigz0,dndz,bias,dndzargs=[],biasargs=[],maptypeinfostr='',sharpness=0.001,epsilon=1.e-10,addnoise=True):
+    def __init__(self,idtag,binnum,zmin,zmax,zminnom,zmaxnom,nbar,sigz0,dndz,bias,dndzargs=[],biasargs=[],maptypeinfostr='',sharpness=0.001,epsilon=1.e-10,addnoise=False,fracbadz=0.,badzminz=0.01,badzmaxz=2.5):
         isGal=True
         isISW=False
         self.dndz=dndz#copy.deepcopy(dndz)
@@ -215,14 +219,28 @@ class SurveyBinMap(BinMap):
         BinMap.__init__(self,idtag,binnum,zmin,zmax,zminnom, zmaxnom,sharpness,isISW,isGal,maptypeinfostr)
         self.infostr='{0:s}, nbar={1:0.4g}, z[min,minnom,maxnom,max]=[{2:0.3g} {3:0.3g} {4:0.3g} {5:0.3g}]; {6:s}'.format(self.tag,self.nbar,self.zmin,self.zminnom,self.zmaxnom,self.zmax,maptypeinfostr)
 
+        self.badzminz=badzminz
+        self.badzmaxz=badzmaxz            
+
+        #normalize integral of bin to one
         self.binint=1.
+        self.nobadbinint=1.
+        self.fracbadz=0
+        if fracbadz:
+            self.nobadbinint=quad(lambda z: self.F(z)*self.dndz(z,*self.dndzargs),zmin,zmax,epsabs=self.epsilon,epsrel=self.epsilon)[0] #with no catastrophic z errors
+            self.fracbadz=fracbadz
         self.binint =quad(lambda z: self.F(z)*self.dndz(z,*self.dndzargs),zmin,zmax,epsabs=self.epsilon,epsrel=self.epsilon)[0]
+        
         self.addnoise=addnoise
 
 
     def window(self,z):
         #bin n's window function is normalized F*dndz times bias
-        result= self.bias(z,*self.biasargs)*self.F(z)*self.dndz(z,*self.dndzargs)
+        x=self.fracbadz
+        good=  self.bias(z,*self.biasargs)*self.F(z)*self.dndz(z,*self.dndzargs)
+        #add catstrophic photoz as a 
+        bad = self.nobadbinint*smoothedtophat(z,self.badzminz,self.badzmaxz)
+        result= (1.-x)*good+x*bad
         return result/self.binint 
         
     def sigz(self,z): #assuming some form of z dependence...

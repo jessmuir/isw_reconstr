@@ -302,7 +302,7 @@ def calc_isw_est(cldat,glmdat,recdat,writetofile=True,getmaps=True,redofits=True
         for r in xrange(Nreal):
             clobs[:,r]=hp.alm2cl(glmgrid[r,i,:])
         b0[:,i]=fitcl_forb0_onereal(cltheory,clobs)
-        
+
         #print b0[:,i]
         showtestplot=False
         if showtestplot:
@@ -314,7 +314,7 @@ def calc_isw_est(cldat,glmdat,recdat,writetofile=True,getmaps=True,redofits=True
                 plt.xscale('log')
                 plt.yscale('log')
                 plt.show()
-        
+    print recdat.includeglm,'bias',b0
     #scaling according to bias will make Dl and Dinv depend on realization
     print "Scaling by best-fit constant bias. Looping through realizations..."
     Dlr=np.zeros((Nreal,Nell,NLSS+1,NLSS+1))
@@ -685,8 +685,8 @@ def doiswrec_formaps(dummyglm,cldat,Nreal=1,rlzns=np.array([]),reclist=[],Nglm=0
             almdat=get_dummy_recalmdat(glmdat,reclist,outruntag=glmdat.runtag)
         #for each list, get rho
         #print "   Computing and saving rho and s statistics"
-        calc_rho_forreclist(glmdat,almdat,reclist,nrlzns,rhofiletag=rhofiletag,overwrite=NEWRHOFILE) #start new file for first block, then add to it
-        calc_s_forreclist(glmdat,almdat,reclist,nrlzns,sfiletag=rhofiletag,overwrite=NEWRHOFILE) #start new file for first block, then add to it
+        calc_rho_forreclist(glmdat,almdat,reclist,nrlzns,filetag=rhofiletag,overwrite=NEWRHOFILE,varname='rho') #start new file for first block, then add to it
+        calc_rho_forreclist(glmdat,almdat,reclist,nrlzns,filetag=rhofiletag,overwrite=NEWRHOFILE,varname='s') #start new file for first block, then add to it
         if dorell: #this is slow
             print "  Computing and saving r_ell statistics."
             calc_rell_forreclist(glmdat,almdat,reclist,nrlzns,overwrite=NEWRHOFILE,filetag=rhofiletag)
@@ -1262,7 +1262,7 @@ def plot_Tin_Trec(iswmapfiles,recmapfiles,reclabels,plotdir='output/',plotname='
     ax.set_aspect('equal')#make it square
     
     xmax=np.max(np.fabs(iswmaps))
-    plt.xlim(-1.1*xmax,1.5*xmax) 
+    plt.xlim(-1.1*xmax,1.6*xmax) 
     plt.ylim(-1.1*xmax,1.1*xmax)
     for i in xrange(len(recmaps)):
         rhoi=rhovals[i]
@@ -1274,7 +1274,7 @@ def plot_Tin_Trec(iswmapfiles,recmapfiles,reclabels,plotdir='output/',plotname='
     plt.plot(10*np.array([-xmax,xmax]),10*np.array([-xmax,xmax]),linestyle='--',linewidth=4.,color='black')
 
     # try doing text boxes instead of legends?
-    startboxes=.7
+    startboxes=.8
     totlines=3*len(recmaps)
     fperline=1/15. #estimate by eye
     startheight=startboxes
@@ -1360,8 +1360,8 @@ def plothist(varstr,datagrid,reclabels,plottitle,xlabel,plotdir,plotname,predval
         if len(predvals):
             predval=predvals[i]
             plt.axvline(predval,linestyle='-',color=colstr)
-            #label=r'{0:s}: $\langle {4:s}\rangle={3:0.3f}$; $\bar{{{4:s}}}={1:0.3f}$'.format(reclabels[i],mean,sigma,predval,varstr)
-            label=r'{0:s}'.format(reclabels[i])
+            label=r'{0:s}: $\langle {4:s}\rangle={3:0.3f}$; $\bar{{{4:s}}}={1:0.3f}$'.format(reclabels[i],mean,sigma,predval,varstr)
+            #label=r'{0:s}'.format(reclabels[i])
             # if varstr==r'\rho':
 
             # elif varstr=='s':
