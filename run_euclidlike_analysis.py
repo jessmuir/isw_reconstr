@@ -552,7 +552,7 @@ def bintest_get_rhoexp(finestN=6,z0=0.7,sigz=0.05,overwrite=False,doplot=True,ge
     return divstr,rhoarray
 
 #if we've computed Cl stuff for multiple values of sigz0, compare them
-def bintest_rhoexp_comparesigs(finestN=6,z0=0.7,sigzlist=[0.03,0.05],checkautoonly=True,varname='rho',plotdir='output/eucbintest/plots/',markerlist=[],colorlist=[]):
+def bintest_rhoexp_comparesigs(finestN=6,z0=0.7,sigzlist=[0.03,0.05],checkautoonly=False,varname='rho',plotdir='output/eucbintest/plots/',markerlist=[],colorlist=[]):
     rholist=[]
     for s in sigzlist:
         divstr,rho=bintest_get_rhoexp(finestN,z0,s,overwrite=False,doplot=False,varname=varname)
@@ -2153,39 +2153,39 @@ if __name__=="__main__":
 
     if 0: #bin test rho expectation value calculations
         #compute cl
-        cldat05=bintest_get_Clvals(finestN=6,z0=0.7,sigz=0.05,justread=0)
-        cldat03=bintest_get_Clvals(finestN=6,z0=0.7,sigz=0.03,justread=0)
-        cldat001=bintest_get_Clvals(finestN=6,z0=0.7,sigz=0.001,justread=0)
-        cldat100=bintest_get_Clvals(finestN=6,z0=0.7,sigz=0.1,justread=0)
+        #cldat05=bintest_get_Clvals(finestN=6,z0=0.7,sigz=0.05,justread=0)
+        #cldat03=bintest_get_Clvals(finestN=6,z0=0.7,sigz=0.03,justread=0)
+        #cldat001=bintest_get_Clvals(finestN=6,z0=0.7,sigz=0.001,justread=0)
+        #cldat100=bintest_get_Clvals(finestN=6,z0=0.7,sigz=0.1,justread=0)
         
         #compute and save expectation values for rho[0.001,0.03,0.05,0.1]
-        bintest_rhoexp_comparesigs(finestN=6,z0=0.7,sigzlist=[0.001,0.03,0.05],checkautoonly=0)
-        bintest_rhoexp_comparesigs(finestN=6,z0=0.7,sigzlist=[0.001,0.03,0.05],checkautoonly=0,varname='s')
-        bintest_rhoexp_comparesigs(finestN=6,z0=0.7,sigzlist=[0.001,0.03,0.05],checkautoonly=0,varname='chisq')
+        bintest_rhoexp_comparesigs(finestN=6,z0=0.7,sigzlist=[0.001,0.03,0.05,.1])
+        bintest_rhoexp_comparesigs(finestN=6,z0=0.7,sigzlist=[0.001,0.03,0.05,.1],varname='s')
+        #bintest_rhoexp_comparesigs(finestN=6,z0=0.7,sigzlist=[0.001,0.03,0.05],checkautoonly=0,varname='chisq')
 
         for s in [0.001,0.03,0.05,0.1]:
             #bintest_plot_cl_vals(finestN=6,z0=0.7,sigz=s)
-            #bintest_plot_zwindowfuncs(sigz=s)
+            bintest_plot_zwindowfuncs(sigz=s)
             pass
         
     if 0: #bin test with many realizations, generate maps
-        nomaps=True
-        bintest_get_glm_and_rec(Nreal=10000,divlist=['6','222','111111'],minreal=0,justgetrho=nomaps,dorell=1)
+        nomaps=False
+        bintest_get_glm_and_rec(Nreal=10000,divlist=['6','222','111111'],minreal=0,justgetrho=nomaps,dorell=0)
     if 0: #bin test with many realizations, make plots
         bintest_plot_rhohist(getrhopred=True,varname='rho')
         bintest_plot_rhohist(getrhopred=True,varname='s')
-        bintest_plot_rhohist(getrhopred=True,varname='chisq')
-        bintest_plot_relldat()
+        #bintest_plot_rhohist(getrhopred=True,varname='chisq')
+        #bintest_plot_relldat()
 
     #shortvarlist=[1.e-6,1.e-5,1.e-4,1.e-3] #for testing datapoints
     #
     #caltest_iswrec(Nreal=10000,varlist=[1.e-3],domaps=False)
-    if 0: #cal test, rho expectation value calcs
+    if 1: #cal test, rho expectation value calcs
         shortvarlist=[1.e-7,1.e-6,1.e-5,1.e-4,1.e-3,1.e-2]
         #shortvarlist=[1.e-6,1.e-5,1.e-4,1.e-3]
         varlist=list(caltest_get_logspaced_varlist(minvar=1.e-8,maxvar=.1,Nperlog=10))    
-        #caltest_get_rhoexp(varlist,overwrite=1,doplot=1,saverho=1,varname='rho')
-        #caltest_get_rhoexp(varlist,overwrite=1,doplot=1,saverho=1,varname='s')
+        caltest_get_rhoexp(varlist,overwrite=1,doplot=1,saverho=1,varname='rho')
+        caltest_get_rhoexp(varlist,overwrite=1,doplot=1,saverho=1,varname='s')
         #caltest_compare_clcal_shapes(varlist,shapelist=['g','l2'],varname='rho',lmaxlist=[],lminlist=[],widthlist=[],dodataplot=True)
         caltest_compare_clcal_shapes(varlist,shapelist=['g','l2'],varname='rho',shortvarlist=shortvarlist)
         caltest_compare_clcal_shapes(varlist,shapelist=['g','l2'],varname='s',shortvarlist=shortvarlist)
@@ -2194,7 +2194,7 @@ if __name__=="__main__":
         varlist=list(caltest_get_logspaced_varlist(minvar=1.e-8,maxvar=.1,Nperlog=10))    
         caltest_Clcomp(varlist)
         
-    if 1: #caltest, rho for many realizations
+    if 0: #caltest, rho for many realizations
         shortvarlist=[1.e-7,1.e-6,1.e-5,1.e-4,1.e-3,1.e-2]
         nomaps=False
         #caltest_get_scaleinfo(shortvarlist,scaletovar=False)
@@ -2204,7 +2204,7 @@ if __name__=="__main__":
         caltest_iswrec(Nreal=Nreal,varlist=shortvarlist,scaletovar=1.e-3,domaps=False)
 
     
-    if 0: #scatter plots for calib test
+    if 1: #scatter plots for calib test
         for r in xrange(5):
             caltest_TTscatter(r)
             pass
