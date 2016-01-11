@@ -2082,14 +2082,14 @@ def catz_get_Cl(badfracs=np.array([1.e-3,1.e-2,.1]),Nbins=3,z0=.7,sigz=.05,justr
         if mt.isGal:
             pairs.append(mt.tag,'isw')
     zmax=max(m.zmax for m in binmaps)
-    rundat = ClRunData(tag='catztest',rundir='output/zdisttest/',lmax=95,zmax=zmax,iswilktag='fidisw',noilktag=True)
+    rundat = ClRunData(tag='catztest_{0:d}bins'.format(Nbins),rundir='output/zdisttest/',lmax=95,zmax=zmax,iswilktag='fidisw',noilktag=True)
     return getCl(binmaps,rundat,dopairs=pairs,DoNotOverwrite=justread)
 
 
 #--------------------------------------------------------------------    
-def catz_windowtest(): #check that my modeling of catastrophic photo-zs works
+def catz_windowtest(Nbins=3): #check that my modeling of catastrophic photo-zs works
     badfracs=np.array([.5,.1,.01,.001])
-    maptypes=catz_get_maptypes(badfracs=badfracs,includeISW=False)
+    maptypes=catz_get_maptypes(badfracs=badfracs,Nbins=Nbins,includeISW=False)
     plotdir='output/zdisttest/plots/'
     Nfrac=len(badfracs)
     zmax=3.
@@ -2115,7 +2115,7 @@ def catz_windowtest(): #check that my modeling of catastrophic photo-zs works
             wgrid=m.window(zgrid)/1.e9 #normalized
             colstr=colors[n%len(colors)]
             plt.plot(zgrid,wgrid,color=colstr,linestyle='-',linewidth=2)
-        plotname='catztest_zbins_catz{0:.0e}'.format(badfracs[i])
+        plotname='catztest_{0:d}zbins_catz{1:.0e}'.format(Nbins,badfracs[i])
         outname=plotdir+plotname+'.png'
         print 'saving',outname
         plt.savefig(outname)
@@ -2180,7 +2180,7 @@ if __name__=="__main__":
     #shortvarlist=[1.e-6,1.e-5,1.e-4,1.e-3] #for testing datapoints
     #
     #caltest_iswrec(Nreal=10000,varlist=[1.e-3],domaps=False)
-    if 1: #cal test, rho expectation value calcs
+    if 0: #cal test, rho expectation value calcs
         shortvarlist=[1.e-7,1.e-6,1.e-5,1.e-4,1.e-3,1.e-2]
         #shortvarlist=[1.e-6,1.e-5,1.e-4,1.e-3]
         varlist=list(caltest_get_logspaced_varlist(minvar=1.e-8,maxvar=.1,Nperlog=10))    
@@ -2204,7 +2204,7 @@ if __name__=="__main__":
         caltest_iswrec(Nreal=Nreal,varlist=shortvarlist,scaletovar=1.e-3,domaps=False)
 
     
-    if 1: #scatter plots for calib test
+    if 0: #scatter plots for calib test
         for r in xrange(5):
             caltest_TTscatter(r)
             pass
@@ -2224,6 +2224,7 @@ if __name__=="__main__":
         #bztest_Clcomp()
 
         
-    if 0: #catztest theory calcs
+    if 1: #catztest theory calcs
         badfracs=np.array([1.e-3,1.e-2,.1,.2])
-        #catz_windowtest()
+        for Nbins in [1,3]:
+            catz_windowtest(Nbins=Nbins)
