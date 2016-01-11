@@ -311,10 +311,11 @@ def depthtest_TTscatter(r=0, z0vals=np.array([0.3,0.6,0.7,0.8]),savepngmaps=True
 def bintest_get_finest_zedges(finestN=6,z0=0.7):
     zedges=np.zeros(finestN+1)
     zedges[-1]=5.*z0
-    zedges[-2]=2.
-    dz=2./(finestN-1)
-    for n in xrange(finestN-1):
-        zedges[n]=dz*n
+    if finestN>1:
+        zedges[-2]=2.
+        dz=2./(finestN-1)
+        for n in xrange(finestN-1):
+            zedges[n]=dz*n
     zedges[0]=.01 #don't go down all the way to zero
     return zedges
 #-----
@@ -1923,14 +1924,13 @@ def bztest_get_rhoexp(simb2=np.array([0.,.01,.1,.5]),recb2=np.array([0.,.01,.1,.
         
     return rhoarray
 
-def bztest_rhoexpplot(simb2,recb2,rhogrid,varname='rho',outtag='',outname='',legtitle='',colorlist=[]):
+def bztest_rhoexpplot(simb2,recb2,rhogrid,varname='rho',outtag='',outname='',legtitle='',colorlist=[],plotdir='output/zdisttest/plots/'):
     scattercolors=['#e41a1c','#377eb8','#4daf4a','#984ea3','#ff7f00','#ffff33','#a65628','#f781bf']
     if not colorlist:
         colorlist=scattercolors
     
     Nsim=simb2.size
     Nrec=recb2.size
-    plotdir='output/zdisttest/plots/'
     if outtag:
         outtag='_'+outtag
     if not outname:
@@ -2080,15 +2080,92 @@ def catz_get_Cl(badfracs=np.array([1.e-3,1.e-2,.1]),Nbins=3,z0=.7,sigz=.05,justr
     pairs=[]
     for mt in maptypes:
         if mt.isGal:
-            pairs.append(mt.tag,'isw')
+            pairs.append((mt.tag,'isw'))
     zmax=max(m.zmax for m in binmaps)
     rundat = ClRunData(tag='catztest_{0:d}bins'.format(Nbins),rundir='output/zdisttest/',lmax=95,zmax=zmax,iswilktag='fidisw',noilktag=True)
     return getCl(binmaps,rundat,dopairs=pairs,DoNotOverwrite=justread)
+#------------------------------------------------
+def catz_get_recgrid(simfracs,recfracs,Nbins=3,z0=.7,sigz=.05):
+    maintag='euc{0:d}bincatz'.format(Nbins)
+    simtypetags=[maintag+'{0:.0e}'.format(x) for x in simfracs]
+    rectypetags=[maintag+'{0:.0e}'.format(x) for x in recfracs]
+    recgrid=[]
+    Nsim=simfracs.size
+    Nrec=recfracs.size
+    for ns in xrange(Nsim):
+        reclist=[]
+        for nr in xrange(Nrec):
+            #print 'SIM: '+simmaptags[ns]+'_bin0  REC: '+recmaptags[nr]+'_bin0'
+            inglm=[simtypetags[ns]+'_bin{0:d}'.format(i) for i in xrange(Nbins)]
+            incl=[simtypetags[nr]+'_bin{0:d}'.format(i) for i in xrange(Nbins)]
+            #print 'inglm',inglm
+            #print 'incl',incl
+            recdat=RecData(includeglm=inglm,includecl=incl,inmaptag=simtypetags[ns],rectag=rectypetags[nr])
+            #print 'recdat.Nmap',recdat.Nmap
+            reclist.append(recdat)
+        recgrid.append(reclist)
+    return recgrid
+#------------------------------------------------
+def catz_rhoexpplot(simfracs,recfracs,rhogrid,varname='rho',Nbins=3,outtag='',outname='',legtitle='',colorlist=[],plotdir='output/zdisttest/plots/'):
+    scattercolors=['#e41a1c','#377eb8','#4daf4a','#984ea3','#ff7f00','#ffff33','#a65628','#f781bf']
+    if not colorlist:
+        colorlist=scattercolors
+    
+    Nsim=simfracs.size
+    Nrec=recfracs.size
+    if outtag:
+        outtag='_'+outtag
+    if not outname:
+        outname='catztest{0:d}bins_'.format(Nbins)+varname+'_exp'+outtag+'.png'
 
+    fig=plt.figure(0)
+    plt.suptitle(r'Effect of incorrectly modeled catastrophic photo-$z$ error fraction')
+
+    ax1=plt.subplot(1,1,1)
+    ax1.grid(True)
+    if varname=='rho':
+        ax1.set_ylabel(r'$\langle \rho \rangle/\langle \rho \rangle_{{\rm best}} -1$')
+        ax1.set_yscale('symlog',linthreshy=1.e-7)
+        ax1.set_ylim((-1.,1.e-8))
+    elif varname=='s':
+        ax1.set_ylim((.5,10.))
+        ax1.set_ylabel(r'$\langle s \rangle/\langle s \rangle_{{\rm best}} $')
+    elif varname=='chisq':
+        ax1.set_ylim((.5,50.))
+        ax1.set_ylabel(r'$\langle \chi^2 \rangle/\langle \chi^2 \rangle_{{\rm best}} $')
+    ax1.set_xlabel(r"$f_{{\rm cat}z}$ used for ISW reconstruction")
+    xvals=np.arange(Nrec)
+    ax1.set_xlim((-.5,Nrec-.5))
+    plt.xticks(xvals,recfracs)
+    for i in xrange(Nsim):
+        if varname=='rho':
+            maxrho=max(rhogrid[i,:])
+            varstr=r'\rho'
+            ax1.plot(xvals,rhogrid[i,:]/maxrho -1 ,label=r'{0:0.3f}; $\langle {2:s}\rangle_{{\rm best}}=${1:0.3f}'.format(simfracs[i],maxrho,varstr),color=colorlist[i%len(colorlist)],marker='d')
+        elif varname=='s':
+            maxrho=min(rhogrid[i,:])#best value for s is smallest
+            varstr='s'
+            ax1.plot(xvals,rhogrid[i,:]/maxrho,label=r'{0:0.3f}; $\langle {2:s}\rangle_{{\rm best}}=${1:0.3f}'.format(simfracs[i],maxrho,varstr),color=colorlist[i%len(colorlist)],marker='d')
+        elif varname=='chisq':
+            maxrho=min(rhogrid[i,:])#best value for s is smallest
+            varstr=r'\chi^2'
+            ax1.plot(xvals,rhogrid[i,:]/maxrho,label=r'{0:0.3f}; $\langle {2:s}\rangle_{{\rm best}}=${1:0.3f}'.format(simfracs[i],maxrho,varstr),color=colorlist[i%len(colorlist)],marker='d')
+
+
+    if not legtitle:
+        legtitle=r'$f_{{\rm cat}z}$ used for simulations'
+    if varname=='rho':
+        plt.legend(title=legtitle,loc='lower center')
+    elif varname=='s':
+        plt.legend(title=legtitle,loc='upper left')
+    elif varname=='chisq':
+        plt.legend(title=legtitle,loc='upper right')
+    print 'Saving plot to ',plotdir+outname
+    plt.savefig(plotdir+outname)
+    plt.close()
 
 #--------------------------------------------------------------------    
-def catz_windowtest(Nbins=3): #check that my modeling of catastrophic photo-zs works
-    badfracs=np.array([.5,.1,.01,.001])
+def catz_windowtest(badfracs,Nbins=3): #check that my modeling of catastrophic photo-zs works
     maptypes=catz_get_maptypes(badfracs=badfracs,Nbins=Nbins,includeISW=False)
     plotdir='output/zdisttest/plots/'
     Nfrac=len(badfracs)
@@ -2115,12 +2192,63 @@ def catz_windowtest(Nbins=3): #check that my modeling of catastrophic photo-zs w
             wgrid=m.window(zgrid)/1.e9 #normalized
             colstr=colors[n%len(colors)]
             plt.plot(zgrid,wgrid,color=colstr,linestyle='-',linewidth=2)
-        plotname='catztest_{0:d}zbins_catz{1:.0e}'.format(Nbins,badfracs[i])
+        plotname='catztestwindow_{1:d}bins_catz{0:.0e}'.format(badfracs[i],Nbins)
         outname=plotdir+plotname+'.png'
         print 'saving',outname
         plt.savefig(outname)
         plt.close()
+#--------------------------------------------------------------------     
+def catz_get_rhoexp(simfracs=np.array([]),recfracs=np.array([]),badfracs=np.array([1.e-3,1.e-2,.1]),Nbins=3,z0=.7,sigz=.05,overwrite=False,saverho=True,doplot=False,varname='rho',filetag='',plotdir='output/zdisttest/plots/'):
+    if not simfracs.size:
+        simfracs=badfracs
+    if not recfracs.size:
+        recfracs=badfracs
+    if saverho:
+        outdir=plotdir
+        if filetag:
+            filetagstr='_'+filetag
+        else:
+            filetagstr=filetag
+        datfile='catztest{2:d}bin_{0:s}exp{1:s}.dat'.format(varname,filetagstr,Nbins)
+        if not overwrite and os.path.isfile(outdir+datfile):#file exists
+            print "Reading data file:",datfile
+            x=np.loadtxt(outdir+datfile)
+            insimfracs=x[1:,0] #row labels
+            inrecfracs=x[0,1:] #column labels
+            if not np.all(insimfracs==simfracs) or not np.all(inrecfracs==recfracs):
+                print "WARNING, input frac lists don't match requested."
+            else:
+                rhoarray=x[1:,1:] #rho data
+                return rhoarray
+        else:
+            print "Writing to data file:",datfile
     
+    Nsim=simfracs.size
+    Nrec=recfracs.size
+    recgrid=catz_get_recgrid(simfracs,recfracs,Nbins) #Nsim x Nrec
+    cldat=catz_get_Cl(badfracs,Nbins,z0,sigz,True) #read cl already containing all fracs's
+
+    rhoarray=np.zeros((Nsim,Nrec))
+    for ns in xrange(Nsim):
+        for nr in xrange(Nrec):
+            #print 'simfrac ',simfracs[ns],'; recfrac ',recfracs[nr]
+            rhoarray[ns,nr]=compute_rho_fromcl(cldat,recgrid[ns][nr],reccldat=cldat,varname=varname)
+
+    if saverho:
+        #write to file, 
+        f=open(outdir+datfile,'w')
+        f.write('{0:9.6f} '.format(0.)+''.join(['{0:9.2e} '.format(fr) for fr in recfracs])+'\n')
+        for ns in xrange(Nsim):
+            f.write('{0:9.2e} '.format(simfracs[ns])+''.join(['{0:9.6f} '.format(rhoarray[ns,nr]) for nr in xrange(Nrec)])+'\n')
+        f.close()
+    if doplot:
+        catz_rhoexpplot(simfracs,recfracs,rhoarray,varname,plotdir=plotdir) 
+    return rhoarray
+
+#--------------------------------------------------------------------     
+def catz_Clcomp(badfracs=np.array([1.e-3,1.e-2,.1])):
+    pass
+
 #================================================================
 # lmintest - vary lmin used for reconstruction to study fsky effects
 #================================================================
@@ -2227,4 +2355,8 @@ if __name__=="__main__":
     if 1: #catztest theory calcs
         badfracs=np.array([1.e-3,1.e-2,.1,.2])
         for Nbins in [1,3]:
-            catz_windowtest(Nbins=Nbins)
+            catz_windowtest(badfracs,Nbins=Nbins)
+            catz_get_rhoexp(overwrite=True,doplot=True,varname='rho',badfracs=badfracs,Nbins=Nbins)
+            catz_get_rhoexp(overwrite=True,doplot=True,varname='s',badfracs=badfracs,Nbins=Nbins)
+        #catz_Clcomp()
+

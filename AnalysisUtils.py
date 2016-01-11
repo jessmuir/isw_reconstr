@@ -314,7 +314,7 @@ def calc_isw_est(cldat,glmdat,recdat,writetofile=True,getmaps=True,redofits=True
                 plt.xscale('log')
                 plt.yscale('log')
                 plt.show()
-    print recdat.includeglm,'bias',b0
+    #print recdat.includeglm,'bias',b0
     #scaling according to bias will make Dl and Dinv depend on realization
     print "Scaling by best-fit constant bias. Looping through realizations..."
     Dlr=np.zeros((Nreal,Nell,NLSS+1,NLSS+1))
@@ -1014,7 +1014,6 @@ def compute_rho_fromcl(cldat,recdat,reccldat=0,varname='rho'):
     lmin=recdat.lmin
     # These are the Cl used for simulating maps (hence the recdat.includeglm)
     Dl,dtags=get_Dl_matrix(cldat,recdat.includeglm,recdat.zerotagstr)
-
     #print Dl[5,:,:]
     Dinv=invert_Dl(Dl)
     Nell=Dinv.shape[0]
@@ -1034,6 +1033,8 @@ def compute_rho_fromcl(cldat,recdat,reccldat=0,varname='rho'):
         b0=np.ones(NLSS)
         for i in xrange(NLSS):
             b0[i]=fitcl_forb0_onereal(Dl[:,i+1,i+1],recDl[:,i+1,i+1])
+            #print dtags[i+1],recdtags[i+1],'bias:',b0[i]
+            
         recDl=scale_Dl_byb0(recDl,b0)
         recDinv=invert_Dl(recDl)
         recNl=np.zeros(Nell)
