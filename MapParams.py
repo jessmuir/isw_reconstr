@@ -229,19 +229,21 @@ class SurveyBinMap(BinMap):
         if fracbadz:
             self.nobadbinint=quad(lambda z: self.F(z)*self.dndz(z,*self.dndzargs),zmin,zmax,epsabs=self.epsilon,epsrel=self.epsilon)[0] #with no catastrophic z errors
             self.fracbadz=fracbadz
-        self.binint =quad(lambda z: self.F(z)*self.dndz(z,*self.dndzargs),zmin,zmax,epsabs=self.epsilon,epsrel=self.epsilon)[0]
+        self.binint =quad(lambda z: self.dndzfull(z),zmin,zmax,epsabs=self.epsilon,epsrel=self.epsilon)[0]
         
         self.addnoise=addnoise
 
-
-    def window(self,z):
-        #bin n's window function is normalized F*dndz times bias
+    def dndzfull(self,z): #includes bin window func and bad photo-zs
         x=self.fracbadz
-        good=  self.bias(z,*self.biasargs)*self.F(z)*self.dndz(z,*self.dndzargs)
+        good=  self.F(z)*self.dndz(z,*self.dndzargs)
         #add catstrophic photoz as a 
         bad = self.nobadbinint*smoothedtophat(z,self.badzminz,self.badzmaxz)
         result= (1.-x)*good+x*bad
         return result/self.binint 
+
+    def window(self,z):
+        #bin n's window function is normalized F*dndz times bias
+        return self.dndzfull(z)*self.bias(z,*self.biasargs)
         
     def sigz(self,z): #assuming some form of z dependence...
         return self.sigz0*(1.+z)
