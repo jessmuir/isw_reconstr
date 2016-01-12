@@ -1760,9 +1760,76 @@ def z0test_get_rhoexp(simz0=np.array([]),recz0=np.array([]),perrors=np.array([1,
         
     return rhoarray
 
-def z0test_rhoexpplot(simz0,recz0,rhogrid,varname='rho',outtag='',outname='',legtitle='',colorlist=[],plotdir='output/zdisttest/plots/'):
+#make colorblock plot: useful for looking at a bunch of data at once
+def z0test_rhoexpplot(simz0,recz0,rhogrid,varname='rho',outtag='',outname='',legtitle='',colorlist=[],plotdir='output/zdisttest/plots/'): 
     zdisttest_rhoexpplot(rhogrid,simx=simz0,recx=recz0,varname='z0',statname=varname,outtag=outtag,outname=outname,plotdir=plotdir)
 
+#simz0 fixed at fidz0, varying recz0.
+def z0test_onesim_plot(fidz0=0.7,perrors=np.array([1,10,20,50]),varname='rho',colorlist=[],plotdir='output/zdisttest/plots/',outtag='onesim'):
+    simz0=np.array([fidz0])
+    recz0=z0test_getz0vals(perrors,fidz0)
+    rhogrid=z0test_get_rhoexp(simz0=simz0,recz0=recz0,overwrite=False,saverho=True,doplot=False,varname=varname,filetag=outtag)
+    
+    scattercolors=['#e41a1c','#377eb8','#4daf4a','#984ea3','#ff7f00','#ffff33','#a65628','#f781bf']
+    if not colorlist:
+        colorlist=scattercolors
+
+    Nsim=simz0.size
+    Nrec=recz0.size
+    if outtag:
+        outtag='_'+outtag
+    if not outname:
+        outname='z0test_'+varname+'_exp'+outtag+'.png'
+    #working here: have not yet edited following text
+    fig=plt.figure(0)
+    plt.suptitle('Effect of incorrectly modeled median redshift')
+    #plot a line for each simz0, data points for each recz0
+    ax1=plt.subplot(1,1,1)
+    ax1.grid(True)
+    if varname=='rho':
+        ax1.set_ylabel(r'$\langle \rho \rangle/\langle \rho \rangle_{{\rm best}} -1$')
+        ax1.set_yscale('symlog',linthreshy=1.e-7)
+        ax1.set_ylim((-1.,1.e-8))
+    elif varname=='s':
+        ax1.set_ylabel(r'$\langle s \rangle/\langle s \rangle_{{\rm best}}$')
+        #ax1.set_yscale('symlog',linthreshy=1.e-4)
+        #ax1.set_yscale('log')
+        ax1.set_ylim((.5,8.))
+    elif varname=='chisq':
+        ax1.set_ylabel(r'$\langle \chi^2 \rangle/\langle \chi^2 \rangle_{{\rm best}}$')
+        #ax1.set_yscale('symlog',linthreshy=1.e-4)
+        #ax1.set_yscale('log')
+        #ax1.set_ylim((.5,8.))
+    ax1.set_xlabel(r"$z_0$ used for ISW reconstruction")
+    xvals=np.arange(Nrec)
+    ax1.set_xlim((-.5,Nrec-.5))
+    plt.xticks(xvals,recz0)
+    for i in xrange(Nsim):
+        if varname=='rho':
+            maxrho=max(rhogrid[i,:])
+            varstr=r'\rho'
+            ax1.plot(xvals,rhogrid[i,:]/maxrho -1 ,label=r'{0:0.3f}; $\langle {2:s}\rangle_{{\rm best}}=${1:0.3f}'.format(simz0[i],maxrho,varstr),color=colorlist[i%len(colorlist)],marker='d')
+        elif varname=='s':
+            maxrho=min(rhogrid[i,:])#best value for s is smallest
+            varstr='s'
+            ax1.plot(xvals,rhogrid[i,:]/maxrho ,label=r'{0:0.3f}; $\langle {2:s}\rangle_{{\rm best}}=${1:0.3f}'.format(simz0[i],maxrho,varstr),color=colorlist[i%len(colorlist)],marker='d')
+        elif varname=='chisq':
+            maxrho=min(rhogrid[i,:])#best value for s is smallest
+            varstr=r'\chi^2'
+            ax1.plot(xvals,rhogrid[i,:]/maxrho ,label=r'{0:0.3f}; $\langle {2:s}\rangle_{{\rm best}}=${1:0.3f}'.format(simz0[i],maxrho,varstr),color=colorlist[i%len(colorlist)],marker='d')
+    if not legtitle:
+        legtitle=r'$z_0$ used for simulations'
+    if varname=='rho':
+        plt.legend(title=legtitle,loc='lower center')
+    elif varname=='s':
+        plt.legend(title=legtitle,loc='upper left')
+    elif varname=='chisq':
+        plt.legend(title=legtitle,loc='upper center')
+    print 'Saving plot to ',plotdir+outname
+    plt.savefig(plotdir+outname)
+    plt.close()
+
+        
     
 def z0test_rhoexpplot_lines(simz0,recz0,rhogrid,varname='rho',outtag='',outname='',legtitle='',colorlist=[],plotdir='output/zdisttest/plots/'):
     scattercolors=['#e41a1c','#377eb8','#4daf4a','#984ea3','#ff7f00','#ffff33','#a65628','#f781bf']
@@ -2270,7 +2337,7 @@ if __name__=="__main__":
         caltest_compare_clcal_shapes(varlist,shapelist=['g','l2'],varname='rho',shortvarlist=shortvarlist)
         caltest_compare_clcal_shapes(varlist,shapelist=['g','l2'],varname='s',shortvarlist=shortvarlist)
 
-    if 0: #plotting cl for caltest
+    if 1: #plotting cl for caltest
         varlist=list(caltest_get_logspaced_varlist(minvar=1.e-8,maxvar=.1,Nperlog=10))    
         caltest_Clcomp(varlist)
         
@@ -2304,12 +2371,29 @@ if __name__=="__main__":
         #z0test_Clcomp()
         #bztest_Clcomp()
 
+    if 1: #z0 test with just fiducial sim
+        z0test_onesim_plot() #need to write this
+
+    if 1: #b2 test with recb2=0, varying simb2
+        pass
+
+    if 1: #b2 test with one simb2, varying recb2
+        pass
         
-    if 1: #catztest theory calcs
-        badfracs=np.array([1.e-3,1.e-2,.1,.2])
+    if 0: #catztest theory calcs, makes colorblock plots
         for Nbins in [1,3]:
+            if Nbins==1:
+                badfracs=np.array([5.e-4,1.e-3,2.e-3,5.e-3,1.e-2,2.e-2,.1,.2])
+            elif Nbins==3:
+                badfracs=np.array([1.e-3,1.e-2,.1,.2])                                
             #catz_windowtest(badfracs,Nbins=Nbins)
             catz_get_rhoexp(overwrite=True,doplot=True,varname='rho',badfracs=badfracs,Nbins=Nbins)
             catz_get_rhoexp(overwrite=True,doplot=True,varname='s',badfracs=badfracs,Nbins=Nbins)
         #catz_Clcomp()
+
+    if 0: #catz test with recfcat=0, varying simfcat
+        pass
+
+    if 0: #catz test with simfcat=1%, vary rec
+        pass
 

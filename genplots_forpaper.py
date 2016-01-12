@@ -267,7 +267,7 @@ def depthtest_TTscatter_forpaper(r=0, z0vals=np.array([0.3,0.5,0.6,0.7,0.8]),sav
 #################################################################
 if __name__=="__main__":
     depthtest_plot_rhohist_forpaper(z0vals=np.array([.3,.5, .6,.7,.8]))
-    #bintest_plot_rhohist_forpaper()
-    #depthtest_TTscatter_forpaper()
-    #bintest_rhoexp_comparesigs(sigzlist=[0.001,0.03,0.05,.1],markerlist=['v','d','o','^'],plotdir='output/plots_forpaper/')
+    bintest_plot_rhohist_forpaper()
+    depthtest_TTscatter_forpaper()
+    bintest_rhoexp_comparesigs(sigzlist=[0.001,0.03,0.05,.1],markerlist=['v','d','o','^'],plotdir='output/plots_forpaper/')
     #z0test_get_rhoexp(simz0=np.array([]),recz0=np.array([]),perrors=np.array([1,10,20,30,50]),fidz0=.7,doplot=True,varname='rho',plotdir='output/plots_forpaper/')
