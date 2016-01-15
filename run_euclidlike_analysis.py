@@ -3,6 +3,8 @@ import matplotlib.pyplot as plt
 import matplotlib.colors as colors
 import matplotlib.cm as cmx
 import matplotlib.patches as mpatches
+from mpl_toolkits.axes_grid1 import host_subplot #to have two axis labels
+import mpl_toolkits.axisartist as AA #to have two axis labels
 from itertools import permutations
 from MapParams import *
 from ClRunUtils import *
@@ -1765,72 +1767,81 @@ def z0test_rhoexpplot(simz0,recz0,rhogrid,varname='rho',outtag='',outname='',leg
     zdisttest_rhoexpplot(rhogrid,simx=simz0,recx=recz0,varname='z0',statname=varname,outtag=outtag,outname=outname,plotdir=plotdir)
 
 #simz0 fixed at fidz0, varying recz0.
-def z0test_onesim_plot(fidz0=0.7,perrors=np.array([1,10,20,50]),varname='rho',colorlist=[],plotdir='output/zdisttest/plots/',outtag='onesim'):
+def z0test_onesim_plot(fidz0=0.7,perrors=np.array([1,10,20,50]),varname='rho',colorlist=[],plotdir='output/zdisttest/plots/',outtag='onesim',outname=''):
+
     simz0=np.array([fidz0])
     recz0=z0test_getz0vals(perrors,fidz0)
-    rhogrid=z0test_get_rhoexp(simz0=simz0,recz0=recz0,overwrite=False,saverho=True,doplot=False,varname=varname,filetag=outtag)
+    rhogrid=z0test_get_rhoexp(simz0=simz0,recz0=recz0,overwrite=False,saverho=True,doplot=False,varname=varname,filetag=outtag) #should be 1xNrec
     
-    scattercolors=['#e41a1c','#377eb8','#4daf4a','#984ea3','#ff7f00','#ffff33','#a65628','#f781bf']
-    if not colorlist:
-        colorlist=scattercolors
-
     Nsim=simz0.size
     Nrec=recz0.size
     if outtag:
         outtag='_'+outtag
     if not outname:
         outname='z0test_'+varname+'_exp'+outtag+'.png'
-    #working here: have not yet edited following text
-    fig=plt.figure(0)
-    plt.suptitle('Effect of incorrectly modeled median redshift')
-    #plot a line for each simz0, data points for each recz0
+
+    fig=plt.figure(figsize=(8,4))
+    fig.subplots_adjust(bottom=.2)
+    fig.subplots_adjust(left=.2)
     ax1=plt.subplot(1,1,1)
-    ax1.grid(True)
+    #ax1=host_subplot(111,axes_class=AA.Axes)
+    ax1.yaxis.grid(True)
+
+    for item in ([ax1.title, ax1.xaxis.label, ax1.yaxis.label] +
+                 ax1.get_xticklabels() + ax1.get_yticklabels()):
+        item.set_fontsize(18)
+
     if varname=='rho':
-        ax1.set_ylabel(r'$\langle \rho \rangle/\langle \rho \rangle_{{\rm best}} -1$')
-        ax1.set_yscale('symlog',linthreshy=1.e-7)
-        ax1.set_ylim((-1.,1.e-8))
+        ax1.set_ylabel(r'$\left[\langle \rho \rangle_{{\rm best}} -\langle \rho \rangle \right]/\langle \rho \rangle_{{\rm best}}$')
+        ax1.set_yscale('log')
+        ax1.set_ylim((5.e-8,4.e-3))
+        bestval=np.max(rhogrid)
     elif varname=='s':
-        ax1.set_ylabel(r'$\langle s \rangle/\langle s \rangle_{{\rm best}}$')
-        #ax1.set_yscale('symlog',linthreshy=1.e-4)
-        #ax1.set_yscale('log')
-        ax1.set_ylim((.5,8.))
-    elif varname=='chisq':
-        ax1.set_ylabel(r'$\langle \chi^2 \rangle/\langle \chi^2 \rangle_{{\rm best}}$')
-        #ax1.set_yscale('symlog',linthreshy=1.e-4)
-        #ax1.set_yscale('log')
-        #ax1.set_ylim((.5,8.))
-    ax1.set_xlabel(r"$z_0$ used for ISW reconstruction")
-    xvals=np.arange(Nrec)
-    ax1.set_xlim((-.5,Nrec-.5))
-    plt.xticks(xvals,recz0)
-    for i in xrange(Nsim):
-        if varname=='rho':
-            maxrho=max(rhogrid[i,:])
-            varstr=r'\rho'
-            ax1.plot(xvals,rhogrid[i,:]/maxrho -1 ,label=r'{0:0.3f}; $\langle {2:s}\rangle_{{\rm best}}=${1:0.3f}'.format(simz0[i],maxrho,varstr),color=colorlist[i%len(colorlist)],marker='d')
-        elif varname=='s':
-            maxrho=min(rhogrid[i,:])#best value for s is smallest
-            varstr='s'
-            ax1.plot(xvals,rhogrid[i,:]/maxrho ,label=r'{0:0.3f}; $\langle {2:s}\rangle_{{\rm best}}=${1:0.3f}'.format(simz0[i],maxrho,varstr),color=colorlist[i%len(colorlist)],marker='d')
-        elif varname=='chisq':
-            maxrho=min(rhogrid[i,:])#best value for s is smallest
-            varstr=r'\chi^2'
-            ax1.plot(xvals,rhogrid[i,:]/maxrho ,label=r'{0:0.3f}; $\langle {2:s}\rangle_{{\rm best}}=${1:0.3f}'.format(simz0[i],maxrho,varstr),color=colorlist[i%len(colorlist)],marker='d')
-    if not legtitle:
-        legtitle=r'$z_0$ used for simulations'
+        ax1.set_ylabel(r'$\left[\langle s \rangle - \langle s \rangle_{{\rm best}}\right] /\langle s \rangle_{{\rm best}}$')
+        ax1.set_yscale('log')
+        bestval=np.min(rhogrid)
+
+    ax1.plot([-10,20],[0,0],color=grey,linestyle='-')
     if varname=='rho':
-        plt.legend(title=legtitle,loc='lower center')
+        varstr=r'\rho'
+        ax1.plot(recz0,1.-rhogrid[0,:]/bestval,marker='d')
     elif varname=='s':
-        plt.legend(title=legtitle,loc='upper left')
-    elif varname=='chisq':
-        plt.legend(title=legtitle,loc='upper center')
+        varstr='s'
+        ax1.plot(recz0,rhogrid[0,:]/bestval -1. ,marker='d')
+    plt.annotate(r'$z_0={0:0.1f}$ in simulation'.format(fidz0)+'\n'+r'$\langle {1:s}\rangle_{{\rm best}}={2:0.3f}$'.format(fidz0,varstr,bestval),xy=(.6,.9),horizontalalignment='center',verticalalignment='top',fontsize=18,xycoords='axes fraction')
+    xmin,xmax=ax1.get_xlim()
+    xwide=xmax-xmin
+    ax2=ax1.twiny() #top border with percent error units
+    ax2.set_xticks([(z-xmin)/xwide for z in recz0]) #put them in right places
+    perrorlabels=[]
+    count=1
+    for z in recz0:
+        if z<fidz0:
+            if perrors[-1*count]==1:
+                pstr=''
+            else:
+                pstr='-{0:d}%'.format(perrors[-1*count])                
+            count+=1
+        elif z==fidz0:
+            pstr=r'$\pm$1%'#r'$z_0^{\rm sim}$'
+            count=0
+        elif z>fidz0:
+            if perrors[count]==1:
+                pstr=''
+            else:
+                pstr='+{0:d}%'.format(perrors[count])
+            count+=1
+        perrorlabels.append(pstr)
+    ax2.set_xticklabels(perrorlabels)
+    
+    if outtag:
+        outtag='_'+outtag
+    if not outname:
+        outname=varname+'test_'+statname+'_exp'+outtag+'.png'
     print 'Saving plot to ',plotdir+outname
     plt.savefig(plotdir+outname)
     plt.close()
-
-        
-    
+ 
 def z0test_rhoexpplot_lines(simz0,recz0,rhogrid,varname='rho',outtag='',outname='',legtitle='',colorlist=[],plotdir='output/zdisttest/plots/'):
     scattercolors=['#e41a1c','#377eb8','#4daf4a','#984ea3','#ff7f00','#ffff33','#a65628','#f781bf']
     if not colorlist:
@@ -2038,6 +2049,7 @@ def bztest_get_rhoexp(simb2=np.array([0.,.01,.1,.5]),recb2=np.array([0.,.01,.1,.
         for nr in xrange(Nrec):
             rhoarray[ns,nr]=compute_rho_fromcl(simcldat,recgrid[ns][nr],reccldat=reccldat,varname=varname)
 
+    #print rhoarray
     if saverho:
         #write to file, 
         f=open(outdir+datfile,'w')
@@ -2046,13 +2058,129 @@ def bztest_get_rhoexp(simb2=np.array([0.,.01,.1,.5]),recb2=np.array([0.,.01,.1,.
             f.write('{0:9.6f} '.format(simb2[ns])+''.join(['{0:9.6f} '.format(rhoarray[ns,nr]) for nr in xrange(Nrec)])+'\n')
         f.close()
     if doplot:
-        bztest_rhoexpplot(simb2,recb2,rhoarray,varname) 
+        bztest_rhoexpplot(simb2,recb2,rhoarray,varname,filetag) 
         
     return rhoarray
 
 def bztest_rhoexpplot(simb2,recb2,rhogrid,varname='rho',outtag='',outname='',plotdir='output/zdisttest/plots/'):
     zdisttest_rhoexpplot(rhogrid,simb2,recb2,varname='b2',statname=varname,outtag=outtag,outname=outname,plotdir=plotdir)
+
     
+#simb2 fixed at fidb2, varying recb2.
+def bztest_onesim_plot(fidb2=0.5,recb2=np.array([0.,.01,.1,.5,1.,2.,5.,10.]),varname='rho',plotdir='output/zdisttest/plots/',outtag='onesim',outname=''):
+    simb2=np.array([fidb2])
+    rhogrid=bztest_get_rhoexp(simb2=simb2,recb2=recb2,overwrite=False,saverho=True,doplot=False,varname=varname,filetag=outtag) #should be 1xNrec
+    
+    Nsim=simb2.size
+    Nrec=recb2.size
+    if outtag:
+        outtag='_'+outtag
+    if not outname:
+        outname='bztest_'+varname+'_exp'+outtag+'.png'
+
+    fig=plt.figure(figsize=(8,4))
+    fig.subplots_adjust(bottom=.2)
+    fig.subplots_adjust(left=.2)
+    ax1=plt.subplot(1,1,1)
+    #ax1.yaxis.grid(True)
+    ax1.axhline(0,color='grey',linestyle=':')
+    ax1.yaxis.get_major_formatter().set_powerlimits((0,1))
+    for item in ([ax1.title, ax1.xaxis.label, ax1.yaxis.label] +
+                 ax1.get_xticklabels() + ax1.get_yticklabels()):
+        item.set_fontsize(18)
+
+    ax1.set_xlabel(r"$b_2$ used in ISW reconstruction")
+    if varname=='rho':
+        ax1.set_ylabel(r'$\left[ \langle \rho \rangle-\langle \rho \rangle_{{\rm match}} \right]/\langle \rho \rangle_{{\rm match}}$')
+        #ax1.set_yscale('log')
+        ax1.set_ylim((-7.e-5,1.e-5))
+        bestval=np.max(rhogrid)
+    elif varname=='s':
+        ax1.set_ylabel(r'$\left[\langle s \rangle - \langle s \rangle_{{\rm match}}\right] /\langle s \rangle_{{\rm match}}$')
+        #ax1.set_yscale('log')
+        ax1.set_ylim((-2.e-3,.025))
+        bestval=np.min(rhogrid)
+
+    if varname=='rho':
+        varstr=r'\rho'
+        ax1.plot(recb2,rhogrid[0,:]/bestval-1 ,marker='d')
+        aloc=(.25,.85)
+    elif varname=='s':
+        varstr='s'
+        aloc=(.7,.9)
+        ax1.plot(recb2,rhogrid[0,:]/bestval -1. ,marker='d')
+    plt.annotate(r'$b_2={0:0.1f}$ in simulation'.format(fidb2)+'\n'+r'$\langle {0:s}\rangle_{{\rm match}}={1:0.3f}$'.format(varstr,bestval),xy=aloc,horizontalalignment='center',verticalalignment='top',fontsize=18,xycoords='axes fraction')
+
+
+    linthresh=.01
+    ax1.set_xscale('symlog',linthreshx=linthresh)
+    ax1.set_xlim((-.001,13))
+    
+    if outtag:
+        outtag='_'+outtag
+    if not outname:
+        outname=varname+'test_'+statname+'_exp'+outtag+'.png'
+    print 'Saving plot to ',plotdir+outname
+    plt.savefig(plotdir+outname)
+    plt.close()
+
+#simb2 fixed at fidb2, varying recb2.
+def bztest_onerec_plot(fidrecb2=0.,simb2=np.array([0.,.01,.1,.5,1.,2.,5.,10.]),varname='rho',plotdir='output/zdisttest/plots/',outtag='onerec',outname=''):
+    recb2=np.array([fidrecb2])
+    rhogrid=bztest_get_rhoexp(simb2=simb2,recb2=recb2,overwrite=True,saverho=True,doplot=False,varname=varname,filetag=outtag) #should be NsimxNrec
+    #print rhogrid
+    
+    Nsim=simb2.size
+    Nrec=recb2.size
+    if outtag:
+        outtag='_'+outtag
+    if not outname:
+        outname='bztest_'+varname+'_exp'+outtag+'.png'
+
+    fig=plt.figure(figsize=(8,4))
+    fig.subplots_adjust(bottom=.2)
+    fig.subplots_adjust(left=.2)
+    ax1=plt.subplot(1,1,1)
+    #ax1.yaxis.grid(True)
+    ax1.yaxis.get_major_formatter().set_powerlimits((0,1))
+    for item in ([ax1.title, ax1.xaxis.label, ax1.yaxis.label] +
+                 ax1.get_xticklabels() + ax1.get_yticklabels()):
+        item.set_fontsize(18)
+
+    ax1.set_xlabel(r"True (simulation) $b_2$ ")
+    ax1.axhline(0,color='grey',linestyle=':')
+        
+    wherematch=np.argwhere(simb2==fidrecb2)[0][0]
+    matchval=rhogrid[wherematch,0]
+    if varname=='rho':
+        ax1.set_ylabel(r'$\left[\langle \rho \rangle-\langle \rho \rangle_{{\rm match}}\right]/\langle \rho \rangle_{{\rm match}}$')
+        #ax1.set_yscale('linear')
+        #ax1.set_ylim((1.e-6,1.e-3))
+    elif varname=='s':
+        ax1.set_ylabel(r'$\left[\langle s \rangle - \langle s \rangle_{{\rm match}}\right] /\langle s \rangle_{{\rm match}}$')
+        #ax1.set_yscale('log')
+
+    if varname=='rho':
+        varstr=r'\rho'
+        ax1.plot(simb2,rhogrid[:,0]/matchval -1,marker='d')
+        annoteloc=(.3,.5)
+    elif varname=='s':
+        varstr='s'
+        ax1.plot(simb2,rhogrid[:,0]/matchval -1. ,marker='d')
+        annoteloc=(.3,.7)
+    plt.annotate(r'$b_2={0:0.1f}$ used ISW rec'.format(fidrecb2)+'\n'+r'where $b(z)=1+b_2(1+z)^2$'+'\n'+r'$\langle {0:s}\rangle_{{\rm match}}={1:0.3f}$'.format(varstr,matchval),xy=annoteloc,horizontalalignment='center',verticalalignment='top',fontsize=18,xycoords='axes fraction')
+
+    linthresh=.01
+    ax1.set_xscale('symlog',linthreshx=linthresh)
+    ax1.set_xlim((-.001,13))
+    
+    if outtag:
+        outtag='_'+outtag
+    if not outname:
+        outname=varname+'test_'+statname+'_exp'+outtag+'.png'
+    print 'Saving plot to ',plotdir+outname
+    plt.savefig(plotdir+outname)
+    plt.close()    
 #--------------------------
 def bztest_Clcomp(b2vals=np.array([0.,.01,.1,.5,1.,2.,5.,10.])):
     iswind=0
@@ -2337,7 +2465,7 @@ if __name__=="__main__":
         caltest_compare_clcal_shapes(varlist,shapelist=['g','l2'],varname='rho',shortvarlist=shortvarlist)
         caltest_compare_clcal_shapes(varlist,shapelist=['g','l2'],varname='s',shortvarlist=shortvarlist)
 
-    if 1: #plotting cl for caltest
+    if 0: #plotting cl for caltest
         varlist=list(caltest_get_logspaced_varlist(minvar=1.e-8,maxvar=.1,Nperlog=10))    
         caltest_Clcomp(varlist)
         
@@ -2367,19 +2495,18 @@ if __name__=="__main__":
         simb2=np.array([0.,.01,.1,.5,1.,2.,5.,10.])
         recb2=simb2
         #bztest_get_rhoexp(simb2,recb2,overwrite=True,doplot=True,varname='rho')
-        bztest_get_rhoexp(simb2,recb2,overwrite=True,doplot=True,varname='s')
+        #bztest_get_rhoexp(simb2,recb2,overwrite=True,doplot=True,varname='s')
         #z0test_Clcomp()
         #bztest_Clcomp()
 
-    if 1: #z0 test with just fiducial sim
-        z0test_onesim_plot() #need to write this
+    if 0: #zdist tests with less info
+        z0test_onesim_plot(varname='rho')
+        z0test_onesim_plot(varname='s')
+        bztest_onesim_plot(varname='rho')
+        bztest_onesim_plot(varname='s')
+        bztest_onerec_plot(varname='rho')
+        bztest_onerec_plot(varname='s')
 
-    if 1: #b2 test with recb2=0, varying simb2
-        pass
-
-    if 1: #b2 test with one simb2, varying recb2
-        pass
-        
     if 0: #catztest theory calcs, makes colorblock plots
         for Nbins in [1,3]:
             if Nbins==1:
