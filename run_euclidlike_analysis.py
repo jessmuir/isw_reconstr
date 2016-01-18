@@ -2122,7 +2122,7 @@ def bztest_onesim_plot(fidb2=0.5,recb2=np.array([0.,.01,.1,.5,1.,2.,5.,10.]),var
     if varname=='rho':
         varstr=r'\rho'
         ax1.plot(recb2,rhogrid[0,:]/bestval-1 ,marker='d')
-        aloc=(.25,.85)
+        aloc=(.7,.5)
     elif varname=='s':
         varstr='s'
         aloc=(.7,.9)
@@ -2130,9 +2130,13 @@ def bztest_onesim_plot(fidb2=0.5,recb2=np.array([0.,.01,.1,.5,1.,2.,5.,10.]),var
     plt.annotate(r'True (sim.) $b_2={0:0.1f}$'.format(fidb2)+'\n'+r'$\langle {0:s}\rangle_{{\rm match}}={1:0.3f}$'.format(varstr,bestval),xy=aloc,horizontalalignment='center',verticalalignment='top',fontsize=18,xycoords='axes fraction')
 
 
-    linthresh=.01
-    ax1.set_xscale('symlog',linthreshx=linthresh)
+    linthreshx=.01
+    ax1.set_xscale('symlog',linthreshx=linthreshx)
     ax1.set_xlim((-.001,13))
+    #hash fills in where there is a linear scale
+    ymin,ymax=ax1.get_ylim()
+    y=np.arange(-linthreshx,linthreshx,.1*linthreshx)
+    ax1.fill_between(y,ymin,ymax,color='none',edgecolor='grey',hatch='/',linewidth=0)
     
     if outtag:
         outtag='_'+outtag
@@ -2173,24 +2177,28 @@ def bztest_onerec_plot(fidrecb2=0.,simb2=np.array([0.,.01,.1,.5,1.,2.,5.,10.]),v
     if varname=='rho':
         ax1.set_ylabel(r'$\left[\langle \rho \rangle-\langle \rho \rangle_{{\rm match}}\right]/\langle \rho \rangle_{{\rm match}}$')
         #ax1.set_yscale('linear')
-        #ax1.set_ylim((1.e-6,1.e-3))
+        ax1.set_ylim((-2.5e-2,2.e-2))
     elif varname=='s':
         ax1.set_ylabel(r'$\left[\langle s \rangle - \langle s \rangle_{{\rm match}}\right] /\langle s \rangle_{{\rm match}}$')
-        #ax1.set_yscale('log')
+        ax1.set_ylim((-.04,.12))
 
     if varname=='rho':
         varstr=r'\rho'
         ax1.plot(simb2,rhogrid[:,0]/matchval -1,marker='d')
-        annoteloc=(.3,.5)
+        annoteloc=(.55,.4)
     elif varname=='s':
         varstr='s'
         ax1.plot(simb2,rhogrid[:,0]/matchval -1. ,marker='d')
-        annoteloc=(.3,.7)
-    plt.annotate(r'$b_2={0:0.1f}$ used ISW rec.'.format(fidrecb2)+'\n'+r'where $b(z)=1+b_2(1+z)^2$'+'\n'+r'$\langle {0:s}\rangle_{{\rm match}}={1:0.3f}$'.format(varstr,matchval),xy=annoteloc,horizontalalignment='center',verticalalignment='top',fontsize=18,xycoords='axes fraction')
+        annoteloc=(.55,.9)
+    plt.annotate(r'$b_2={0:0.0f}$ used ISW rec.'.format(fidrecb2)+'\n'+r'$\langle {0:s}\rangle_{{\rm match}}={1:0.3f}$'.format(varstr,matchval),xy=annoteloc,horizontalalignment='center',verticalalignment='top',fontsize=18,xycoords='axes fraction')
 
-    linthresh=.01
-    ax1.set_xscale('symlog',linthreshx=linthresh)
+    linthreshx=.01
+    ax1.set_xscale('symlog',linthreshx=linthreshx)
     ax1.set_xlim((-.001,13))
+    #hash fills in where there is a linear scale
+    ymin,ymax=ax1.get_ylim()
+    y=np.arange(-linthreshx,linthreshx,.01*linthreshx)
+    ax1.fill_between(y,ymin,ymax,color='none',edgecolor='grey',hatch='/',linewidth=0)
     
     if outtag:
         outtag='_'+outtag
@@ -2416,7 +2424,7 @@ def catz_get_rhoexp(simfracs=np.array([]),recfracs=np.array([]),badfracs=np.arra
 
 #simf fixed at fidf, varying recf. where f=fraction of catastrophic photo-z's
 #working here: should rerun once I have new data including frac=0
-def catztest_onerec_plot(fidrecf=5.e-4,simf=np.array([5.e-4,1.e-3,2.e-3,.01,.02,.1,.2]),varname='rho',plotdir='output/zdisttest/plots/',outtag='onerec',outname='',Nbins=1):
+def catztest_onerec_plot(fidrecf=0.,simf=np.array([0.,5.e-4,1.e-3,2.e-3,.01,.02,.1,.2]),varname='rho',plotdir='output/zdisttest/plots/',outtag='onerec',outname='',Nbins=1):
     dolog=True
     recf=np.array([fidrecf])
     rhogrid=catz_get_rhoexp(simfracs=simf,recfracs=recf,overwrite=True,saverho=True,doplot=False,varname=varname,filetag=outtag,Nbins=Nbins) #should be NsimxNrec
@@ -2427,16 +2435,86 @@ def catztest_onerec_plot(fidrecf=5.e-4,simf=np.array([5.e-4,1.e-3,2.e-3,.01,.02,
     if outtag:
         outtag='_'+outtag
     if not outname:
-        outname='catztest_'+varname+'_exp'+outtag+'.png'
+        outname='catztest{0:d}bin_{1:s}_exp{2:s}.png'.format(Nbins,varname,outtag)
 
     fig=plt.figure(figsize=(8,4))
     fig.subplots_adjust(bottom=.2)
     fig.subplots_adjust(left=.2)
     ax1=plt.subplot(1,1,1)
 
-    xmin=-.0001
-    xmax=1
+    xmax=.5
+    linthreshx=1.e-4
+    xmin=-.1*linthreshx
+    ax1.set_xscale('symlog',linthreshx=linthreshx)
+    ax1.set_xlim((xmin,xmax))  
+    #ax1.yaxis.grid(True)
+    ax1.yaxis.get_major_formatter().set_powerlimits((0,1))
+    if dolog:
+        if varname=='rho':
+            linthreshy=1.e-4
+        elif varname=='s':
+            linthreshy=1.e-3
+        ax1.set_yscale('symlog',linthreshy=linthreshy)
+        x=np.arange(xmin,xmax,.01)
+        ax1.fill_between(x,-linthreshy,linthreshy,color='none',edgecolor='grey',hatch='/',linewidth=0)
+    ax1.axhline(0,color='grey',linestyle=':')
+
+    
+    for item in ([ax1.title, ax1.xaxis.label, ax1.yaxis.label] +
+                 ax1.get_xticklabels() + ax1.get_yticklabels()):
+        item.set_fontsize(18)
+
+    ax1.set_xlabel(r"True (simulation) $f_{\rm cat}$ ")
+        
+    wherematch=np.argwhere(simf==fidrecf)[0][0]
+    matchval=rhogrid[wherematch,0]
+    if varname=='rho':
+        ax1.set_ylabel(r'$\left[\langle \rho \rangle-\langle \rho \rangle_{{\rm match}}\right]/\langle \rho \rangle_{{\rm match}}$')
+        varstr=r'\rho'
+        ax1.plot(simf,rhogrid[:,0]/matchval -1,marker='d')
+        annoteloc=(.47,.3)
+        #ax1.set_ylim((1.e-6,1.e-3))
+    elif varname=='s':
+        ax1.set_ylabel(r'$\left[\langle s \rangle - \langle s \rangle_{{\rm match}}\right] /\langle s \rangle_{{\rm match}}$')
+        #ax1.set_yscale('log')
+        varstr='s'
+        ax1.plot(simf,rhogrid[:,0]/matchval -1. ,marker='d')
+        annoteloc=(.5,.9)
+    #hash fills in where there is a linear scale
+    ymin,ymax=ax1.get_ylim()
+    y=np.arange(-linthreshx,linthreshx,.01*linthreshx)
+    ax1.fill_between(y,ymin,ymax,color='none',edgecolor='grey',hatch='/',linewidth=0)
+        
+    plt.annotate(r'$f_{{\rm cat}}={0:0.0f}$ used ISW rec.'.format(fidrecf)+'\n'+r'$\langle {0:s}\rangle_{{\rm match}}={1:0.3f}$'.format(varstr,matchval),xy=annoteloc,horizontalalignment='center',verticalalignment='top',fontsize=18,xycoords='axes fraction')
+    
+    if outtag:
+        outtag='_'+outtag
+    if not outname:
+        outname=varname+'test_'+statname+'_exp'+outtag+'.png'
+    print 'Saving plot to ',plotdir+outname
+    plt.savefig(plotdir+outname)
+    plt.close()
+
+def catztest_onesim_plot(fidf=0.02,recf=np.array([0.,5.e-4,1.e-3,2.e-3,.01,.02,.1,.2]),varname='rho',plotdir='output/zdisttest/plots/',outtag='onesim',outname='',Nbins=1):
+    dolog=True
+    simf=np.array([fidf])
+    rhogrid=catz_get_rhoexp(simfracs=simf,recfracs=recf,overwrite=True,saverho=True,doplot=False,varname=varname,filetag=outtag,Nbins=Nbins) #should be NsimxNrec
+    #print rhogrid
+    Nsim=simf.size
+    Nrec=recf.size
+    if outtag:
+        outtag='_'+outtag
+    if not outname:
+        outname='catztest{0:d}bin_{1:s}_exp{2:s}.png'.format(Nbins,varname,outtag)
+
+    fig=plt.figure(figsize=(8,4))
+    fig.subplots_adjust(bottom=.2)
+    fig.subplots_adjust(left=.2)
+    ax1=plt.subplot(1,1,1)
+
+    xmax=.5
     linthreshx=1.e-3
+    xmin=-.1*linthreshx
     ax1.set_xscale('symlog',linthreshx=linthreshx)
     ax1.set_xlim((xmin,xmax))  
     #ax1.yaxis.grid(True)
@@ -2456,72 +2534,6 @@ def catztest_onerec_plot(fidrecf=5.e-4,simf=np.array([5.e-4,1.e-3,2.e-3,.01,.02,
                  ax1.get_xticklabels() + ax1.get_yticklabels()):
         item.set_fontsize(18)
 
-    ax1.set_xlabel(r"True (simulation) $f_{\rm cat}$ ")
-        
-    wherematch=np.argwhere(simf==fidrecf)[0][0]
-    matchval=rhogrid[wherematch,0]
-    if varname=='rho':
-        ax1.set_ylabel(r'$\left[\langle \rho \rangle-\langle \rho \rangle_{{\rm match}}\right]/\langle \rho \rangle_{{\rm match}}$')
-        varstr=r'\rho'
-        ax1.plot(simf,rhogrid[:,0]/matchval -1,marker='d')
-        annoteloc=(.3,.3)
-        #ax1.set_ylim((1.e-6,1.e-3))
-    elif varname=='s':
-        ax1.set_ylabel(r'$\left[\langle s \rangle - \langle s \rangle_{{\rm match}}\right] /\langle s \rangle_{{\rm match}}$')
-        #ax1.set_yscale('log')
-        varstr='s'
-        ax1.plot(simf,rhogrid[:,0]/matchval -1. ,marker='d')
-        annoteloc=(.3,.9)
-    
-    plt.annotate(r'$f_{{\rm cat}}={0:0.4f}$ used ISW rec.'.format(fidrecf)+'\n'+r'$\langle {0:s}\rangle_{{\rm match}}={1:0.3f}$'.format(varstr,matchval),xy=annoteloc,horizontalalignment='center',verticalalignment='top',fontsize=18,xycoords='axes fraction')
-    
-    if outtag:
-        outtag='_'+outtag
-    if not outname:
-        outname=varname+'test_'+statname+'_exp'+outtag+'.png'
-    print 'Saving plot to ',plotdir+outname
-    plt.savefig(plotdir+outname)
-    plt.close()
-
-def catztest_onesim_plot(fidf=5.e-4,recf=np.array([5.e-4,1.e-3,2.e-3,.01,.02,.1,.2]),varname='rho',plotdir='output/zdisttest/plots/',outtag='onesim',outname='',Nbins=1):
-    dolog=True
-    simf=np.array([fidf])
-    rhogrid=catz_get_rhoexp(simfracs=simf,recfracs=recf,overwrite=True,saverho=True,doplot=False,varname=varname,filetag=outtag,Nbins=Nbins) #should be NsimxNrec
-    #print rhogrid
-    Nsim=simf.size
-    Nrec=recf.size
-    if outtag:
-        outtag='_'+outtag
-    if not outname:
-        outname='catztest_'+varname+'_exp'+outtag+'.png'
-
-    fig=plt.figure(figsize=(8,4))
-    fig.subplots_adjust(bottom=.2)
-    fig.subplots_adjust(left=.2)
-    ax1=plt.subplot(1,1,1)
-
-    xmin=-.0001
-    xmax=1
-    linthreshx=1.e-3
-    ax1.set_xscale('symlog',linthreshx=linthreshx)
-    ax1.set_xlim((xmin,xmax))  
-    #ax1.yaxis.grid(True)
-    ax1.yaxis.get_major_formatter().set_powerlimits((0,1))
-    if dolog:
-        if varname=='rho':
-            linthreshy=1.e-8
-        elif varname=='s':
-            linthreshy=1.e-7
-        ax1.set_yscale('symlog',linthreshy=linthreshy)
-        x=np.arange(xmin,xmax,.01)
-        ax1.fill_between(x,-linthreshy,linthreshy,color='none',edgecolor='grey',hatch='/',linewidth=0)
-    ax1.axhline(0,color='grey',linestyle=':')
-    
-    
-    for item in ([ax1.title, ax1.xaxis.label, ax1.yaxis.label] +
-                 ax1.get_xticklabels() + ax1.get_yticklabels()):
-        item.set_fontsize(18)
-
     ax1.set_xlabel(r"$f_{\rm cat}$ used in ISW rec.")
         
     wherematch=np.argwhere(recf==fidf)[0][0]
@@ -2530,26 +2542,29 @@ def catztest_onesim_plot(fidf=5.e-4,recf=np.array([5.e-4,1.e-3,2.e-3,.01,.02,.1,
     if varname=='rho':
         ax1.set_ylabel(r'$\left[\langle \rho \rangle-\langle \rho \rangle_{{\rm match}}\right]/\langle \rho \rangle_{{\rm match}}$')
         varstr=r'\rho'
-        annoteloc=(.3,.3)
-        #ax1.set_ylim((1.e-6,1.e-3))
+        annoteloc=(.55,.3)
+        ax1.set_ylim((-1,.1*linthreshy))
     elif varname=='s':
         ax1.set_ylabel(r'$\left[\langle s \rangle - \langle s \rangle_{{\rm match}}\right] /\langle s \rangle_{{\rm match}}$')
         #ax1.set_yscale('log')
         varstr='s'
-        annoteloc=(.3,.9)
+        annoteloc=(.55,.9)
+        ax1.set_ylim((-.1*linthreshy,1.))
+
+    #hash fills in where there is a linear scale
+    ymin,ymax=ax1.get_ylim()
+    y=np.arange(-linthreshx,linthreshx,.01*linthreshx)
+    ax1.fill_between(y,ymin,ymax,color='none',edgecolor='grey',hatch='/',linewidth=0)
     
-    plt.annotate(r'True (sim.) $f_{{\rm cat}}={0:0.4f}$'.format(fidf)+'\n'+r'$\langle {0:s}\rangle_{{\rm match}}={1:0.3f}$'.format(varstr,matchval),xy=annoteloc,horizontalalignment='center',verticalalignment='top',fontsize=18,xycoords='axes fraction')
+    plt.annotate(r'True (sim.) $f_{{\rm cat}}={0:0.2f}$'.format(fidf)+'\n'+r'$\langle {0:s}\rangle_{{\rm match}}={1:0.3f}$'.format(varstr,matchval),xy=annoteloc,horizontalalignment='center',verticalalignment='top',fontsize=18,xycoords='axes fraction')
     
-    if outtag:
-        outtag='_'+outtag
-    if not outname:
-        outname=varname+'test_'+statname+'_exp'+outtag+'.png'
     print 'Saving plot to ',plotdir+outname
     plt.savefig(plotdir+outname)
     plt.close()   
 #--------------------------------------------------------------------     
-def catz_Clcomp(badfracs=np.array([5.e-4,1.e-3,2.e-3,1.e-2,2.e-2,.1,.2]),Nbins=1):
+def catz_Clcomp(badfracs=np.array([0.,5.e-4,1.e-3,2.e-3,1.e-2,2.e-2,.1,.2]),Nbins=1):
     iswind=0
+    firstiszero=badfracs[0]==0. #assumes 0 nowhere else
     bins=catz_get_binmaps(badfracs,Nbins)#includes ISW at 0, others in same order as z0
     cldat=catz_get_Cl(badfracs,Nbins)
     l=np.arange(cldat.Nell)
@@ -2557,7 +2572,12 @@ def catz_Clcomp(badfracs=np.array([5.e-4,1.e-3,2.e-3,1.e-2,2.e-2,.1,.2]),Nbins=1
     cm=plt.get_cmap('Spectral_r')
     cNorm=colors.LogNorm()#max and min numbers colors need to span
     scalarMap=cmx.ScalarMappable(norm=cNorm,cmap=cm)
-    fcols=scalarMap.to_rgba(badfracs)
+    fcols=scalarMap.to_rgba(badfracs[firstiszero:])
+    if firstiszero:
+        newfcols=['black']
+        for c in fcols:
+            newfcols.append(c)
+        fcols=newfcols
     clscaling=2*l+1.#l*(l+1.)/(2*np.pi)
     
     #to get colorbar key, need ot set up a throw-away map
@@ -2593,13 +2613,14 @@ def catz_Clcomp(badfracs=np.array([5.e-4,1.e-3,2.e-3,1.e-2,2.e-2,.1,.2]),Nbins=1
     line3,=plt.plot(l,np.fabs(cldat.cl[xiswind,:]/cldat.cl[autoind,:])*clscaling,color='black',linestyle=':',label='ISW-gal/gal-gal')
 
     #set up colorbar
-    logminvar=int(np.log10(min(badfracs)))
-    logmaxvar=int(np.log10(max(badfracs)))+1
+    logminvar=int(np.log10(min(badfracs[firstiszero:])))
+    logmaxvar=int(np.log10(max(badfracs[firstiszero:])))+1
+    print 'LOGMINMAX',logminvar,logmaxvar
     Nlog=logmaxvar-logminvar
-    fticks=badfracs#[.1*10**(logminvar+n) for n in xrange(Nlog)]
+    fticks=badfracs[firstiszero:]#[.1*10**(logminvar+n) for n in xrange(Nlog)]
     #cbaxes=fig.add_axes([.8,.1,.03,.8])#controls location of colorbar
     colbar=fig.colorbar(dummyplot,ticks=fticks)
-    colbar.ax.set_yticklabels(['{0:0.0e}'.format(f) for f in badfracs])
+    colbar.ax.set_yticklabels(['{0:0.0e}'.format(f) for f in badfracs[firstiszero:]])
     colbar.set_label(r'$f_{\rm cat}$')
 
     plt.legend(handles=[line1,line2,line3],loc='lower right')
@@ -2614,8 +2635,74 @@ def catz_Clcomp(badfracs=np.array([5.e-4,1.e-3,2.e-3,1.e-2,2.e-2,.1,.2]),Nbins=1
 #================================================================
 # lmintest - vary lmin used for reconstruction to study fsky effects
 #================================================================
+# use depthtest fiducial map for the Cl's and maps
+# vary lmin from 1-20. start with just <rho> calc but also run on maps
+#maybe make a similar plot as the caltest ones
+def lmintest_get_cl(includeISW=True,z0=.7):
+    pass #working here
 
+def lmintest_get_reclist(lminlist=np.arange(1,20),z0=.7):
+    pass
 
+#need to test
+def lmintest_get_rhoexp(lminlist=np.arange(1,20),z0=.7,overwrite=False,saverho=True,varname='rho',filetag='',plotdir='output/lmintest_plots/'):
+    if saverho:
+        outdir=plotdir
+        if filetag:
+            filetagstr='_'+filetag
+        else:
+            filetagstr=filetag
+        datfile='lmintest_{0:s}exp{1:s}.dat'.format(varname,filetagstr)
+        if not overwrite and os.path.isfile(outdir+datfile):#file exists
+            print "Reading data file:",datfile
+            x=np.loadtxt(outdir+datfile)
+            inlmin=x[:,0] #rows
+            if not np.all(inlmin==lminlist):
+                print "WARNING, input lmin lists don't match requested."
+            else:
+                rhoarray=x[1,:] #rho data
+                return rhoarray
+        else:
+            print "Writing to data file:",datfile
+
+    Nlmin=lminlist.size
+    reclist=lmintest_get_reclist(lminlist,fidz0)
+    cldat=lmintest_get_cl()
+    rhoarray=np.zeros(Nlmin)
+    for l in xrange(Nlmin):
+        rhoarray[l]=compute_rho_fromcl(cldat,reclist[l],reccldat=cldat,varname=varname)
+    if saverho:
+        #write to file, 
+        f=open(outdir+datfile,'w')
+        for l in xrange(Nlmin):
+            f.write('{0:9d} {1:9.6f}\n'.format(lminlist[l],rhoarray[l]))
+        f.close()
+    return rhoarray
+
+def lmintest_get_rhodat(lminlist=np.arange(1,20),z0=.7):
+    pass
+
+def lmintest_plot_rhoexp(lminlist=np.arange(1,20),z0=.7,overwrite=False,saverho=True,varname='rho',filetag='',plotdir='output/lmintest_plots/'):
+    rhogrid=lmintest_get_rhoexp(lminlist,z0,overwrite,saverho,varname,filetag,plotdir)
+    #working here; get data points from many realizations, include on plot
+    plt.figure(0)
+    if varname=='rho':
+        varstr=r'\rho'
+    elif varname=='s':
+        varstr='s'
+    plt.plot(lminlist,rhogrid)
+    plt.xlabel(r'$\ell_{\rm min}$')
+    plt.ylabel(r'${0:s}$'.format(varstr))
+
+    if filetag:
+        filetagstr='_'+filetag
+    else:
+        filetagstr=filetag
+    if not outname:
+        outname='lmintest_'+varname+'_exp'+outtag+'.png'
+    print 'Saving plot to ',plotdir+outname
+    plt.savefig(plotdir+outname)
+    plt.close()
 #################################################################
 if __name__=="__main__":
     #plot_isw_kernel()
@@ -2714,28 +2801,38 @@ if __name__=="__main__":
         #z0test_Clcomp()
         #bztest_Clcomp()
 
-    if 1: #zdist tests with less info
+    if 0: #zdist tests with less info
         # z0test_onesim_plot(varname='rho')
         # z0test_onesim_plot(varname='s')
-        # bztest_onesim_plot(varname='rho')
-        # bztest_onesim_plot(varname='s')
-        # bztest_onerec_plot(varname='rho')
-        # bztest_onerec_plot(varname='s')
-        #catztest_onerec_plot(varname='rho')
-        #catztest_onerec_plot(varname='s')
-        #catztest_onesim_plot(varname='rho')
-        #catztest_onesim_plot(varname='s')
+        #bztest_onesim_plot(varname='rho')
+        #bztest_onesim_plot(varname='s')
+        #bztest_onerec_plot(varname='rho')
+        #bztest_onerec_plot(varname='s')
+        
+        Nbins=3
+        if Nbins==1:
+            badfracs=np.array([0.,5.e-4,1.e-3,2.e-3,1.e-2,2.e-2,.1,.2])#1 bin
+            badfracs1sim=np.array([0.,1.e-3,2.e-3,1.e-2,2.e-2,.1,.2])#1 bin
+            #catz_Clcomp(badfracs=badfracs)
+        elif Nbins==3:
+            badfracs=np.array([0.,1.e-3,1.e-2,.1,.2])#3 bin
+            badfracs1sim=badfracs
+        catztest_onerec_plot(varname='rho',Nbins=Nbins,simf=badfracs)
+        catztest_onerec_plot(varname='s',Nbins=Nbins,simf=badfracs)
+        catztest_onesim_plot(varname='rho',Nbins=Nbins,recf=badfracs1sim,fidf=.01)
+        catztest_onesim_plot(varname='s',Nbins=Nbins,recf=badfracs1sim,fidf=.01)
+        
         #z0test_Clcomp()
         #bztest_Clcomp()
-        catz_Clcomp()#working here,need to write
+
         
     if 0: #catztest theory calcs, makes colorblock plots
         for Nbins in [1,3]:
             if Nbins==1:
-                badfracs=np.array([5.e-4,1.e-3,2.e-3,5.e-3,1.e-2,2.e-2,.1,.2])
+                badfracs=np.array([0.,5.e-4,1.e-3,2.e-3,5.e-3,1.e-2,2.e-2,.1,.2])
             elif Nbins==3:
                 badfracs=np.array([1.e-3,1.e-2,.1,.2])                                
-            #catz_windowtest(badfracs,Nbins=Nbins)
+            catz_windowtest(badfracs,Nbins=Nbins)
             catz_get_rhoexp(overwrite=True,doplot=True,varname='rho',badfracs=badfracs,Nbins=Nbins)
             catz_get_rhoexp(overwrite=True,doplot=True,varname='s',badfracs=badfracs,Nbins=Nbins)
         #catz_Clcomp()
