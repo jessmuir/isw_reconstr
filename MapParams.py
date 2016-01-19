@@ -24,6 +24,13 @@ def smoothedtophat(x,zminnom,zmaxnom,edge=0.001):
     sig=edge*width
     return 0.5*(np.tanh((x-zminnom)/sig)+np.tanh((zmaxnom-x)/sig))
 
+def smoothtophat_forbadfrac(x,zminnom=.05,zmaxnom=2.5,lowedge=.5,topedge=.1):
+    #similar to smoothed tophat, but smooths out high z end more than low 
+    topsig=topedge*zmaxnom #topend is more smoothed out
+    lowsig=lowedge*zminnom
+    return 0.5*(np.tanh((x-zminnom)/sig)+np.tanh((zmaxnom-x)/topsig))
+    
+
 #The classes in this file contain info describing the (mainly radial)
 # properties of differnt map types, to be used in computing C_l correlation fns
 ###########################################################################
@@ -207,7 +214,7 @@ class BinMap(MapWrapper):
 #        window function which combines bias with dndz, or is just 1 for ISW
 ###########################################################################
 class SurveyBinMap(BinMap):
-    def __init__(self,idtag,binnum,zmin,zmax,zminnom,zmaxnom,nbar,sigz0,dndz,bias,dndzargs=[],biasargs=[],maptypeinfostr='',sharpness=0.001,epsilon=1.e-10,addnoise=False,fracbadz=0.,badzminz=0.01,badzmaxz=2.5):
+    def __init__(self,idtag,binnum,zmin,zmax,zminnom,zmaxnom,nbar,sigz0,dndz,bias,dndzargs=[],biasargs=[],maptypeinfostr='',sharpness=0.001,epsilon=1.e-10,addnoise=False,fracbadz=0.,badzminz=0.05,badzmaxz=2.5):
         isGal=True
         isISW=False
         self.dndz=dndz#copy.deepcopy(dndz)
@@ -237,7 +244,7 @@ class SurveyBinMap(BinMap):
         x=self.fracbadz
         good=  self.F(z)*self.dndz(z,*self.dndzargs)
         #add catstrophic photoz as a 
-        bad = self.nobadbinint*smoothedtophat(z,self.badzminz,self.badzmaxz)
+        bad = self.nobadbinint*smoothedtophat_forbadfrac(z,self.badzminz,self.badzmaxz)
         result= (1.-x)*good+x*bad
         return result/self.binint 
 

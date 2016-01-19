@@ -341,7 +341,8 @@ def calc_isw_est(cldat,glmdat,recdat,writetofile=True,getmaps=True,redofits=True
 
     outmaptags=[recdat.maptag]
     outmodtags=[recdat.rectag]
-    outmasktags=['fullsky']
+    lminstr="-lmin{0:02d}".format(recdat.lmin)
+    outmasktags=['fullsky'+lminstr]
     almdat=glmData(almest,glmdat.lmax,outmaptags,glmdat.runtag,glmdat.rundir,rlzns=glmdat.rlzns,filetags=[maptag+'.'+rectag],modtaglist=outmodtags,masktaglist=outmasktags)
 
     if writetofile: #might set as false if we want to do several recons
@@ -362,7 +363,7 @@ def calc_isw_est(cldat,glmdat,recdat,writetofile=True,getmaps=True,redofits=True
                 rlzns=almdat.rlzns
             else:
                 rlzns=np.arange(almdat.Nreal)
-            rhovals=rho_manyreal(truemapbase,recmapbase,rlzns=rlzns)
+            rhovals=rho_manyreal(truemapbase,recmapbase,rlzns=rlzns,lmin=recdat.lmin)
 
     return almdat
 
@@ -710,28 +711,14 @@ def calc_rho_forreclist(glmdat,almdat,reclist,rlzns,savedat=True,overwrite=False
         truemapbase=truemapf[:truemapf.rfind('.r')]
         recmapf=almdat.get_mapfile(0,i,'fits')
         recmapbase=recmapf[:recmapf.rfind('.r')]
-        rhovals=rho_manyreal(truemapbase,recmapbase,rlzns=rlzns,savedat=False,varname=varname)           
+        lmin=reclist[i].lmin
+        rhovals=rho_manyreal(truemapbase,recmapbase,rlzns=rlzns,savedat=False,varname=varname,lmin=lmin)           
         rhogrid.append(rhovals)
         if savedat:
             save_rhodat(rhovals,rlzns,truemapbase,recmapbase,overwrite=overwrite,filetag=filetag,varname=varname)
         
     return np.array(rhogrid)
 
-# def calc_s_forreclist(glmdat,almdat,reclist,rlzns,savedat=True,overwrite=False,sfiletag=''):
-#     #print "Computing s statistics"
-#     sgrid=[]
-#     for i in xrange(len(reclist)):
-#         truemapf=glmdat.get_mapfile_fortags(0,reclist[i].zerotagstr)
-#         truemapbase=truemapf[:truemapf.rfind('.r')]
-#         recmapf=almdat.get_mapfile(0,i,'fits')
-#         recmapbase=recmapf[:recmapf.rfind('.r')]
-
-#         svals=s_manyreal(truemapbase,recmapbase,rlzns=rlzns,savedat=False)
-#         sgrid.append(svals)
-#         if savedat:
-#             save_rhodat(svals,rlzns,truemapbase,recmapbase,overwrite=overwrite,filetag=sfiletag,varname='s')
-        
-#     return np.array(sgrid)
 #------------------------------------------------------------------------
 #given list of reconstruction ojbects, and realizations, computes r_ell for them
 def calc_rell_forreclist(glmdat,almdat,reclist,rlzns,savedat=True,overwrite=False,filetag='',varname='rell'):
@@ -748,14 +735,26 @@ def calc_rell_forreclist(glmdat,almdat,reclist,rlzns,savedat=True,overwrite=Fals
             save_relldat(rellvals,rlzns,truemapbase,recmapbase,overwrite=overwrite,filetag=filetag,varname=varname)
         
     return np.array(rellgrid)#[reconstruction,realization,ell]
-    
+#------------------------------------------------------------------------
+# Use this to remove low ell components from a healpy map
+#   does so by turning it to glm, setting all glm with l<lmin to zero
+#   then turns it back into a map, which is returned
+def remove_lowell_frommap(hpmap,lmin):
+    alm=hp.map2alm(hpmap)
+    lmax=np.sphtfunc.alm.getlmax(alm.size)
+    l,m=hp.sphtfunc.Alm.getlm(lmax)
+    keepell=l>=lmin
+    alm*=keepell
+    outmap=alm2map(alm)
+    return outmap
+
 #------------------------------------------------------------------------
 # rho_manyreal -  find correlations between pairs of maps for many realizations
 #  input: mapdir -  directory where the maps are 
 #        filebases - filename of maps, up to but not including '.rXXXXX.fits'
 #        rlzns, Nreal - if rlzns is empty, rlzns=np.arange(Nreal), otherwise Nreal=rlzns.size
 
-def rho_manyreal(truefilebase,recfilebase,Nreal=1,rlzns=np.array([]),savedat=False,overwrite=False,filetag='',varname='rho'):
+def rho_manyreal(truefilebase,recfilebase,Nreal=1,rlzns=np.array([]),savedat=False,overwrite=False,filetag='',varname='rho',lmin=1):
     if rlzns.size:
         Nreal=rlzns.size
     else:
@@ -765,8 +764,12 @@ def rho_manyreal(truefilebase,recfilebase,Nreal=1,rlzns=np.array([]),savedat=Fal
     for r in xrange(Nreal):
         f1=''.join([truefilebase,'.r{0:05d}.fits'.format(rlzns[r])])
         f2=''.join([recfilebase,'.r{0:05d}.fits'.format(rlzns[r])])
-        map1=hp.read_map(f1,verbose=False)
-        map2=hp.read_map(f2,verbose=False)
+        map1orig=hp.read_map(f1,verbose=False)
+        map2orig=hp.read_map(f2,verbose=False)
+        #filter out ell<lmin
+        map1=remove_lowell_frommap(map1orig,lmin)
+        map2=remove_lowell_frommap(map2oirg,lmin)
+        
         #compute cross correlations and store the value
         if varname=='rho':
             rhovals[r]=rho_onereal(map1,map2)
