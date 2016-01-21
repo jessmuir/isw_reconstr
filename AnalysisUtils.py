@@ -1107,8 +1107,6 @@ def compute_rho_fromcl(cldat,recdat,reccldat=0,varname='rho'):
                 chisqell[l]=(2*lvals[l]+1.)*(1+(-2.*crossnum[l]+recnum[l])/denom[l])
         result =np.sum(chisqell)#sum over ell
     return result
-#Working here: need to test this redo of s, set up functions which call it
-#to take varname args
     
 def rho_sampledist(r,rho,NSIDE=32,Nsample=0): #here rho is the expected mean
     # doesn't integrate to 1 and Nsample=NSIDE seems way too big

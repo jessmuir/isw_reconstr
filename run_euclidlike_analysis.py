@@ -6,6 +6,7 @@ import matplotlib.patches as mpatches
 from mpl_toolkits.axes_grid1 import host_subplot #to have two axis labels
 import mpl_toolkits.axisartist as AA #to have two axis labels
 from itertools import permutations
+from scipy.optimize import leastsq
 from MapParams import *
 from ClRunUtils import *
 from genCrossCor import *
@@ -1532,19 +1533,6 @@ def caltest_TTscatter(r=0,varlist=[1.e-7,1.e-6,1.e-5,1.e-4],savepngmaps=False):
         recpngf.append(plotdir+'mapplot_'+recfbase+'.png')
         plt.savefig(plotdir+'mapplot_'+recfbase+'.png')
 
-        # #stitch together, make gif
-        # combof=[plotdir+'mapplot_caltest_combo_{0:.0e}.png'.format(v) for v in varlist]
-        # combof.append(plotdir+'mapplot_caltest_combo_{0:.0e}.png'.format(0))
-        # for i in xrange(Nvar+1):
-        #     print 'saving',combof[i]
-        #     command='convert -append '+' '.join([lsspngf[i],recpngf[i],iswpngf,combof[i]])
-        #     print command
-        #     #subprocess.call(['convert',arg])
-
-        # gifcommand='convert -delay 50 -loop 0 '+' '.join(combof)+' '+plotdir+'mapplot_caltest_animated.gif'
-        # print gifcommand
-        #subprocess.call(['convert','-delay 50 -loop '+' '.join([combof])+'.gif'])
-    #set up plot
     #colors=['#253494','#2c7fb8','#41b6c4','#a1dab4','#ffffcc']
     colors=['#a6611a','#08519c','#41b6c4','#78c679','#ffffb2']
 
@@ -2423,7 +2411,6 @@ def catz_get_rhoexp(simfracs=np.array([]),recfracs=np.array([]),badfracs=np.arra
     return rhoarray
 
 #simf fixed at fidf, varying recf. where f=fraction of catastrophic photo-z's
-#working here: should rerun once I have new data including frac=0
 def catztest_onerec_plot(fidrecf=0.,simf=np.array([0.,5.e-4,1.e-3,2.e-3,.01,.02,.1,.2]),varname='rho',plotdir='output/zdisttest/plots/',outtag='onerec',outname='',Nbins=1):
     dolog=True
     recf=np.array([fidrecf])
@@ -2638,12 +2625,23 @@ def catz_Clcomp(badfracs=np.array([0.,5.e-4,1.e-3,2.e-3,1.e-2,2.e-2,.1,.2]),Nbin
 # use depthtest fiducial map for the Cl's and maps
 # vary lmin from 1-20. start with just <rho> calc but also run on maps
 #maybe make a similar plot as the caltest ones
+
+def lmintest_get_binmaps(z0=0.7,includeisw=True):
+    return depthtest_get_binmaps(z0vals=np.array(z0),includeisw=includeisw)
+
 def lmintest_get_cl(includeISW=True,z0=.7):
-    pass #working here
+    return depthtest_get_Cl(justread=True,z0vals=np.array([z0]))
 
 def lmintest_get_reclist(lminlist=np.arange(1,20),z0=.7):
-    pass
-
+    galbin=lmintest_get_binmaps(z0,includeisw=False)[0]#only one bin in list
+    reclist=[]
+    for l in lminlist:
+        bintag=galbin.tag
+        includeglm=[bintag]
+        inmaptag=bintag[:bintag.rfind('_bin0')]
+        recdat=RecData(includeglm=includeglm,inmaptag=inmaptag,minl_forrec=l)
+        reclist.append(recdat)
+    return reclist
 #need to test
 def lmintest_get_rhoexp(lminlist=np.arange(1,20),z0=.7,overwrite=False,saverho=True,varname='rho',filetag='',plotdir='output/lmintest_plots/'):
     if saverho:
@@ -2679,20 +2677,45 @@ def lmintest_get_rhoexp(lminlist=np.arange(1,20),z0=.7,overwrite=False,saverho=T
         f.close()
     return rhoarray
 
-def lmintest_get_rhodat(lminlist=np.arange(1,20),z0=.7):
+# get rho data from many map relizations for one value of lmin
+def lmintest_getrhodat_onelmin(lmin=1,saverho=True,overwrite=False):
     pass
+#working here, write this function
 
-def lmintest_plot_rhoexp(lminlist=np.arange(1,20),z0=.7,overwrite=False,saverho=True,varname='rho',filetag='',plotdir='output/lmintest_plots/'):
+# get rho data for many lmin values
+# returns arrays of same size as lminlist of mean(rho) and std(rho)
+def lmintest_get_rhodat(lminlist=np.arange(1,20),saverho=True,overwrite=False):
+    Nlmin=lminlist.size
+    rhomean=np.zeros(lminlist)
+    rhostd=np.zeros(lminlist)
+    Nrho=np.zeros(lminlist)
+    for i in xrange(Nlmin):
+        rho=lmintest_getrhodat_onelmin(lminlist[i],saverho,overwrite)
+        rhomean[i]=np.mean(rho)
+        rhostd[i]=np.std(rho)
+        Nrho[i]=rho.size
+        
+    return rhomean,rhostd,Nrho
+
+def lmintest_plot_rhoexp(lminlist=np.arange(1,20),z0=.7,overwrite=False,saverho=True,varname='rho',filetag='',plotdir='output/lmintest_plots/',dodata=False):
     rhogrid=lmintest_get_rhoexp(lminlist,z0,overwrite,saverho,varname,filetag,plotdir)
-    #working here; get data points from many realizations, include on plot
     plt.figure(0)
     if varname=='rho':
         varstr=r'\rho'
     elif varname=='s':
         varstr='s'
+    
     plt.plot(lminlist,rhogrid)
     plt.xlabel(r'$\ell_{\rm min}$')
     plt.ylabel(r'${0:s}$'.format(varstr))
+    
+    if dodata:
+        rhomean,rhostd,Nrho=lmintest_get_rhodat(lminlist)
+        datlabel='Mean from 10,000 realizations.'
+        plt.errorbar(lminlist,rhomean,yerr=rhostd,label=datlabel,linestyle='None',marker='o')
+        #working here; get data points from many realizations, include on plot
+    
+    
 
     if filetag:
         filetagstr='_'+filetag
@@ -2703,6 +2726,173 @@ def lmintest_plot_rhoexp(lminlist=np.arange(1,20),z0=.7,overwrite=False,saverho=
     print 'Saving plot to ',plotdir+outname
     plt.savefig(plotdir+outname)
     plt.close()
+#===============================================================
+# anglular momentum tests
+#===============================================================
+# These functions are for making plots based on some angular
+# momentum data dragan produced. He did so based on the fiducial, euc07
+# depthtest maps: true ISW gives Ltrue, iswREC give Lrec
+#-------------------------
+def linefit_residuals(params,xdat,ydat):
+    m,b=params
+    ytheory=b+m*xdat
+    err=ydat-ytheory
+    return err
+
+def angmomtest_Lvsrho_plot(plotdat='fracchange',plotdir='output/angmom_study/',dofit=True):
+    z0fid=0.7
+    rhofile='iswREC.eucz07.fid.fullsky.depthtest.rho.dat'
+    Lfile='Lmax_true_Lmax_rec.dat'
+    outfile='L_vs_rho_{0:s}.png'.format(plotdat)
+    scatcolor='#92c5de'
+    meancolor='#ca0020'
+    #read in data
+    rhodat=read_rhodat_wfile(plotdir+rhofile)
+    Ldat=np.loadtxt(plotdir+Lfile)
+    Ltrue=Ldat[:,0]
+    Lrec=Ldat[:,1]
+
+    plt.figure(0)
+    ax=plt.subplot()
+    colors=['#1b9e77','#d95f02','#7570b3','#e7298a','#66a61e','#e6ab02']
+    for item in ([ax.title, ax.xaxis.label, ax.yaxis.label] +
+                 ax.get_xticklabels() + ax.get_yticklabels()):
+        item.set_fontsize(18)
+    plt.xlabel(r'$\rho$')
+    #plt.xlim((0.,1.))
+
+    #plotdat specific info
+    hline=True
+    onetooneline=False
+    if plotdat=='change':
+        plt.ylabel(r'$L_{\rm rec} - L_{\rm true}$')
+        ydat=Lrec-Ltrue
+        whereyline=0
+    elif plotdat=='abschange':
+        plt.ylabel(r'$|L_{\rm rec} - L_{\rm true}|$')
+        ydat=np.fabs(Lrec-Ltrue)
+        whereyline=0
+    elif plotdat=='fracchange':
+        plt.ylabel(r'$\left[L_{\rm rec} - L_{\rm true}\right]/L_{\rm true}$')
+        ydat=(Lrec-Ltrue)/Ltrue
+        whereyline=0
+    elif plotdat=='ratio':
+        plt.ylabel(r'$L_{\rm rec}/L_{\rm true}$')
+        ydat=(Lrec)/Ltrue
+        whereyline=1
+        
+    #binned points setup
+    nbins=7
+    histrange=(.3,1.)
+    n,hedges=np.histogram(rhodat,bins=nbins,range=histrange)
+    sy,_=np.histogram(rhodat,bins=nbins,weights=ydat,range=histrange)
+    sy2,_=np.histogram(rhodat,bins=nbins,weights=ydat*ydat,range=histrange)
+    mean=sy/n
+    std=np.sqrt(sy2/n-mean*mean)
+
+    #plot point and ref line
+    plt.plot(rhodat,ydat,linestyle='None',marker='.',color=scatcolor)
+    if hline: ax.axhline(whereyline,color='grey',linestyle='-')
+    
+    #fit line to points
+    if dofit:
+        if hline: startm,startb=0,0
+        if onetooneline: startm,startb=1,0
+        params,_=leastsq(linefit_residuals,(startm,startb),args=(rhodat,ydat))
+        m,b=params
+        print 'fitted slope and intercept:',m,b
+        lineends=np.array([np.min(rhodat),np.max(rhodat)])
+        plt.plot(lineends,b+m*lineends,color='black',linestyle='--',label='fit to scatter')
+        
+    #plot hist points
+    plt.errorbar((hedges[1:]+hedges[:-1])/2,mean,yerr=std/np.sqrt(n),color=meancolor,marker='x',markersize=8,markeredgewidth=1,linestyle='None',linewidth=1,capsize=5,label='binned mean')#binned points
+    plt.legend(loc='lower left',numpoints=1)
+    outname=plotdir+outfile
+    print 'saving',outname
+    plt.savefig(outname)
+    plt.close()
+    
+def angmomtest_LvsLtrue_plot(plotdat='fracchange',plotdir='output/angmom_study/',dofit=True):
+    z0fid=0.7
+    rhofile='iswREC.eucz07.fid.fullsky.depthtest.rho.dat'
+    Lfile='Lmax_true_Lmax_rec.dat'
+    outfile='dL_vs_Ltrue_{0:s}.png'.format(plotdat)
+    scatcolor='#92c5de'
+    meancolor='#ca0020'
+
+    #read in data
+    Ldat=np.loadtxt(plotdir+Lfile)
+    Ltrue=Ldat[:,0]
+    Lrec=Ldat[:,1]
+
+    plt.figure(0)
+    ax=plt.subplot()
+    for item in ([ax.title, ax.xaxis.label, ax.yaxis.label] +
+                 ax.get_xticklabels() + ax.get_yticklabels()):
+        item.set_fontsize(18)
+    plt.xlabel(r'$L_{\rm true}$')
+    #plt.xlim((0.,1.))
+    hline=True
+    onetooneline=False
+    if plotdat=='change':
+        plt.ylabel(r'$L_{\rm rec} - L_{\rm true}$')
+        ydat=Lrec-Ltrue
+        whereyline=0
+    elif plotdat=='abschange':
+        plt.ylabel(r'$|L_{\rm rec} - L_{\rm true}|$')
+        ydat=np.fabs(Lrec-Ltrue)
+        whereyline=0
+    elif plotdat=='fracchange':
+        plt.ylabel(r'$\left[L_{\rm rec} - L_{\rm true}\right]/L_{\rm true}$')
+        ydat=(Lrec-Ltrue)/Ltrue
+        whereyline=0
+    elif plotdat=='ratio':
+        plt.ylabel(r'$L_{\rm rec}/L_{\rm true}$')
+        ydat=(Lrec)/Ltrue
+        whereyline=1
+    elif plotdat=='Lrec':
+        plt.ylabel(r'$L_{\rm rec}$')
+        ydat=(Lrec)
+        hline=False
+        onetooneline=True
+        whereyline=1
+        
+    #binned points
+    nbins=10
+    histrange=(np.min(Ltrue),np.max(Ltrue))
+    n,hedges=np.histogram(Ltrue,bins=nbins,range=histrange)
+    sy,_=np.histogram(Ltrue,bins=nbins,weights=ydat,range=histrange)
+    sy2,_=np.histogram(Ltrue,bins=nbins,weights=ydat*ydat,range=histrange)
+    mean=sy/n
+    std=np.sqrt(sy2/n-mean*mean)
+    plt.plot(Ltrue,ydat,linestyle='None',marker='.',color=scatcolor)
+    if hline:
+        ax.axhline(whereyline,color='grey',linestyle='-')
+    elif onetooneline:
+        xmax=np.max(np.fabs(Ldat))
+        x0,x1=plt.xlim()
+        y0,y1=plt.ylim()
+        plt.plot(10*np.array([-xmax,xmax]),10*np.array([-xmax,xmax]),linestyle='-',color='grey')
+        plt.xlim((x0,x1))
+        plt.ylim((y0,y1))
+
+    #fit line to points
+    if dofit:
+        if hline: startm,startb=0,0
+        if onetooneline: startm,startb=1,0
+        params,_=leastsq(linefit_residuals,(startm,startb),args=(Ltrue,ydat))
+        m,b=params
+        print 'fitted slope and intercept:',m,b
+        lineends=np.array([np.min(Ltrue),np.max(Ltrue)])
+        plt.plot(lineends,b+m*lineends,color='black',linestyle='--',label='fit to scatter')
+    
+    plt.errorbar((hedges[1:]+hedges[:-1])/2,mean,yerr=std/np.sqrt(n),color=meancolor,marker='x',markersize=8,markeredgewidth=1,linestyle='None',linewidth=1,capsize=5,label='binned mean')#binned points
+    plt.legend(loc='lower left',numpoints=1)
+    outname=plotdir+outfile
+    print 'saving',outname
+    plt.savefig(outname)
+    plt.close()
+
 #################################################################
 if __name__=="__main__":
     #plot_isw_kernel()
@@ -2801,31 +2991,6 @@ if __name__=="__main__":
         #z0test_Clcomp()
         #bztest_Clcomp()
 
-    if 0: #zdist tests with less info
-        # z0test_onesim_plot(varname='rho')
-        # z0test_onesim_plot(varname='s')
-        #bztest_onesim_plot(varname='rho')
-        #bztest_onesim_plot(varname='s')
-        #bztest_onerec_plot(varname='rho')
-        #bztest_onerec_plot(varname='s')
-        
-        Nbins=3
-        if Nbins==1:
-            badfracs=np.array([0.,5.e-4,1.e-3,2.e-3,1.e-2,2.e-2,.1,.2])#1 bin
-            badfracs1sim=np.array([0.,1.e-3,2.e-3,1.e-2,2.e-2,.1,.2])#1 bin
-            #catz_Clcomp(badfracs=badfracs)
-        elif Nbins==3:
-            badfracs=np.array([0.,1.e-3,1.e-2,.1,.2])#3 bin
-            badfracs1sim=badfracs
-        catztest_onerec_plot(varname='rho',Nbins=Nbins,simf=badfracs)
-        catztest_onerec_plot(varname='s',Nbins=Nbins,simf=badfracs)
-        catztest_onesim_plot(varname='rho',Nbins=Nbins,recf=badfracs1sim,fidf=.01)
-        catztest_onesim_plot(varname='s',Nbins=Nbins,recf=badfracs1sim,fidf=.01)
-        
-        #z0test_Clcomp()
-        #bztest_Clcomp()
-
-        
     if 0: #catztest theory calcs, makes colorblock plots
         for Nbins in [1,3]:
             if Nbins==1:
@@ -2836,5 +3001,39 @@ if __name__=="__main__":
             catz_get_rhoexp(overwrite=True,doplot=True,varname='rho',badfracs=badfracs,Nbins=Nbins)
             catz_get_rhoexp(overwrite=True,doplot=True,varname='s',badfracs=badfracs,Nbins=Nbins)
         #catz_Clcomp()
+
+
+    if 0: #zdist tests with less info
+        # z0test_onesim_plot(varname='rho')
+        # z0test_onesim_plot(varname='s')
+        #bztest_onesim_plot(varname='rho')
+        #bztest_onesim_plot(varname='s')
+        #bztest_onerec_plot(varname='rho')
+        #bztest_onerec_plot(varname='s')
+        
+        Nbins=1
+        if Nbins==1:
+            badfracs=np.array([0.,1.e-3,5.e-3,1.e-2,2.e-2,5.e-2,.1,.2])#1 bin
+            badfracs1sim=badfracs#1 bin
+            #catz_Clcomp(badfracs=badfracs)
+        elif Nbins==3:
+            badfracs=np.array([0.,1.e-3,1.e-2,.1,.2])#3 bin
+            badfracs1sim=badfracs
+        catztest_onerec_plot(varname='rho',Nbins=Nbins,simf=badfracs)
+        catztest_onerec_plot(varname='s',Nbins=Nbins,simf=badfracs)
+        catztest_onesim_plot(varname='rho',Nbins=Nbins,recf=badfracs1sim,fidf=.01)
+        catztest_onesim_plot(varname='s',Nbins=Nbins,recf=badfracs1sim,fidf=.01)
+        catz_Clcomp()
+        catz_windowtest(badfracs,Nbins=Nbins)
+        #z0test_Clcomp()
+        #bztest_Clcomp()
+    #angular momentum tests
+    if 0:
+        for dattype in ['change','fracchange','abschange','ratio']:
+            angmomtest_Lvsrho_plot(plotdat=dattype)
+            pass
+        for dattype in ['change','fracchange','abschange','ratio','Lrec']:
+            pass
+            angmomtest_LvsLtrue_plot(plotdat=dattype)        
 
 

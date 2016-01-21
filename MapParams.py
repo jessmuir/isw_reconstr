@@ -24,11 +24,11 @@ def smoothedtophat(x,zminnom,zmaxnom,edge=0.001):
     sig=edge*width
     return 0.5*(np.tanh((x-zminnom)/sig)+np.tanh((zmaxnom-x)/sig))
 
-def smoothtophat_forbadfrac(x,zminnom=.05,zmaxnom=2.5,lowedge=.5,topedge=.1):
+def smoothedtophat_forbadfrac(x,zminnom=.05,zmaxnom=2.5,lowedge=.5,topedge=.1):
     #similar to smoothed tophat, but smooths out high z end more than low 
     topsig=topedge*zmaxnom #topend is more smoothed out
     lowsig=lowedge*zminnom
-    return 0.5*(np.tanh((x-zminnom)/sig)+np.tanh((zmaxnom-x)/topsig))
+    return 0.5*(np.tanh((x-zminnom)/lowsig)+np.tanh((zmaxnom-x)/topsig))
     
 
 #The classes in this file contain info describing the (mainly radial)
