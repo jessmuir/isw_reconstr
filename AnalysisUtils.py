@@ -33,12 +33,13 @@ from genMapsfromCor import * #functions which gen g_lm and maps from C_l
 #             needs to be present in cldat, but not necessarily glmdat
 ###########################################################################
 class RecData(object):
-    def __init__(self,includeglm=[],includecl=[],inmaptag='fromLSS',rectag='nonfid',minl_forrec=1,NSIDE=32,zerotag='isw_bin0',maptagprefix='iswREC'):
+    def __init__(self,includeglm=[],includecl=[],inmaptag='fromLSS',rectag='nonfid',minl_forrec=1,maxl_forrec=-1,NSIDE=32,zerotag='isw_bin0',maptagprefix='iswREC'):
         self.Nmap=len(includeglm)
         self.inmaptag=inmaptag
         self.maptag=maptagprefix+'.'+inmaptag
         self.rectag=rectag
         self.lmin=minl_forrec
+        self.lmax=maxl_forrec #by default, uses max l available
         self.NSIDE=NSIDE
 
         self.includeglm=includeglm
@@ -273,6 +274,7 @@ def calc_isw_est(cldat,glmdat,recdat,writetofile=True,getmaps=True,redofits=True
     maptag=recdat.maptag
     rectag=recdat.rectag
     lmin_forrec=recdat.lmin
+    lmax_forrec=recdat.lmax
     print "Computing ISW estimator maptag,rectag:",maptag,rectag
 
     if not recdat.includeglm:
@@ -330,8 +332,7 @@ def calc_isw_est(cldat,glmdat,recdat,writetofile=True,getmaps=True,redofits=True
     ellvals,emmvals=glmdat.get_hp_landm()
     for lmind in xrange(glmdat.Nlm):
         ell=ellvals[lmind]
-        if ell<lmin_forrec: 
-            #print 'continuing since ell is too small'
+        if ell<lmin_forrec or (lmax_forrec>0 and ell>lmax_forrec): 
             continue
         Nl=1./Dinvr[:,ell,0,0] #Nreal sized array
         for i in xrange(recdat.Nmap): #loop through non-isw maps
@@ -342,7 +343,11 @@ def calc_isw_est(cldat,glmdat,recdat,writetofile=True,getmaps=True,redofits=True
     outmaptags=[recdat.maptag]
     outmodtags=[recdat.rectag]
     lminstr="-lmin{0:02d}".format(recdat.lmin)
-    outmasktags=['fullsky'+lminstr]
+    if lmax_forrec>0:
+        lmaxstr="-lmax{0:02d}".format(recdat.lmax)
+    else:
+        lmaxstr=""
+    outmasktags=['fullsky'+lminstr+lmaxstr]
     almdat=glmData(almest,glmdat.lmax,outmaptags,glmdat.runtag,glmdat.rundir,rlzns=glmdat.rlzns,filetags=[maptag+'.'+rectag],modtaglist=outmodtags,masktaglist=outmasktags)
 
     if writetofile: #might set as false if we want to do several recons
@@ -363,7 +368,7 @@ def calc_isw_est(cldat,glmdat,recdat,writetofile=True,getmaps=True,redofits=True
                 rlzns=almdat.rlzns
             else:
                 rlzns=np.arange(almdat.Nreal)
-            rhovals=rho_manyreal(truemapbase,recmapbase,rlzns=rlzns,lmin=recdat.lmin)
+            rhovals=rho_manyreal(truemapbase,recmapbase,rlzns=rlzns,lmin=recdat.lmin,lmax=recdat.lmax)
 
     return almdat
 
@@ -712,7 +717,8 @@ def calc_rho_forreclist(glmdat,almdat,reclist,rlzns,savedat=True,overwrite=False
         recmapf=almdat.get_mapfile(0,i,'fits')
         recmapbase=recmapf[:recmapf.rfind('.r')]
         lmin=reclist[i].lmin
-        rhovals=rho_manyreal(truemapbase,recmapbase,rlzns=rlzns,savedat=False,varname=varname,lmin=lmin)           
+        lmax=reclist[i].lmax
+        rhovals=rho_manyreal(truemapbase,recmapbase,rlzns=rlzns,savedat=False,varname=varname,lmin=lmin,lmax=lmax)           
         rhogrid.append(rhovals)
         if savedat:
             save_rhodat(rhovals,rlzns,truemapbase,recmapbase,overwrite=overwrite,filetag=filetag,varname=varname)
@@ -738,12 +744,15 @@ def calc_rell_forreclist(glmdat,almdat,reclist,rlzns,savedat=True,overwrite=Fals
 #------------------------------------------------------------------------
 # Use this to remove low ell components from a healpy map
 #   does so by turning it to glm, setting all glm with l<lmin to zero
+#   if lmax passed that is>0, will set l>lmax to zero too
 #   then turns it back into a map, which is returned
-def remove_lowell_frommap(hpmap,lmin):
+def remove_lowell_frommap(hpmap,lmin,reclmax=-1):
     alm=hp.map2alm(hpmap)
     lmax=np.sphtfunc.alm.getlmax(alm.size)
     l,m=hp.sphtfunc.Alm.getlm(lmax)
     keepell=l>=lmin
+    if reclmax>0 and reclmax<lmax:
+        keepl*=l<=reclmax
     alm*=keepell
     outmap=alm2map(alm)
     return outmap
@@ -754,7 +763,7 @@ def remove_lowell_frommap(hpmap,lmin):
 #        filebases - filename of maps, up to but not including '.rXXXXX.fits'
 #        rlzns, Nreal - if rlzns is empty, rlzns=np.arange(Nreal), otherwise Nreal=rlzns.size
 
-def rho_manyreal(truefilebase,recfilebase,Nreal=1,rlzns=np.array([]),savedat=False,overwrite=False,filetag='',varname='rho',lmin=1):
+def rho_manyreal(truefilebase,recfilebase,Nreal=1,rlzns=np.array([]),savedat=False,overwrite=False,filetag='',varname='rho',lmin=1,lmax=-1):
     if rlzns.size:
         Nreal=rlzns.size
     else:
@@ -767,8 +776,8 @@ def rho_manyreal(truefilebase,recfilebase,Nreal=1,rlzns=np.array([]),savedat=Fal
         map1orig=hp.read_map(f1,verbose=False)
         map2orig=hp.read_map(f2,verbose=False)
         #filter out ell<lmin
-        map1=remove_lowell_frommap(map1orig,lmin)
-        map2=remove_lowell_frommap(map2oirg,lmin)
+        map1=remove_lowell_frommap(map1orig,lmin,lmax)
+        map2=remove_lowell_frommap(map2oirg,lmin,lmax)
         
         #compute cross correlations and store the value
         if varname=='rho':
@@ -1015,6 +1024,7 @@ def compute_rho_fromcl(cldat,recdat,reccldat=0,varname='rho'):
         DIFFREC=True #are the Cl's for rec and sim different?
 
     lmin=recdat.lmin
+    lmax=recdat.lmax
     # These are the Cl used for simulating maps (hence the recdat.includeglm)
     Dl,dtags=get_Dl_matrix(cldat,recdat.includeglm,recdat.zerotagstr)
     #print Dl[5,:,:]
@@ -1027,6 +1037,8 @@ def compute_rho_fromcl(cldat,recdat,reccldat=0,varname='rho'):
             Nl[l]=1/Dinv[l,0,0]
 
     includel=(lvals>=lmin)
+    if lmax>lmin:
+        includl*=(lvals<=lmax)
     NLSS=recdat.Nmap
 
     #if DIFFREC, get Dl data for those Cl, these are Cl for making estimator
@@ -1157,6 +1169,7 @@ def compute_rell_fromcl(cldat,recdat,reccldat=0,varname='rell'):
         DIFFREC=True #are the Cl's for rec and sim different?
     
     lmin=recdat.lmin
+    lmax=recdat.lmax
     Dl,dtags=get_Dl_matrix(cldat,recdat.includecl,recdat.zerotagstr)
     #print Dl[5,:,:]
     Dinv=invert_Dl(Dl)
@@ -1168,6 +1181,8 @@ def compute_rell_fromcl(cldat,recdat,reccldat=0,varname='rell'):
             Nl[l]=1/Dinv[l,0,0]
 
     includel=(lvals>=lmin)
+    if lmax>lmin:
+        includel*=(lvals<=lmax)
     NLSS=recdat.Nmap
 
     rell=np.zeros(Nell)
