@@ -968,13 +968,11 @@ def caltest_get_clfid():
 # get glmdata object with fiducial (no calib error) bin and isw info
 #   is a dummy glmdata object; no data or realizations, just map names
 def caltest_get_fidglm(fidcl=0):
-     #get fiducial cl, with no calibration error
-    fidbins=caltest_get_fidbins()
-    lssbin=fidbins[1].tag #will just be the depthtest bin map
+    #get fiducial cl, with no calibration error
     if not fidcl:
         fidcl=caltest_get_clfid()
 
-    #get fid glmdat; no data needed, just mapnames, et
+    #get fid glmdat; no data needed, just mapnames, etc
     glmdat=get_glm(fidcl,Nreal=0,matchClruntag=True)
     return glmdat
 
@@ -1071,10 +1069,10 @@ def caltest_get_reclist(varlist,shape='g',width=10.,lmin=0,lmax=30,recminell=1):
 #having already generated maps for reconstructions with calib errors,
 # do isw reconstructions from the maps, computing rho and s stats
 # set domaps to False if you just want to recalculate states like rho,s 
-def caltest_iswrec(Nreal,varlist,shape='g',width=10.,lmin=0,lmax=30,overwritecalibmap=False,scaletovar=False,recminell=1,domaps=True):
+def caltest_iswrec(Nreal,varlist,shape='g',width=10.,callmin=0,callmax=30,overwritecalibmap=False,scaletovar=False,recminell=1,domaps=True):
     fidcl=caltest_get_clfid()
     dummyglm=caltest_apply_caliberrors(varlist,0,shape,width,lmin,lmax,overwritecalibmap,scaletovar)#includes fidicual case
-    reclist=caltest_get_reclist(varlist,shape,width,lmin,lmax,recminell=recminell)
+    reclist=caltest_get_reclist(varlist,shape,width,callmin,callmax,recminell=recminell)
     doiswrec_formaps(dummyglm,fidcl,Nreal,reclist=reclist,domaps=domaps)
 
 #---------------------------------------------------------------
@@ -1091,7 +1089,7 @@ def caltest_get_logspaced_varlist(minvar=1.e-9,maxvar=.1,Nperlog=10):
     return varout
 
 #assuming many realizations of maps have been run, read in the rho data
-# and return a tuple which can be used to add those points to a plot
+# and return an array which can be used to add those points to a plot
 def caltest_getrhodat_fromfiles(varlist,shape='g',width=10.,lmin=0,lmax=30,recminell=1,varname='rho'):
     Nvar=len(varlist)
     #read in rho values
@@ -2626,24 +2624,57 @@ def catz_Clcomp(badfracs=np.array([0.,5.e-4,1.e-3,2.e-3,1.e-2,2.e-2,.1,.2]),Nbin
 # vary lmin from 1-20. start with just <rho> calc but also run on maps
 #maybe make a similar plot as the caltest ones
 
+# get bin maps: these are just the same as depthtest with one value of z0
+# can specify via includeisw bool whether you just want LSS maps or not
+# returns list of binmaps (len 1 or 2, depending on includeisw)
 def lmintest_get_binmaps(z0=0.7,includeisw=True):
-    return depthtest_get_binmaps(z0vals=np.array(z0),includeisw=includeisw)
+    return depthtest_get_binmaps(z0vals=np.array([z0]),includeisw=includeisw)
 
+# get ClData object, same as for depthtest but getting a single LSS map
 def lmintest_get_cl(includeISW=True,z0=.7):
     return depthtest_get_Cl(justread=True,z0vals=np.array([z0]))
 
-def lmintest_get_reclist(lminlist=np.arange(1,20),z0=.7):
-    galbin=lmintest_get_binmaps(z0,includeisw=False)[0]#only one bin in list
+# for the purposes of ISW reconstruction, get glmData object containing map names
+#  and other info but no actual data for realizations
+def lmintest_get_dummyglm(cldat=0,z0=.7):
+    if not cldat:
+        cldat=lmintest_get_cl(z0=z0)
+    glmdat=get_glm(cldat,Nreal=0,matchClruntag=True)
+    return glmdat
+
+# get list of RecData objects, one for each set of lmin,lmax choices
+#  lmaxlist should be either a single integer or the same size as lminlist
+#  lmaxlist=int means use that val w all lmin, 
+#  lmaxlist.size==lminlist.size means each index is a pair to use
+#  if individual lmax==-1, that rec will use max available ell
+def lmintest_get_reclist(lminlist=np.arange(1,20),lmaxlist=-1,z0=.7):
+    galbin=lmintest_get_binmaps(z0=z0,includeisw=False)[0]#only one bin in list
+    if type(lmaxlist)!=np.ndarray:
+        lmaxlist=lmaxlist*np.ones(lminlist.size,dtype=int)
+    elif lmaxlist.size!=lminlist.size:
+        print 'WARNING: lmaxlist not the same size as lminlist! Setting =-1 (reclist)'
+        lmaxlist=-1*np.ones(lminlist.size,dtype=int)
     reclist=[]
-    for l in lminlist:
+    for l in xrange(lminlist.size):
         bintag=galbin.tag
         includeglm=[bintag]
         inmaptag=bintag[:bintag.rfind('_bin0')]
-        recdat=RecData(includeglm=includeglm,inmaptag=inmaptag,minl_forrec=l)
+        recdat=RecData(includeglm=includeglm,inmaptag=inmaptag,minl_forrec=lminlist[l],maxl_forrec=lmaxlist[l])
         reclist.append(recdat)
     return reclist
-#need to test
-def lmintest_get_rhoexp(lminlist=np.arange(1,20),z0=.7,overwrite=False,saverho=True,varname='rho',filetag='',plotdir='output/lmintest_plots/'):
+
+# gets theoretical calcs of <rho> (or <s>, depending on varname).
+#   computes expectation value given lminlist and lmaxlist (see comments above
+#       'lmintest_get_reclist' for info about these), writes to file if saverho
+#   if saverho and overwrite, just writes to file no matter what
+#              but not overwrite, if file exists w right lmin/max, reads
+#                                 otherwise overwrites
+def lmintest_get_rhoexp(lminlist=np.arange(1,20),lmaxlist=-1,z0=.7,overwrite=False,saverho=True,varname='rho',filetag='',plotdir='output/lmintest_plots/'):
+    if type(lmaxlist)!=np.ndarray:
+        lmaxlist=lmaxlist*np.ones(lminlist.size,dtype=int)
+    elif lmaxlist.size!=lminlist.size:
+        print 'WARNING: lmaxlist not the same size as lminlist! Setting =-1 (rhoexp)'
+        lmaxlist=-1*np.ones(lminlist.size,dtype=int)
     if saverho:
         outdir=plotdir
         if filetag:
@@ -2653,10 +2684,11 @@ def lmintest_get_rhoexp(lminlist=np.arange(1,20),z0=.7,overwrite=False,saverho=T
         datfile='lmintest_{0:s}exp{1:s}.dat'.format(varname,filetagstr)
         if not overwrite and os.path.isfile(outdir+datfile):#file exists
             print "Reading data file:",datfile
-            x=np.loadtxt(outdir+datfile)
+            x=np.loadtxt(outdir+datfile,skiprows=1)
             inlmin=x[:,0] #rows
-            if not np.all(inlmin==lminlist):
-                print "WARNING, input lmin lists don't match requested."
+            inlmax=x[:,1]
+            if not np.all(inlmin==lminlist) or not np.all(inlmax==lmaxlist):
+                print "WARNING, input lmin/max lists don't match requested."
             else:
                 rhoarray=x[1,:] #rho data
                 return rhoarray
@@ -2664,58 +2696,96 @@ def lmintest_get_rhoexp(lminlist=np.arange(1,20),z0=.7,overwrite=False,saverho=T
             print "Writing to data file:",datfile
 
     Nlmin=lminlist.size
-    reclist=lmintest_get_reclist(lminlist,fidz0)
-    cldat=lmintest_get_cl()
+    reclist=lmintest_get_reclist(lminlist,lmaxlist,z0)
+    cldat=lmintest_get_cl(z0=z0)
     rhoarray=np.zeros(Nlmin)
     for l in xrange(Nlmin):
         rhoarray[l]=compute_rho_fromcl(cldat,reclist[l],reccldat=cldat,varname=varname)
     if saverho:
         #write to file, 
         f=open(outdir+datfile,'w')
+        f.write('{0:9s} {1:9s} {2:9s}\n'.format('reclmin','reclmax','rho'))
         for l in xrange(Nlmin):
-            f.write('{0:9d} {1:9.6f}\n'.format(lminlist[l],rhoarray[l]))
+            f.write('{0:9d} {1:9d} {2:9.6f}\n'.format(lminlist[l],lmaxlist[l],rhoarray[l]))
         f.close()
     return rhoarray
 
-# get rho data from many map relizations for one value of lmin
-def lmintest_getrhodat_onelmin(lmin=1,saverho=True,overwrite=False):
-    pass
-#working here, write this function
+# do ISW reconstructions from existing galaxy maps for various lmin values
+#  can pass lmaxlist of same length as lminlist if you want to look at
+#  different lmin,lmax combos. If lmaxlist=int, fill in all of array w that val
+#    individual lmax = -1 means use max available ell for rec
+#  if domaps=False, wont redo isw rec, but stats like rho, s will be recalculated
+def lmintest_iswrec(Nreal,lminlist,lmaxlist=-1,domaps=True,z0=0.7):
+    cldat=lmintest_get_cl(z0=z0)
+    dummyglm=lmintest_get_dummyglm(cldat=cldat,z0=z0)
+    reclist=lmintest_get_reclist(lminlist,lmaxlist,z0)
+    doiswrec_formaps(dummyglm,cldat,Nreal,reclist=reclist,domaps=domaps)
+
+# assuming reconstructions have already been done, along with rho or s calc,
+# and assuming all lmin,lmax combos have the same number of realizations
+#  read in the statistic (rho or s) info from files
+#  returns a Nlmin x Nreal array of rho values
+def lmintest_getrhodat_fromfiles(lminlist=np.arange(1,20),lmaxlist=-1):
+    if type(lmaxlist)!=np.ndarray:
+        lmaxlist=lmaxlist*np.ones(lminlist.size,dtype=int)
+    elif lmaxlist.size!=lminlist.size:
+        print 'WARNING: lmaxlist not the same size as lminlist! Setting =-1 (fromfiles)'
+        lmaxlist=-1*np.ones(lminlist.size,dtype=int)
+    Nlmin=lminlist.size
+    mapdir='output/depthtest/map_output/'
+    files=[]
+    for i in xrange(Nlmin):
+        lminstr="-lmin{0:02d}".format(lminlist[i])
+        lmaxstr=''
+        if lmaxlist[i]>0:
+            lmaxstr="-lmax{0:02d}".format(lmaxlist[i])
+        files.append('iswREC.eucz07.fid.fullsky{0:s}{1:s}.depthtest.{2:s}.dat'.format(lminstr,lmaxstr,varname))
+    rhogrid=np.array([read_rhodat_wfile(mapdir+f) for f in files])
+    return rhogrid
 
 # get rho data for many lmin values
-# returns arrays of same size as lminlist of mean(rho) and std(rho)
-def lmintest_get_rhodat(lminlist=np.arange(1,20),saverho=True,overwrite=False):
-    Nlmin=lminlist.size
-    rhomean=np.zeros(lminlist)
-    rhostd=np.zeros(lminlist)
-    Nrho=np.zeros(lminlist)
+# assumes all lmin,lmax pairs have same number of realizations
+# returns arrays of same size as lminlist of mean(rho) and std(rho) and int Nreal
+def lmintest_get_rhodat(lminlist=np.arange(1,20),lmaxlist=-1):
+    # Get 2d Nlmin x Nreal array of rho data, assuming it has already been calc'd
+    rhodat=lmintest_getrhodat_fromfiles(lminlist,lmaxlist)
+    Nlmin=rhodat.shape[0]
+    Nreal=rhodat.shape[1]
+    rhomean=np.zeros(Nlmin)
+    rhostd=np.zeros(Nlmin)
     for i in xrange(Nlmin):
-        rho=lmintest_getrhodat_onelmin(lminlist[i],saverho,overwrite)
+        rho=rhodat[i,:]
         rhomean[i]=np.mean(rho)
         rhostd[i]=np.std(rho)
-        Nrho[i]=rho.size
-        
-    return rhomean,rhostd,Nrho
+    return rhomean,rhostd,Nreal
 
+#plot <rho> (or <s>) for different lmin
+#  if dodata==True, also get stat data from realizations, assuming they've
+#                   already had maps generated and stats computed
+#for now, set up assuming lmax=-1 (i.e., max possible l used in rec)
+#  maybe in future could set up optionf or diff lmax in diff colors
 def lmintest_plot_rhoexp(lminlist=np.arange(1,20),z0=.7,overwrite=False,saverho=True,varname='rho',filetag='',plotdir='output/lmintest_plots/',dodata=False):
-    rhogrid=lmintest_get_rhoexp(lminlist,z0,overwrite,saverho,varname,filetag,plotdir)
+    rhogrid=lmintest_get_rhoexp(lminlist=lminlist,z0=z0,overwrite=overwrite,saverho=saverho,varname=varname,filetag=filetag,plotdir=plotdir)
     plt.figure(0)
+    colors=['#e41a1c','#377eb8','#4daf4a','#984ea3','#ff7f00','#ffff33','#a65628','#f781bf']
     if varname=='rho':
         varstr=r'\rho'
     elif varname=='s':
         varstr='s'
     
-    plt.plot(lminlist,rhogrid)
+    plt.plot(lminlist,rhogrid,color=colors[0])
     plt.xlabel(r'$\ell_{\rm min}$')
     plt.ylabel(r'${0:s}$'.format(varstr))
     
     if dodata:
-        rhomean,rhostd,Nrho=lmintest_get_rhodat(lminlist)
-        datlabel='Mean from 10,000 realizations.'
-        plt.errorbar(lminlist,rhomean,yerr=rhostd,label=datlabel,linestyle='None',marker='o')
-        #working here; get data points from many realizations, include on plot
+        rhomean,rhostd,Nreal=lmintest_get_rhodat(lminlist)
+        datlabel='Mean from {0:d} sim.'.format(Nreal)
+        plt.errorbar(lminlist,rhomean,yerr=rhostd,label=datlabel,linestyle='None',marker='o',color=colors[0])
     
-    
+    if varname=='rho':
+        plt.legend(fontsize=14,loc='lower left')
+    elif varname=='s':
+        plt.legend(fontsize=14,loc='upper left')
 
     if filetag:
         filetagstr='_'+filetag
@@ -2739,19 +2809,31 @@ def linefit_residuals(params,xdat,ydat):
     err=ydat-ytheory
     return err
 
-def angmomtest_Lvsrho_plot(plotdat='fracchange',plotdir='output/angmom_study/',dofit=True):
+def angmomtest_Lvsrho_plot(plotdat='fracchange',Lfile='Lmax_true_Lmax_rec.dat',plotdir='output/angmom_study/',dofit=True,note=r'$\ell=2,3$',fileprefix='',shuffleLrec=False):
     z0fid=0.7
     rhofile='iswREC.eucz07.fid.fullsky.depthtest.rho.dat'
-    Lfile='Lmax_true_Lmax_rec.dat'
-    outfile='L_vs_rho_{0:s}.png'.format(plotdat)
+    if fileprefix:
+        randstr=''
+        if shuffleLrec: randstr='shuffled'
+        fileprefix=fileprefix+randstr+'_'
+    outfile='{0:s}L_vs_rho_{1:s}.png'.format(fileprefix,plotdat)
     scatcolor='#92c5de'
     meancolor='#ca0020'
     #read in data
-    rhodat=read_rhodat_wfile(plotdir+rhofile)
+
     Ldat=np.loadtxt(plotdir+Lfile)
     Ltrue=Ldat[:,0]
     Lrec=Ldat[:,1]
+    print 'preshuffle', type(Lrec)
+    if shuffleLrec:
+        np.random.shuffle(Lrec)
+        note+='\n'+r'$L_{\rm rec}$ randomized'
+    
+    NL=Ltrue.size #assume first NL of the rho match w provided L vals
+    rhodat=read_rhodat_wfile(plotdir+rhofile)[:NL]
+    
 
+    
     plt.figure(0)
     ax=plt.subplot()
     colors=['#1b9e77','#d95f02','#7570b3','#e7298a','#66a61e','#e6ab02']
@@ -2807,16 +2889,20 @@ def angmomtest_Lvsrho_plot(plotdat='fracchange',plotdir='output/angmom_study/',d
     #plot hist points
     plt.errorbar((hedges[1:]+hedges[:-1])/2,mean,yerr=std/np.sqrt(n),color=meancolor,marker='x',markersize=8,markeredgewidth=1,linestyle='None',linewidth=1,capsize=5,label='binned mean')#binned points
     plt.legend(loc='lower left',numpoints=1)
+    plt.annotate(note,xy=(.1,.9),horizontalalignment='left',verticalalignment='top',fontsize=18,xycoords='axes fraction')
     outname=plotdir+outfile
     print 'saving',outname
     plt.savefig(outname)
     plt.close()
     
-def angmomtest_LvsLtrue_plot(plotdat='fracchange',plotdir='output/angmom_study/',dofit=True):
+def angmomtest_LvsLtrue_plot(plotdat='fracchange',Lfile='Lmax_true_Lmax_rec.dat',plotdir='output/angmom_study/',dofit=True,note=r'$\ell=2,3$',fileprefix='',shuffleLrec=False):
     z0fid=0.7
     rhofile='iswREC.eucz07.fid.fullsky.depthtest.rho.dat'
-    Lfile='Lmax_true_Lmax_rec.dat'
-    outfile='dL_vs_Ltrue_{0:s}.png'.format(plotdat)
+    if fileprefix:
+        randstr=''
+        if shuffleLrec: randstr='shuffled'
+        fileprefix=fileprefix+randstr+'_'
+    outfile='{0:s}dL_vs_Ltrue_{1:s}.png'.format(fileprefix,plotdat)
     scatcolor='#92c5de'
     meancolor='#ca0020'
 
@@ -2824,7 +2910,9 @@ def angmomtest_LvsLtrue_plot(plotdat='fracchange',plotdir='output/angmom_study/'
     Ldat=np.loadtxt(plotdir+Lfile)
     Ltrue=Ldat[:,0]
     Lrec=Ldat[:,1]
-
+    if shuffleLrec:
+        np.random.shuffle(Lrec)
+        note+='\n'+r'$L_{\rm rec}$ randomized'
     plt.figure(0)
     ax=plt.subplot()
     for item in ([ax.title, ax.xaxis.label, ax.yaxis.label] +
@@ -2888,6 +2976,7 @@ def angmomtest_LvsLtrue_plot(plotdat='fracchange',plotdir='output/angmom_study/'
     
     plt.errorbar((hedges[1:]+hedges[:-1])/2,mean,yerr=std/np.sqrt(n),color=meancolor,marker='x',markersize=8,markeredgewidth=1,linestyle='None',linewidth=1,capsize=5,label='binned mean')#binned points
     plt.legend(loc='lower left',numpoints=1)
+    plt.annotate(note,xy=(0.1,.9),horizontalalignment='left',verticalalignment='top',fontsize=18,xycoords='axes fraction')
     outname=plotdir+outfile
     print 'saving',outname
     plt.savefig(outname)
@@ -3029,11 +3118,22 @@ if __name__=="__main__":
         #bztest_Clcomp()
     #angular momentum tests
     if 0:
-        for dattype in ['change','fracchange','abschange','ratio']:
-            angmomtest_Lvsrho_plot(plotdat=dattype)
-            pass
-        for dattype in ['change','fracchange','abschange','ratio','Lrec']:
-            pass
-            angmomtest_LvsLtrue_plot(plotdat=dattype)        
-
+        shuffle=1
+        angmomfiles=['Lmax_true_Lmax_rec.dat','Lmax_true_Lmax_rec_5_to_5.dat']
+        notes=[r'$\ell=2,3$',r'$\ell=5$']
+        fprefix=['l23','l5']
+        for i in xrange(len(angmomfiles)):
+            f=angmomfiles[i]
+            n=notes[i]
+            p=fprefix[i]
+            for dattype in ['change','abschange','ratio']:
+                angmomtest_Lvsrho_plot(plotdat=dattype,Lfile=f,note=n,fileprefix=p,shuffleLrec=shuffle)
+                pass
+            for dattype in ['change','fracchange','abschange','ratio','Lrec']:
+                angmomtest_LvsLtrue_plot(plotdat=dattype,Lfile=f,note=n,fileprefix=p,shuffleLrec=shuffle)
+                pass
+            
+    #lmin tests
+    if 1:
+        lmintest_plot_rhoexp(lminlist=np.arange(1,20),overwrite=False,saverho=True,varname='rho',filetag='',plotdir='output/lmintest_plots/',dodata=False)
 
