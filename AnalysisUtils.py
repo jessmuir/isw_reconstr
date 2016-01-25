@@ -1037,8 +1037,8 @@ def compute_rho_fromcl(cldat,recdat,reccldat=0,varname='rho'):
             Nl[l]=1/Dinv[l,0,0]
 
     includel=(lvals>=lmin)
-    if lmax>lmin:
-        includl*=(lvals<=lmax)
+    if lmax>0:
+        includel*=(lvals<=lmax)
     NLSS=recdat.Nmap
 
     #if DIFFREC, get Dl data for those Cl, these are Cl for making estimator
@@ -1181,7 +1181,7 @@ def compute_rell_fromcl(cldat,recdat,reccldat=0,varname='rell'):
             Nl[l]=1/Dinv[l,0,0]
 
     includel=(lvals>=lmin)
-    if lmax>lmin:
+    if lmax>0:
         includel*=(lvals<=lmax)
     NLSS=recdat.Nmap
 

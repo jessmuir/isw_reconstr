@@ -2685,12 +2685,13 @@ def lmintest_get_rhoexp(lminlist=np.arange(1,20),lmaxlist=-1,z0=.7,overwrite=Fal
         if not overwrite and os.path.isfile(outdir+datfile):#file exists
             print "Reading data file:",datfile
             x=np.loadtxt(outdir+datfile,skiprows=1)
+            #print x
             inlmin=x[:,0] #rows
             inlmax=x[:,1]
             if not np.all(inlmin==lminlist) or not np.all(inlmax==lmaxlist):
                 print "WARNING, input lmin/max lists don't match requested."
             else:
-                rhoarray=x[1,:] #rho data
+                rhoarray=x[:,2] #rho data
                 return rhoarray
         else:
             print "Writing to data file:",datfile
@@ -2764,35 +2765,75 @@ def lmintest_get_rhodat(lminlist=np.arange(1,20),lmaxlist=-1):
 #                   already had maps generated and stats computed
 #for now, set up assuming lmax=-1 (i.e., max possible l used in rec)
 #  maybe in future could set up optionf or diff lmax in diff colors
-def lmintest_plot_rhoexp(lminlist=np.arange(1,20),z0=.7,overwrite=False,saverho=True,varname='rho',filetag='',plotdir='output/lmintest_plots/',dodata=False):
-    rhogrid=lmintest_get_rhoexp(lminlist=lminlist,z0=z0,overwrite=overwrite,saverho=saverho,varname=varname,filetag=filetag,plotdir=plotdir)
+# if lmaxlist is passed, each one gets all lmin vals, plot separate line
+#  !!!note that this is different how lmaxlist is treated in other functions
+
+def lmintest_plot_rhoexp(lminlist=np.arange(1,30),lmaxlist=-1,z0=.7,overwrite=False,saverho=True,varname='rho',filetag='',plotdir='output/lmintest_plots/',dodata=False):
+
+    Nlmax=1
+    if type(lmaxlist)!=np.ndarray:
+        lmaxlist=np.array([lmaxlist])
+    Nlmax=lmaxlist.size
+    
+    rhogrid=[]#to become 2d array [lmax,lmin]
+    for i in xrange(Nlmax):
+        if lmaxlist[i]==-1:
+            filetagi=filetag
+        else:
+            filetagi=filetag+'lmax{0:d}'.format(lmaxlist[i])
+        rhogrid.append(lmintest_get_rhoexp(lminlist=lminlist,lmaxlist=lmaxlist[i],z0=z0,overwrite=overwrite,saverho=saverho,varname=varname,filetag=filetagi,plotdir=plotdir))
+    rhogrid=np.array(rhogrid)
+    np.array(rhogrid)
+    print 'rhogrid.shape',rhogrid.shape
     plt.figure(0)
+    plt.subplots_adjust(bottom=.2)
+    plt.subplots_adjust(left=.2)
+    ax=plt.subplot()
+    for item in ([ax.title, ax.xaxis.label, ax.yaxis.label] +
+                 ax.get_xticklabels() + ax.get_yticklabels()):
+        item.set_fontsize(20)
+    for item in ([ax.xaxis.label, ax.yaxis.label] ):
+        item.set_fontsize(24)
+    
     colors=['#e41a1c','#377eb8','#4daf4a','#984ea3','#ff7f00','#ffff33','#a65628','#f781bf']
     if varname=='rho':
         varstr=r'\rho'
     elif varname=='s':
         varstr='s'
-    
-    plt.plot(lminlist,rhogrid,color=colors[0])
+    for i in xrange(Nlmax):
+        linelabel=r'$\ell_{{\rm max}}={0:d}$'.format(lmaxlist[i])
+        Nrho=rhogrid[i,:].size
+        plt.plot(lminlist[:Nrho],rhogrid[i,:],color=colors[i%len(colors)],label=linelabel)
     plt.xlabel(r'$\ell_{\rm min}$')
     plt.ylabel(r'${0:s}$'.format(varstr))
-    
+    plt.xlim((0,15))
+    plt.ylim((.85,.96))
+
     if dodata:
-        rhomean,rhostd,Nreal=lmintest_get_rhodat(lminlist)
+        rhomean=[]
+        rhostd=[]
+        Nreal=[]
+        for i in xrange(Nlmax):
+            rhomeani,rhostdi,Nreali=lmintest_get_rhodat(lminlist,lmaxlist[i])
+            rhomean.append(rhomeani)
+            rhostd.append(rhostdi)
+            Nreal.append(Nreali)
+            #colors will match lines
+            plt.errorbar(lminlist,rhomeani,yerr=rhostdi,linestyle='None',marker='o',color=colors[i%len(colors)])
         datlabel='Mean from {0:d} sim.'.format(Nreal)
-        plt.errorbar(lminlist,rhomean,yerr=rhostd,label=datlabel,linestyle='None',marker='o',color=colors[0])
-    
+        #plot dummy point for legend
+        plt.errorbar([-1],[.9],yerr=[.01],linestyle='None',marker='o',color='black',label=datlabel)
+
     if varname=='rho':
-        plt.legend(fontsize=14,loc='lower left')
+        plt.legend(fontsize=14,loc='lower right')
     elif varname=='s':
-        plt.legend(fontsize=14,loc='upper left')
+        plt.legend(fontsize=14,loc='lower left')
 
     if filetag:
-        filetagstr='_'+filetag
+        outtag='_'+filetag
     else:
-        filetagstr=filetag
-    if not outname:
-        outname='lmintest_'+varname+'_exp'+outtag+'.png'
+        outtag=filetag
+    outname='lmintest_'+varname+'_exp'+outtag+'.png'
     print 'Saving plot to ',plotdir+outname
     plt.savefig(plotdir+outname)
     plt.close()
@@ -2873,7 +2914,8 @@ def angmomtest_Lvsrho_plot(plotdat='fracchange',Lfile='Lmax_true_Lmax_rec.dat',p
     std=np.sqrt(sy2/n-mean*mean)
 
     #plot point and ref line
-    plt.plot(rhodat,ydat,linestyle='None',marker='.',color=scatcolor)
+    plt.plot(rhodat,ydat,linestyle='None',marker='.',color=scatcolor,zorder=-32)
+    # zorder arg in there to try to make points drawn behind error bars
     if hline: ax.axhline(whereyline,color='grey',linestyle='-')
     
     #fit line to points
@@ -2887,7 +2929,7 @@ def angmomtest_Lvsrho_plot(plotdat='fracchange',Lfile='Lmax_true_Lmax_rec.dat',p
         plt.plot(lineends,b+m*lineends,color='black',linestyle='--',label='fit to scatter')
         
     #plot hist points
-    plt.errorbar((hedges[1:]+hedges[:-1])/2,mean,yerr=std/np.sqrt(n),color=meancolor,marker='x',markersize=8,markeredgewidth=1,linestyle='None',linewidth=1,capsize=5,label='binned mean')#binned points
+    plt.errorbar((hedges[1:]+hedges[:-1])/2,mean,yerr=std,color=meancolor,marker='x',markersize=8,markeredgewidth=1,linestyle='None',linewidth=1,capsize=5,label='binned mean')#binned points
     plt.legend(loc='lower left',numpoints=1)
     plt.annotate(note,xy=(.1,.9),horizontalalignment='left',verticalalignment='top',fontsize=18,xycoords='axes fraction')
     outname=plotdir+outfile
@@ -2953,7 +2995,8 @@ def angmomtest_LvsLtrue_plot(plotdat='fracchange',Lfile='Lmax_true_Lmax_rec.dat'
     sy2,_=np.histogram(Ltrue,bins=nbins,weights=ydat*ydat,range=histrange)
     mean=sy/n
     std=np.sqrt(sy2/n-mean*mean)
-    plt.plot(Ltrue,ydat,linestyle='None',marker='.',color=scatcolor)
+    plt.plot(Ltrue,ydat,linestyle='None',marker='.',color=scatcolor,zorder=-32)
+    # zorder arg in there to try to make points drawn behind error bars)
     if hline:
         ax.axhline(whereyline,color='grey',linestyle='-')
     elif onetooneline:
@@ -2974,7 +3017,7 @@ def angmomtest_LvsLtrue_plot(plotdat='fracchange',Lfile='Lmax_true_Lmax_rec.dat'
         lineends=np.array([np.min(Ltrue),np.max(Ltrue)])
         plt.plot(lineends,b+m*lineends,color='black',linestyle='--',label='fit to scatter')
     
-    plt.errorbar((hedges[1:]+hedges[:-1])/2,mean,yerr=std/np.sqrt(n),color=meancolor,marker='x',markersize=8,markeredgewidth=1,linestyle='None',linewidth=1,capsize=5,label='binned mean')#binned points
+    plt.errorbar((hedges[1:]+hedges[:-1])/2,mean,yerr=std,color=meancolor,marker='x',markersize=8,markeredgewidth=1,linestyle='None',linewidth=1,capsize=5,label='binned mean')#binned points
     plt.legend(loc='lower left',numpoints=1)
     plt.annotate(note,xy=(0.1,.9),horizontalalignment='left',verticalalignment='top',fontsize=18,xycoords='axes fraction')
     outname=plotdir+outfile
@@ -2982,6 +3025,69 @@ def angmomtest_LvsLtrue_plot(plotdat='fracchange',Lfile='Lmax_true_Lmax_rec.dat'
     plt.savefig(outname)
     plt.close()
 
+    
+def angmomtest_checkrho_plot(plotdir='output/angmom_study/',dofit=True,fileprefix='',note='',shuffle=False):
+    z0fid=0.7
+    rhofile='iswREC.eucz07.fid.fullsky.depthtest.rho.dat'
+    draganrhofile='fromdragan_l5_rho_10000.dat'
+    randstr=''
+    if shuffle:
+        randstr='shuffled'
+        fileprefix=fileprefix+randstr+'_'
+    outfile='{0:s}rhocomp.png'.format(fileprefix)
+    scatcolor='#92c5de'
+    meancolor='#ca0020'
+
+    #read in data
+    myrhodat=read_rhodat_wfile(plotdir+rhofile)
+    dhrhodat=np.loadtxt(plotdir+draganrhofile)
+    if shuffle:
+        np.random.shuffle(myrhodat)
+        note+='\n'+r'my $\rho$ randomized'
+    plt.figure(0)
+    ax=plt.subplot()
+    for item in ([ax.title, ax.xaxis.label, ax.yaxis.label] +
+                 ax.get_xticklabels() + ax.get_yticklabels()):
+        item.set_fontsize(18)
+    plt.xlabel(r"Jessie's $\rho$")
+    plt.ylabel(r"Dragan's $\rho$")
+    ydat=dhrhodat        
+
+    #binned points
+    nbins=10
+    histrange=(np.min(myrhodat),np.max(myrhodat))
+    n,hedges=np.histogram(myrhodat,bins=nbins,range=histrange)
+    sy,_=np.histogram(myrhodat,bins=nbins,weights=ydat,range=histrange)
+    sy2,_=np.histogram(myrhodat,bins=nbins,weights=ydat*ydat,range=histrange)
+    mean=sy/n
+    std=np.sqrt(sy2/n-mean*mean)
+    plt.plot(myrhodat,ydat,linestyle='None',marker='.',color=scatcolor)
+    #put line thorugh dhrhodat=myrhodat
+    xmax=np.max(np.fabs(myrhodat))
+    x0,x1=plt.xlim()
+    y0,y1=plt.ylim()
+    plt.plot(10*np.array([-xmax,xmax]),10*np.array([-xmax,xmax]),linestyle='-',color='grey')
+    plt.xlim((x0,x1))
+    plt.ylim((y0,y1))
+
+    #fit line to points
+    note=''
+    if dofit:
+        startm,startb=1,0
+        params,_=leastsq(linefit_residuals,(startm,startb),args=(myrhodat,ydat))
+        m,b=params
+        note+='\n fitted slope and intercept: \n{0:0.3g}, {1:0.3g}'.format(m,b)
+        print 'fitted slope and intercept:',m,b
+        lineends=np.array([np.min(myrhodat),np.max(myrhodat)])
+        plt.plot(lineends,b+m*lineends,color='black',linestyle='--',label='fit to scatter')
+    
+    plt.errorbar((hedges[1:]+hedges[:-1])/2,mean,yerr=std,color=meancolor,marker='x',markersize=8,markeredgewidth=1,linestyle='None',linewidth=1,capsize=5,label='binned mean')#binned points
+    plt.legend(loc='lower left',numpoints=1)
+    plt.annotate(note,xy=(0.1,.9),horizontalalignment='left',verticalalignment='top',fontsize=18,xycoords='axes fraction')
+    outname=plotdir+outfile
+    print 'saving',outname
+    plt.savefig(outname)
+    plt.close()
 #################################################################
 if __name__=="__main__":
     #plot_isw_kernel()
@@ -3118,10 +3224,11 @@ if __name__=="__main__":
         #bztest_Clcomp()
     #angular momentum tests
     if 0:
-        shuffle=1
+        shuffle=0
         angmomfiles=['Lmax_true_Lmax_rec.dat','Lmax_true_Lmax_rec_5_to_5.dat']
         notes=[r'$\ell=2,3$',r'$\ell=5$']
         fprefix=['l23','l5']
+        angmomtest_checkrho_plot(shuffle=shuffle) #check that Dragan and i get same rho
         for i in xrange(len(angmomfiles)):
             f=angmomfiles[i]
             n=notes[i]
@@ -3134,6 +3241,9 @@ if __name__=="__main__":
                 pass
             
     #lmin tests
-    if 1:
-        lmintest_plot_rhoexp(lminlist=np.arange(1,20),overwrite=False,saverho=True,varname='rho',filetag='',plotdir='output/lmintest_plots/',dodata=False)
+    if 1: #generate rho data from many realizations
+        
+    if 0: #plot rho data        
+        lmintest_plot_rhoexp(overwrite=0,lmaxlist=np.array([3,5,10,20,-1]),varname='rho',dodata=False)
+        #lmintest_plot_rhoexp(overwrite=0,lmaxlist=np.array([-1]),varname='rho',dodata=False)
 
