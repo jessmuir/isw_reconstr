@@ -40,6 +40,14 @@ class RecData(object):
         self.rectag=rectag
         self.lmin=minl_forrec
         self.lmax=maxl_forrec #by default, uses max l available
+        lminstr="-lmin{0:02d}".format(self.lmin)
+        if self.lmax>0:
+            lmaxstr="-lmax{0:02d}".format(self.lmax)
+        else:
+            lmaxstr=""
+        self.masktag='fullsky'+lminstr+lmaxstr
+
+        
         self.NSIDE=NSIDE
 
         self.includeglm=includeglm
@@ -342,12 +350,7 @@ def calc_isw_est(cldat,glmdat,recdat,writetofile=True,getmaps=True,redofits=True
 
     outmaptags=[recdat.maptag]
     outmodtags=[recdat.rectag]
-    lminstr="-lmin{0:02d}".format(recdat.lmin)
-    if lmax_forrec>0:
-        lmaxstr="-lmax{0:02d}".format(recdat.lmax)
-    else:
-        lmaxstr=""
-    outmasktags=['fullsky'+lminstr+lmaxstr]
+    outmasktags=[recdat.masktag]#for now, only handles changing lmin/max, not masks
     almdat=glmData(almest,glmdat.lmax,outmaptags,glmdat.runtag,glmdat.rundir,rlzns=glmdat.rlzns,filetags=[maptag+'.'+rectag],modtaglist=outmodtags,masktaglist=outmasktags)
 
     if writetofile: #might set as false if we want to do several recons
@@ -415,6 +418,7 @@ def domany_isw_recs(cldatlist,glmdatlist,reclist,outfiletag='iswREC',outruntag='
             outalmdat=outalmdat+almdat
         i+=1
 
+    #print 'IN DOMANY',outalmdat.mapdict
     #assign consistent runtag and filetag
     outalmdat.filetag=[outfiletag]
     outalmdat.runtag=outruntag
@@ -617,7 +621,7 @@ def getmaps_fromCl(cldat,Nreal=1,rlzns=np.array([]),reclist=[],Nglm=1,block=100,
 # doiswrec_formaps - given a dummy glmdata with info for existing .fits maps
 #                   make ISW reconstructiosn, compute stats, etc
 # input:
-#  dummyglm - glmData object with Nreal=0, but containing map names, lmax, etc
+#  dummyglm - glmData object with Nreal=0, but containing input map names, lmax, etc
 #  cldat - clData object containing info for maps to be used in reconstruction
 #  Nreal, rlzns; tell what or how many realizations to do reconstruction for
 #  Nglm - if nonzero, number of realizations for which to save glm data
@@ -672,7 +676,6 @@ def doiswrec_formaps(dummyglm,cldat,Nreal=1,rlzns=np.array([]),reclist=[],Nglm=0
 
         if domaps:
             print "Getting glm from maps for rlzns {0:d}-{1:d}".format(nrlzns[0],nrlzns[-1])
-            
             #glmdat=generate_many_glm_fromcl(cldat,rlzns=nrlzns,savedat=False)
             glmdat=getglm_frommaps(dummyglm,rlzns=nrlzns)
             almdat=domany_isw_recs(cldat,glmdat,reclist,writetofile=False,getmaps=True,makeplots=False,outruntag=glmdat.runtag,dorho=False)
@@ -712,10 +715,12 @@ def calc_rho_forreclist(glmdat,almdat,reclist,rlzns,savedat=True,overwrite=False
     #print "Computing rho statistics"
     rhogrid=[]
     for i in xrange(len(reclist)):
-        truemapf=glmdat.get_mapfile_fortags(0,reclist[i].zerotagstr)
+        truemapf=glmdat.get_mapfile_fortags(0,reclist[i].zerotagstr) #mod/mask tags default
         truemapbase=truemapf[:truemapf.rfind('.r')]
-        recmapf=almdat.get_mapfile(0,i,'fits')
+        recmapf=almdat.get_mapfile(0,i,'fits') #realization 0, map index i, filetype fits
         recmapbase=recmapf[:recmapf.rfind('.r')]
+        #print 'truemapbase',truemapbase
+        #print 'recmapbase',recmapbase
         lmin=reclist[i].lmin
         lmax=reclist[i].lmax
         rhovals=rho_manyreal(truemapbase,recmapbase,rlzns=rlzns,savedat=False,varname=varname,lmin=lmin,lmax=lmax)           
@@ -747,14 +752,15 @@ def calc_rell_forreclist(glmdat,almdat,reclist,rlzns,savedat=True,overwrite=Fals
 #   if lmax passed that is>0, will set l>lmax to zero too
 #   then turns it back into a map, which is returned
 def remove_lowell_frommap(hpmap,lmin,reclmax=-1):
+    nside=hp.npix2nside(hpmap.size)
     alm=hp.map2alm(hpmap)
-    lmax=np.sphtfunc.alm.getlmax(alm.size)
+    lmax=hp.sphtfunc.Alm.getlmax(alm.size)
     l,m=hp.sphtfunc.Alm.getlm(lmax)
     keepell=l>=lmin
     if reclmax>0 and reclmax<lmax:
-        keepl*=l<=reclmax
+        keepell*=l<=reclmax
     alm*=keepell
-    outmap=alm2map(alm)
+    outmap=hp.alm2map(alm,nside)
     return outmap
 
 #------------------------------------------------------------------------
@@ -777,7 +783,7 @@ def rho_manyreal(truefilebase,recfilebase,Nreal=1,rlzns=np.array([]),savedat=Fal
         map2orig=hp.read_map(f2,verbose=False)
         #filter out ell<lmin
         map1=remove_lowell_frommap(map1orig,lmin,lmax)
-        map2=remove_lowell_frommap(map2oirg,lmin,lmax)
+        map2=remove_lowell_frommap(map2orig,lmin,lmax)
         
         #compute cross correlations and store the value
         if varname=='rho':
@@ -969,8 +975,8 @@ def get_rho_filename(recdat,recalmdat,filetag='',varname='rho'):
     else:
         tagstr=''
     #recalmdat.get_mapfile(0,0,'fits')
-    real0file=recalmdat.get_mapfile_fortags(0,recdat.maptag,recdat.rectag)
-    recind=recalmdat.get_mapind_fromtags(recdat.maptag,recdat.rectag)
+    real0file=recalmdat.get_mapfile_fortags(0,recdat.maptag,recdat.rectag,recdat.masktag)
+    recind=recalmdat.get_mapind_fromtags(recdat.maptag,recdat.rectag,recdat.masktag)
     filebase=recalmdat.get_mapfile_base(recind)
     outf=real0file.replace('/'+filebase+'/','/')
     outf=outf[:outf.rfind('.r')]

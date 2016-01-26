@@ -454,8 +454,10 @@ class glmData(object):
 #    otherwise get the Nreal, just starting from rlz=0
 #    overwrite - if False, read in glm file if it exists, compute only if needed
 #                if true, recompute all glm and overwrite
+#    masktaglist - can pass lists of tags; for now just used for Nreal=0 file labeling
+#                  but if we want to apply masks, this could be a good place to do that
 #================================================
-def get_glm(cldata='',rundir='output/',filetag='',runtag='',Nreal=1,rlzns=np.array([]),overwrite=False,matchClruntag=False):
+def get_glm(cldata='',rundir='output/',filetag='',runtag='',Nreal=1,rlzns=np.array([]),overwrite=False,matchClruntag=False,masktaglist=[]):
     if cldata:
         rundata=cldata.rundat
         rundir = rundata.rundir
@@ -482,7 +484,7 @@ def get_glm(cldata='',rundir='output/',filetag='',runtag='',Nreal=1,rlzns=np.arr
 
     # if Nreal, return dummy glmdat; no glm data, just filenames needed
     if Nreal==0:
-        glmdat=glmData(glm=np.array([]),lmax=cldata.rundat.lmax,maptaglist=cldata.bintaglist,runtag=runtag,rundir=cldata.rundat.rundir,filetags=[filetag],nbarlist=cldata.nbar)
+        glmdat=glmData(glm=np.array([]),lmax=cldata.rundat.lmax,maptaglist=cldata.bintaglist,masktaglist=masktaglist,runtag=runtag,rundir=cldata.rundat.rundir,filetags=[filetag],nbarlist=cldata.nbar)
         return glmdat
 
     if overwrite: #generate all these realizations of glm

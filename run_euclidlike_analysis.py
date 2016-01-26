@@ -2634,14 +2634,32 @@ def lmintest_get_binmaps(z0=0.7,includeisw=True):
 def lmintest_get_cl(includeISW=True,z0=.7):
     return depthtest_get_Cl(justread=True,z0vals=np.array([z0]))
 
-# for the purposes of ISW reconstruction, get glmData object containing map names
-#  and other info but no actual data for realizations
+# for the purposes of ISW reconstruction, get glmData object containing input
+# map names and other info but no actual data for realizations
 def lmintest_get_dummyglm(cldat=0,z0=.7):
     if not cldat:
         cldat=lmintest_get_cl(z0=z0)
     glmdat=get_glm(cldat,Nreal=0,matchClruntag=True)
     return glmdat
 
+#given two arrays, one of unique lmin values, one of lmax,
+# returns a pair of arrays set up so each index corresponds to a
+# unique lmin/max combo,  containing all possible combos
+def lmintest_get_lminmaxcombos(lminlist,lmaxlist):
+    Nlmin=lminlist.size
+    Nlmax=lmaxlist.size
+    Ncombo=Nlmin*Nlmax
+    outlmin=np.ones(Ncombo,dtype=int)
+    outlmax=np.ones(Ncombo,dtype=int)
+    counter=0
+    for i in xrange(Nlmax):
+        for j in xrange(Nlmin):
+            outlmax[counter]=lmaxlist[i]
+            outlmin[counter]=lminlist[j]
+            #print counter,i,j,lmaxlist[i],lminlist[j]
+            counter+=1
+    return outlmin,outlmax
+    
 # get list of RecData objects, one for each set of lmin,lmax choices
 #  lmaxlist should be either a single integer or the same size as lminlist
 #  lmaxlist=int means use that val w all lmin, 
@@ -2716,17 +2734,17 @@ def lmintest_get_rhoexp(lminlist=np.arange(1,20),lmaxlist=-1,z0=.7,overwrite=Fal
 #  different lmin,lmax combos. If lmaxlist=int, fill in all of array w that val
 #    individual lmax = -1 means use max available ell for rec
 #  if domaps=False, wont redo isw rec, but stats like rho, s will be recalculated
-def lmintest_iswrec(Nreal,lminlist,lmaxlist=-1,domaps=True,z0=0.7):
+def lmintest_iswrec(Nreal,lminlist=np.arange(1,20),lmaxlist=-1,domaps=True,z0=0.7):
     cldat=lmintest_get_cl(z0=z0)
-    dummyglm=lmintest_get_dummyglm(cldat=cldat,z0=z0)
     reclist=lmintest_get_reclist(lminlist,lmaxlist,z0)
+    dummyglm=lmintest_get_dummyglm(cldat=cldat,z0=z0)
     doiswrec_formaps(dummyglm,cldat,Nreal,reclist=reclist,domaps=domaps)
 
 # assuming reconstructions have already been done, along with rho or s calc,
 # and assuming all lmin,lmax combos have the same number of realizations
 #  read in the statistic (rho or s) info from files
 #  returns a Nlmin x Nreal array of rho values
-def lmintest_getrhodat_fromfiles(lminlist=np.arange(1,20),lmaxlist=-1):
+def lmintest_getrhodat_fromfiles(lminlist=np.arange(1,20),lmaxlist=-1,varname='rho'):
     if type(lmaxlist)!=np.ndarray:
         lmaxlist=lmaxlist*np.ones(lminlist.size,dtype=int)
     elif lmaxlist.size!=lminlist.size:
@@ -2767,8 +2785,10 @@ def lmintest_get_rhodat(lminlist=np.arange(1,20),lmaxlist=-1):
 #  maybe in future could set up optionf or diff lmax in diff colors
 # if lmaxlist is passed, each one gets all lmin vals, plot separate line
 #  !!!note that this is different how lmaxlist is treated in other functions
+# datlmin and datlmax are for if data is run on different set of lmin/max
+#        but have the same form as is specific to this function
 
-def lmintest_plot_rhoexp(lminlist=np.arange(1,30),lmaxlist=-1,z0=.7,overwrite=False,saverho=True,varname='rho',filetag='',plotdir='output/lmintest_plots/',dodata=False):
+def lmintest_plot_rhoexp(lminlist=np.arange(1,30),lmaxlist=-1,z0=.7,overwrite=False,saverho=True,varname='rho',filetag='',plotdir='output/lmintest_plots/',dodata=False,datlmin=np.array([]),datlmax=np.array([])):
 
     Nlmax=1
     if type(lmaxlist)!=np.ndarray:
@@ -2801,33 +2821,40 @@ def lmintest_plot_rhoexp(lminlist=np.arange(1,30),lmaxlist=-1,z0=.7,overwrite=Fa
     elif varname=='s':
         varstr='s'
     for i in xrange(Nlmax):
-        linelabel=r'$\ell_{{\rm max}}={0:d}$'.format(lmaxlist[i])
+        if Nlmax>1:
+            linelabel=r'$\ell_{{\rm max}}={0:d}$'.format(lmaxlist[i])
+        else:
+            linelabel=r'$\langle {0:s} \rangle$ from theory'.format(varstr)
         Nrho=rhogrid[i,:].size
         plt.plot(lminlist[:Nrho],rhogrid[i,:],color=colors[i%len(colors)],label=linelabel)
     plt.xlabel(r'$\ell_{\rm min}$')
     plt.ylabel(r'${0:s}$'.format(varstr))
-    plt.xlim((0,15))
-    plt.ylim((.85,.96))
+    plt.xlim((0,10))
+    plt.ylim((.75,.965))
 
     if dodata:
         rhomean=[]
         rhostd=[]
         Nreal=[]
+        if not datlmin.size:
+            datlmin=lminlist
+        if not datlmax.size:
+            datlmax=lmaxlist
         for i in xrange(Nlmax):
-            rhomeani,rhostdi,Nreali=lmintest_get_rhodat(lminlist,lmaxlist[i])
+            rhomeani,rhostdi,Nreali=lmintest_get_rhodat(datlmin,datlmax[i])
             rhomean.append(rhomeani)
             rhostd.append(rhostdi)
             Nreal.append(Nreali)
             #colors will match lines
-            plt.errorbar(lminlist,rhomeani,yerr=rhostdi,linestyle='None',marker='o',color=colors[i%len(colors)])
-        datlabel='Mean from {0:d} sim.'.format(Nreal)
+            plt.errorbar(datlmin,rhomeani,yerr=rhostdi,linestyle='None',marker='o',color=colors[i%len(colors)])
+        datlabel='Mean from {0:d} sim.'.format(Nreal[0])#assumes all for same #
         #plot dummy point for legend
         plt.errorbar([-1],[.9],yerr=[.01],linestyle='None',marker='o',color='black',label=datlabel)
 
     if varname=='rho':
-        plt.legend(fontsize=14,loc='lower right')
+        plt.legend(fontsize=18,loc='lower right',numpoints=1)
     elif varname=='s':
-        plt.legend(fontsize=14,loc='lower left')
+        plt.legend(fontsize=18,loc='lower left',numpoints=1)
 
     if filetag:
         outtag='_'+filetag
@@ -3242,8 +3269,14 @@ if __name__=="__main__":
             
     #lmin tests
     if 1: #generate rho data from many realizations
-        
-    if 0: #plot rho data        
-        lmintest_plot_rhoexp(overwrite=0,lmaxlist=np.array([3,5,10,20,-1]),varname='rho',dodata=False)
+        domaps=True
+        Nreal=1
+        inlminlist=np.array([1,2,3,5])
+        inlmaxlist=np.array([-1])#3,5,10,20,-1])
+        lminlist,lmaxlist=lmintest_get_lminmaxcombos(inlminlist,inlmaxlist)
+        if 0: #do reconstructions for Nreal for combos of inlminlist and inlmax
+            Nreal=10000
+            lmintest_iswrec(Nreal=Nreal,lminlist=lminlist,lmaxlist=lmaxlist,domaps=domaps)
+        lmintest_plot_rhoexp(overwrite=0,lminlist=np.arange(1,20),lmaxlist=inlmaxlist,varname='rho',dodata=True,datlmin=inlminlist)
         #lmintest_plot_rhoexp(overwrite=0,lmaxlist=np.array([-1]),varname='rho',dodata=False)
 
