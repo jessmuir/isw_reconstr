@@ -1048,7 +1048,7 @@ def caltest_get_scaleinfo(varlist,scaletovar=False):
     print refvar,refind
     return refvar,refind
 
-def caltest_get_reclist(varlist,shape='g',width=10.,lmin=0,lmax=30,recminell=1):
+def caltest_get_reclist(varlist,shape='g',width=10.,lmin=0,lmax=30,recminelllist=np.array([1])):
     reclist=[]
     fidbins=caltest_get_fidbins()
     lssbin=fidbins[1].tag #will just be the depthtest bin map
@@ -1063,16 +1063,17 @@ def caltest_get_reclist(varlist,shape='g',width=10.,lmin=0,lmax=30,recminell=1):
     for m in dothesemods:
         includeglm=[m]
         rectag=m[1]#modtag
-        reclist.append(RecData(includeglm,includecl,inmaptype,rectag,recminell))
+        for recminell in recminelllist:
+            reclist.append(RecData(includeglm,includecl,inmaptype,rectag,recminell))
     return reclist #includes fiducial case as first entry
 
 #having already generated maps for reconstructions with calib errors,
 # do isw reconstructions from the maps, computing rho and s stats
 # set domaps to False if you just want to recalculate states like rho,s 
-def caltest_iswrec(Nreal,varlist,shape='g',width=10.,callmin=0,callmax=30,overwritecalibmap=False,scaletovar=False,recminell=1,domaps=True):
+def caltest_iswrec(Nreal,varlist,shape='g',width=10.,callmin=0,callmax=30,overwritecalibmap=False,scaletovar=False,recminelllist=np.array([1]),domaps=True):
     fidcl=caltest_get_clfid()
     dummyglm=caltest_apply_caliberrors(varlist,0,shape,width,lmin,lmax,overwritecalibmap,scaletovar)#includes fidicual case
-    reclist=caltest_get_reclist(varlist,shape,width,callmin,callmax,recminell=recminell)
+    reclist=caltest_get_reclist(varlist,shape,width,callmin,callmax,recminell=recminelllist)
     doiswrec_formaps(dummyglm,fidcl,Nreal,reclist=reclist,domaps=domaps)
 
 #---------------------------------------------------------------
@@ -1090,18 +1091,28 @@ def caltest_get_logspaced_varlist(minvar=1.e-9,maxvar=.1,Nperlog=10):
 
 #assuming many realizations of maps have been run, read in the rho data
 # and return an array which can be used to add those points to a plot
-def caltest_getrhodat_fromfiles(varlist,shape='g',width=10.,lmin=0,lmax=30,recminell=1,varname='rho'):
+def caltest_getrhodat_fromfiles(varlist,shape='g',width=10.,lmin=0,lmax=30,recminelllist=np.array([1]),varname='rho'):
     Nvar=len(varlist)
     #read in rho values
     modnames=[getmodtag_fixedvar(v,shape,lmin,lmax,width) for v in varlist]
     mapdir='output/depthtest/map_output/'
-    files=['iswREC.eucz07.{0:s}.fullsky.depthtest.{1:s}.dat'.format(modname,varname) for modname in modnames]
-    #append fiducial case
-    files.append('iswREC.eucz07.unmod.fullsky.depthtest.{0:s}.dat'.format(varname))
-    rhogrid=np.array([read_rhodat_wfile(mapdir+f) for f in files])#filesxrho
-    return rhogrid
+    outrho=[]
+    counter=0
+    for recminell in recminelllist:
+        reclminstr="-lmin{0:02d}".format(recminell)
+        files=['iswREC.eucz07.{0:s}.fullsky{2:s}.depthtest.{1:s}.dat'.format(modname,varname,reclminstr) for modname in modnames]
+        #append fiducial case (no cal error) for that lmin
+        files.append('iswREC.eucz07.unmod.fullsky{1:s}.depthtest.{0:s}.dat'.format(varname,reclminstr))
+        rhogrid=np.array([read_rhodat_wfile(mapdir+f) for f in files])#filesxrho
+        outrho.append(rhogrid)
+    outrho=np.array(outrho)
+    return outrho #[lmin,calerror,realization]
 
-def caltest_getdataplot_forshapecompare(varname='rho',varlist=[],cleanplot=False):
+# will return rho data needed for plotting datapoints on caltest plots
+# will return 1d list of tuples, in order first of shape, then lminlist
+#   note that caltest_compare_clcal_shapes functions assumes just one
+#     or the other of shape and reclmin are varied
+def caltest_getdataplot_forshapecompare(varname='rho',varlist=[],cleanplot=False,recminelllist=np.array([1]),colorlist=['#e41a1c']):
     print "Reading in rho data"
     #just hard coding these in, since they depend on what realizations
     # I've run, so I don't expect a ton of variation here
@@ -1112,9 +1123,7 @@ def caltest_getdataplot_forshapecompare(varname='rho',varlist=[],cleanplot=False
     widthlist=[10.]
     lminlist=[0]
     lmaxlist=[30]
-    recminelllist=[1]
     labellist=['']
-    colorlist=['#e41a1c']
     plotdatalist=[]
     #loop through lists, for each set up a tuple, add to list
     for i in xrange(len(shapelist)):
@@ -1130,9 +1139,12 @@ def caltest_getdataplot_forshapecompare(varname='rho',varlist=[],cleanplot=False
             #shapetag=r'Gaussian $C_{{\ell}}^{{\rm cal}}$' 
             shapetag=r'$C_{{\ell}}^{{\rm cal}}\propto e^{{-(\ell/{0:.0f})^2}}$'.format(widthlist[i],caliblmin,caliblmax)
             #shapetag='l2_{1:d}l{0:d}'.format(caliblmax,caliblmin)
-        rhogrid=caltest_getrhodat_fromfiles(varlist,shape,widthlist[i],caliblmin,caliblmax,recminelllist[i],varname) #last entry is value for no calibration error
+        rhogrid=caltest_getrhodat_fromfiles(varlist,shape,widthlist[i],caliblmin,caliblmax,recminelllist[i],varname)#3D: [lmin,calerror,realization]
+        #  last entry in calerror dimension is value for no calibration error
+        
         #print rhogrid.shape
-        Nreal=rhogrid.shape[1]
+        Nreal=rhogrid.shape[2]
+        Nlmin=rhogrid.shape[0]
         if not labellist[i]:
             if cleanplot:
                 label='Simulation'
@@ -1140,18 +1152,50 @@ def caltest_getdataplot_forshapecompare(varname='rho',varlist=[],cleanplot=False
                 label=shapetag+' Nreal={0:d}'.format(Nreal)
         else:
             label=labellist[i]
-        #find mean, sigmas
-        means=np.array([np.mean(rhogrid[j,:]) for j in xrange(Nvar)])
-        refmean=np.mean(rhogrid[-1,:])
-        sigs=np.array([np.std(rhogrid[j,:]) for j in xrange(Nvar)])
-        plotdatalist.append((varlist,means,label,col,sigs,refmean))
+        #find mean, sigmas for each lmin
+        means=np.zeros((Nlmin,Nvar))
+        refmeans=np.zeros(Nlmin)
+        sigs=np.zeros((Nlmin,Nvar))
+        for k in xrange(Nlmin):
+            if len(shapelist)==1: #colors hot being used for shapes, just lmin
+                col=colorlist[k%len(colorlist)]
+            means[k,:]=np.array([np.mean(rhogrid[k,j,:]) for j in xrange(Nvar)])
+            refmeans[k]=np.mean(rhogrid[-1,:])
+            sigs[k,:]=np.array([np.std(rhogrid[k,j,:]) for j in xrange(Nvar)])
+            plotdatalist.append((varlist,means[k,:],label,col,sigs[k,:],refmean[k]))
         #(datvar,datrho,datlabel,datcol,datsig),...]
 
     return plotdatalist
 
-#if cleanplot, not title, sparser legend. 
-def caltest_compare_clcal_shapes(varlist,shapelist=['g','l2'],varname='rho',lmaxlist=[],lminlist=[],widthlist=[],dodataplot=True,shortvarlist=[],outtag='shapecompare',cleanplot=False):
+#if cleanplot, no title, sparser legend.
+def caltest_compare_clcal_shapes(varlist,shapelist=['g','l2'],varname='rho',lmaxlist=[],lminlist=[],widthlist=[],dodataplot=True,shortvarlist=[],outtag='',cleanplot=False,recminelllist=np.array([1]),shortrecminelllist=np.array([]),plotdir='output/caltest_plots/'):
     Nshapes=len(shapelist)
+    Nlmin=len(recminelllist)   
+    varyshapes=len(shapelist)>1
+    varyreclmin=len(recminelllist)>1
+    if varyshapes and varyreclmin:
+        print "WARNING. Multiples of both cal error shape and reclmin passed; not set up to plot both. Quitting."
+        return
+    if varyshapes:
+        if not outtag: outtag='shapecompare'
+        colorlist=['#e41a1c','#377eb8','#4daf4a','#984ea3','#ff7f00']#qualitative
+        shortcolorlist=colorlist
+    if varyreclmin:
+        if not outtag: outtag='lmincompare'
+        colorlist=['black','#54278f','#756bb1','#9e9ac8','#bcbddc','#dadaeb']#sequential
+        if not shortrecminelllist.size:
+            shortrecminelllist=recminelllist
+            shortcolorlist=colorlist
+        else:
+            counter=0
+            shortcolorlist=[]
+            for i in xrange(Nlmin):
+                if counter>=len(shortrecminelllist):
+                    break
+                if recminelllist[i]==shortrecminelllist[counter]:
+                    shortcolorlist.append(colorlist[i])
+                    counter+=1
+
     if not lmaxlist:
         lmaxlist=[30]*Nshapes
     if not lminlist:
@@ -1163,30 +1207,38 @@ def caltest_compare_clcal_shapes(varlist,shapelist=['g','l2'],varname='rho',lmax
                 lminlist.append(1)
     if not widthlist:
         widthlist=[10.]*Nshapes
-    rhoexplist=[]
+    rhoexplist=[] #will be 2D; [(reclmin or shape),variance ] 
     labels=[]
     for s in xrange(Nshapes):
-        rhoexplist.append(caltest_get_rhoexp(varlist,lmax=lmaxlist[s],lmin=lminlist[s],shape=shapelist[s],width=widthlist[s],overwrite=False,doplot=False,saverho=True,varname=varname))
+        for i in xrange(Nlmin):
+            rhoexplist.append(caltest_get_rhoexp(varlist,lmax=lmaxlist[s],lmin=lminlist[s],shape=shapelist[s],width=widthlist[s],overwrite=False,doplot=False,saverho=True,varname=varname,reclmin=recminelllist[i]))
+            if varyreclmin:
+                labels.append(r'$\ell_{{\rm min}}={0:d}$'.format(recminelllist[i]))
+            
         if shapelist[s]=='g':
             shapestr=r'$C_{{\ell}}^{{\rm cal}}\propto e^{{-(\ell/{0:.0f})^2}}$ for ${1:d}\leq \ell \leq {2:d}$'.format(widthlist[s],lminlist[s],lmaxlist[s])
             #shapestr='g{2:d}_{0:d}l{1:d}'.format(lminlist[s],lmaxlist[s],int(widthlist[s]))
         elif shapelist[s]=='l2':
             shapestr=r'$C_{{\ell}}^{{\rm cal}}\propto \ell^{{-2}}$ for ${0:d}\leq \ell \leq {1:d}$'.format(lminlist[s],lmaxlist[s])
             #shapestr='l2_{0:d}l{1:d}'.format(lminlist[s],lmaxlist[s])
-        if cleanplot:
-            labels.append('Analytical calculation')
-        else:
-            labels.append(shapestr)
+        if varyshapes:
+            if cleanplot:
+                labels.append('Analytical calculation')
+            else:
+                labels.append(shapestr)
     print 'rhoexplist.shape',np.array(rhoexplist).shape
-    print 'Nshapes',Nshapes
-    print "Nvar",len(varlist)
+    #print 'Nshapes',Nshapes
+    #print "Nvar",len(varlist)
 
     if dodataplot:
-        dataplot=caltest_getdataplot_forshapecompare(varname,shortvarlist,cleanplot=cleanplot)
+        dataplot=caltest_getdataplot_forshapecompare(varname,shortvarlist,cleanplot=cleanplot,recminelllist=recminelllist,colorlist=shortcolorlist)
     else:
         dataplot=[]
-    #legtitle=r'$C_{{\ell}}^{{\rm cal}}$ shape'
-    caltest_rhoexpplot(varlist,rhoexplist,labels,outtag=outtag,varname=varname,datplot=dataplot,cleanplot=cleanplot)
+    # if varyreclmin and cleanplot:
+    #     legtitle=r'$C_{{\ell}}^{{\rm cal}}$ shape'
+    # else:
+    #     legtitle=''
+    caltest_rhoexpplot(varlist,rhoexplist,labels,outtag=outtag,varname=varname,datplot=dataplot,cleanplot=cleanplot,colorlist=colorlist,plotdir=plotdir)
 
 #caltest_get_rhoexp - approximating calib errors as additive only,
 #                     compute expectation value of rho for number of calibration
@@ -1194,7 +1246,7 @@ def caltest_compare_clcal_shapes(varlist,shapelist=['g','l2'],varname='rho',lmax
 #                     assuming no calib error
 #         inserts fiducial (no calib error) as last entry
 #         returns grid of rho or s values of size Nrec=Nvar
-def caltest_get_rhoexp(varlist=[1.e-4],lmax=30,lmin=1,shape='g',width=10.,overwrite=False,doplot=True,saverho=True,varname='rho',filetag=''):
+def caltest_get_rhoexp(varlist=[1.e-4],lmax=30,lmin=1,shape='g',width=10.,overwrite=False,doplot=True,saverho=True,varname='rho',filetag='',reclmin=1,plotdir='output/caltest_plots/'):
     if shape=='g':
         shapestr='g{2:d}_{0:d}l{1:d}'.format(lmin,lmax,int(width))
     elif shape=='l2':
@@ -1205,6 +1257,8 @@ def caltest_get_rhoexp(varlist=[1.e-4],lmax=30,lmin=1,shape='g',width=10.,overwr
             filetagstr='_'+filetag
         else:
             filetagstr=''
+        reclminstr="-lmin{0:02d}".format(reclmin)
+        filetagstr=filetagstr+reclminstr
         datfile='caltest_{0:s}_{1:s}exp{2:s}.dat'.format(shapestr,varname,filetagstr)
 
         if not overwrite and os.path.isfile(outdir+datfile): #file exists
@@ -1240,7 +1294,7 @@ def caltest_get_rhoexp(varlist=[1.e-4],lmax=30,lmin=1,shape='g',width=10.,overwr
 
     #get recdat; only need to pass maptags, not modtags, since cldata objects
     #  note that his means we can use the same recdat for all variances
-    recdat=RecData(includeglm=[lssbin],inmaptag=lssbin[:lssbin.rfind('_bin0')])
+    recdat=RecData(includeglm=[lssbin],inmaptag=lssbin[:lssbin.rfind('_bin0')],minl_forrec=reclmin)
     
     # return array of shape [Nvar,Nell]
     Nrec=len(varlist)
@@ -1257,7 +1311,7 @@ def caltest_get_rhoexp(varlist=[1.e-4],lmax=30,lmin=1,shape='g',width=10.,overwr
         f.close()
 
     if doplot:
-        caltest_rhoexpplot(varlist,rhoarray,varname=varname,outtag=shapestr)
+        caltest_rhoexpplot(varlist,rhoarray,varname=varname,outtag=shapestr,plotdir=plotdir)
     return rhoarray
 
 #-------
@@ -1283,25 +1337,33 @@ def caltest_getmapmods_onebin(lssbintag,varlist=[1.e-1,1.e-2,1.e-3,1.e-4],lmax=3
 #   dataplot=[(datvar,datrho,datlabel,datcol,datsig),...] #if you want to plot
 #       some data points, pass their plotting info here. datsig!=0 adds error bars
 #   cleanplot - if True, no plot title, sparser legend
-def caltest_rhoexpplot(varlist,rhoarraylist,labellist=[],outname='',legtitle='',colorlist=[],outtag='',varname='rho',datplot=[],cleanplot=False):
+def caltest_rhoexpplot(varlist,rhoarraylist,labellist=[],outname='',legtitle='',colorlist=[],outtag='',varname='rho',datplot=[],cleanplot=False,plotdir='output/caltest_plots/'):
     #assuming last entry in varlist, rhoarray is fiducial (var=0)
     if type(rhoarraylist[0])!=np.ndarray: #just one array passed,not list of arr
         rhoarraylist=[rhoarraylist]
     scattercolors=['#e41a1c','#377eb8','#4daf4a','#984ea3','#ff7f00','#ffff33','#a65628','#f781bf']
-    plotdir = 'output/caltest_plots/'
     if not outname:
         outname='caltest_'+varname+'_exp'+outtag+'.png'
 
     fig=plt.figure(0)
-    if not cleanplot:
-        if varname=='rho':
-            plt.suptitle(r'Calibration error test: Expected correlation coef. between $T^{{\rm ISW}}$ and $T^{{\rm rec}}$', size=14)
-        elif varname=='s':
-            plt.suptitle(r'Calibration error test: Expected [RMS of  $T^{{\rm rec}}-T^{{\rm ISW}}$]/$\sigma_{{T}}^{{\rm ISW}}$', size=14)
-        elif varname=='chisq':
-            plt.suptitle(r'Calibration error test: Expected $\chi^2$ for reconstructed $a_{{\ell m}}$', size=14)
+    fig.subplots_adjust(bottom=.2)
+    fig.subplots_adjust(left=.2)
+    fig.subplots_adjust(hspace=.3)
+    # if not cleanplot:
+    #     if varname=='rho':
+    #         plt.suptitle(r'Calibration error test: Expected correlation coef. between $T^{{\rm ISW}}$ and $T^{{\rm rec}}$', size=14)
+    #     elif varname=='s':
+    #         plt.suptitle(r'Calibration error test: Expected [RMS of  $T^{{\rm rec}}-T^{{\rm ISW}}$]/$\sigma_{{T}}^{{\rm ISW}}$', size=14)
+    #     elif varname=='chisq':
+    #         plt.suptitle(r'Calibration error test: Expected $\chi^2$ for reconstructed $a_{{\ell m}}$', size=14)
     ax1 = plt.subplot(3,1,(1,2)) #top part has rho
     ax2 = plt.subplot(3,1,3,sharex=ax1) #bottom has rho/rhofid
+    
+    for item in ([ax1.xaxis.label, ax1.yaxis.label,ax2.xaxis.label, ax2.yaxis.label] +
+                 ax2.get_xticklabels() + ax1.get_yticklabels()+ax2.get_yticklabels()):
+        item.set_fontsize(18)
+    for item in (ax1.get_xticklabels()):
+        item.set_fontsize(12)
     if not labellist:
         labellist=['']
     if not colorlist:
@@ -1355,11 +1417,11 @@ def caltest_rhoexpplot(varlist,rhoarraylist,labellist=[],outname='',legtitle='',
     plt.sca(ax1)
     if labellist and labellist[0]:
         if varname=='rho':
-            plt.legend(fontsize=12,title=legtitle,loc='lower left')
+            plt.legend(fontsize=16,title=legtitle,loc='lower left')
         elif varname=='s':
-            plt.legend(fontsize=12,title=legtitle,loc='upper left')
+            plt.legend(fontsize=16,title=legtitle,loc='upper left')
         elif varname=='chisq':
-            plt.legend(fontsize=12,title=legtitle,loc='upper left')
+            plt.legend(fontsize=16,title=legtitle,loc='upper left')
 
     print 'Saving plot to ',plotdir+outname
     plt.savefig(plotdir+outname)
@@ -2829,7 +2891,7 @@ def lmintest_plot_rhoexp(lminlist=np.arange(1,30),lmaxlist=-1,z0=.7,overwrite=Fa
         plt.plot(lminlist[:Nrho],rhogrid[i,:],color=colors[i%len(colors)],label=linelabel)
     plt.xlabel(r'$\ell_{\rm min}$')
     plt.ylabel(r'${0:s}$'.format(varstr))
-    plt.xlim((0,10))
+    plt.xlim((0,20))
     plt.ylim((.75,.965))
 
     if dodata:
@@ -2877,14 +2939,22 @@ def linefit_residuals(params,xdat,ydat):
     err=ydat-ytheory
     return err
 
-def angmomtest_Lvsrho_plot(plotdat='fracchange',Lfile='Lmax_true_Lmax_rec.dat',plotdir='output/angmom_study/',dofit=True,note=r'$\ell=2,3$',fileprefix='',shuffleLrec=False):
+def angmomtest_Lvsrho_plot(plotdat='change',Lfile='Lmax_true_Lmax_rec.dat',plotdir='output/angmom_study/',dofit=True,note=r'$\ell=2,3$',fileprefix='',shuffleLrec=False,ellfilter=()):
     z0fid=0.7
-    rhofile='iswREC.eucz07.fid.fullsky.depthtest.rho.dat'
+    lminstr=''
+    lmaxstr=''
+    if ellfilter:
+        lmin=ellfilter[0]
+        lmax=ellfilter[1]
+        lminstr="-lmin{0:02d}".format(lmin)
+        if lmax>0:
+            lmaxstr="-lmax{0:02d}".format(lmax)
+    rhofile='iswREC.eucz07.fid.fullsky'+lminstr+lmaxstr+'.depthtest.rho.dat'
     if fileprefix:
         randstr=''
         if shuffleLrec: randstr='shuffled'
         fileprefix=fileprefix+randstr+'_'
-    outfile='{0:s}L_vs_rho_{1:s}.png'.format(fileprefix,plotdat)
+    outfile='{0:s}L_vs_rho{2:s}{3:s}_{1:s}.png'.format(fileprefix,plotdat,lminstr,lmaxstr)
     scatcolor='#92c5de'
     meancolor='#ca0020'
     #read in data
@@ -2900,15 +2970,13 @@ def angmomtest_Lvsrho_plot(plotdat='fracchange',Lfile='Lmax_true_Lmax_rec.dat',p
     NL=Ltrue.size #assume first NL of the rho match w provided L vals
     rhodat=read_rhodat_wfile(plotdir+rhofile)[:NL]
     
-
-    
     plt.figure(0)
     ax=plt.subplot()
     colors=['#1b9e77','#d95f02','#7570b3','#e7298a','#66a61e','#e6ab02']
     for item in ([ax.title, ax.xaxis.label, ax.yaxis.label] +
                  ax.get_xticklabels() + ax.get_yticklabels()):
         item.set_fontsize(18)
-    plt.xlabel(r'$\rho$')
+    plt.xlabel(r'$\rho$'+lminstr+lmaxstr)
     #plt.xlim((0.,1.))
 
     #plotdat specific info
@@ -2964,7 +3032,7 @@ def angmomtest_Lvsrho_plot(plotdat='fracchange',Lfile='Lmax_true_Lmax_rec.dat',p
     plt.savefig(outname)
     plt.close()
     
-def angmomtest_LvsLtrue_plot(plotdat='fracchange',Lfile='Lmax_true_Lmax_rec.dat',plotdir='output/angmom_study/',dofit=True,note=r'$\ell=2,3$',fileprefix='',shuffleLrec=False):
+def angmomtest_LvsLtrue_plot(plotdat='change',Lfile='Lmax_true_Lmax_rec.dat',plotdir='output/angmom_study/',dofit=True,note=r'$\ell=2,3$',fileprefix='',shuffleLrec=False):
     z0fid=0.7
     rhofile='iswREC.eucz07.fid.fullsky.depthtest.rho.dat'
     if fileprefix:
@@ -3052,6 +3120,85 @@ def angmomtest_LvsLtrue_plot(plotdat='fracchange',Lfile='Lmax_true_Lmax_rec.dat'
     plt.savefig(outname)
     plt.close()
 
+#plot rho for filtered ISW rec vs rho for all multipoles
+def angmomtest_rhovsrho_plot(plotdir='output/angmom_study/',dofit=True,note=r'$\ell=2,3$',fileprefix='',shufflerhofilt=False,ellfilter=()):
+    z0fid=0.7
+    lminstr=''
+    lmaxstr=''
+    if ellfilter:
+        lmin=ellfilter[0]
+        lmax=ellfilter[1]
+        lminstr="-lmin{0:02d}".format(lmin)
+        if lmax>0:
+            lmaxstr="-lmax{0:02d}".format(lmax)
+    nofilterfile='iswREC.eucz07.fid.fullsky.depthtest.rho.dat'
+    filterfile='iswREC.eucz07.fid.fullsky'+lminstr+lmaxstr+'.depthtest.rho.dat'
+    if fileprefix:
+        randstr=''
+        if shufflerhofilt: randstr='shuffled'
+        fileprefix=fileprefix+randstr+'_'
+    outfile='{0:s}rho{1:s}{2:s}_vs_rho.png'.format(fileprefix,lminstr,lmaxstr)
+    scatcolor='#92c5de'
+    meancolor='#ca0020'
+    #read in data
+
+    rhodat=read_rhodat_wfile(plotdir+nofilterfile)
+    rhofiltdat=read_rhodat_wfile(plotdir+filterfile)
+    if shufflerhofilt:
+        np.random.shuffle(rhofiltdat)
+        note+='\n'+r'$rho_{\rm filtered}$ randomized'
+    
+    plt.figure(0)
+    ax=plt.subplot()
+    colors=['#1b9e77','#d95f02','#7570b3','#e7298a','#66a61e','#e6ab02']
+    for item in ([ax.title, ax.xaxis.label, ax.yaxis.label] +
+                 ax.get_xticklabels() + ax.get_yticklabels()):
+        item.set_fontsize(18)
+    plt.ylabel(r'$\rho$'+lminstr+lmaxstr)
+    plt.xlabel(r'$\rho$ (all $\ell$)')
+
+    #plotdat specific info
+    ydat=rhofiltdat
+        
+    #binned points setup
+    nbins=7
+    histrange=(.3,1.)
+    n,hedges=np.histogram(rhodat,bins=nbins,range=histrange)
+    sy,_=np.histogram(rhodat,bins=nbins,weights=ydat,range=histrange)
+    sy2,_=np.histogram(rhodat,bins=nbins,weights=ydat*ydat,range=histrange)
+    mean=sy/n
+    std=np.sqrt(sy2/n-mean*mean)
+
+    #plot point and ref line
+    plt.plot(rhodat,ydat,linestyle='None',marker='.',color=scatcolor,zorder=-32)
+    # zorder arg in there to try to make points drawn behind error bars
+
+    # plot reference line
+    xmax=np.max(np.fabs(rhodat))
+    x0,x1=plt.xlim()
+    y0,y1=plt.ylim()
+    plt.plot(10*np.array([-xmax,xmax]),10*np.array([-xmax,xmax]),linestyle='-',color='grey')
+    plt.xlim((x0,x1))
+    plt.ylim((y0,y1))
+    
+    #fit line to points
+    if dofit:
+        startm,startb=1,0
+        params,_=leastsq(linefit_residuals,(startm,startb),args=(rhodat,ydat))
+        m,b=params
+        print 'fitted slope and intercept:',m,b
+        lineends=np.array([np.min(rhodat),np.max(rhodat)])
+        plt.plot(lineends,b+m*lineends,color='black',linestyle='--',label='fit to scatter')
+        
+    #plot hist points
+    plt.errorbar((hedges[1:]+hedges[:-1])/2,mean,yerr=std,color=meancolor,marker='x',markersize=8,markeredgewidth=1,linestyle='None',linewidth=1,capsize=5,label='binned mean')#binned points
+    plt.legend(loc='lower left',numpoints=1)
+    plt.annotate(note,xy=(.1,.9),horizontalalignment='left',verticalalignment='top',fontsize=18,xycoords='axes fraction')
+    outname=plotdir+outfile
+    print 'saving',outname
+    plt.savefig(outname)
+    plt.close()
+    
     
 def angmomtest_checkrho_plot(plotdir='output/angmom_study/',dofit=True,fileprefix='',note='',shuffle=False):
     z0fid=0.7
@@ -3115,6 +3262,21 @@ def angmomtest_checkrho_plot(plotdir='output/angmom_study/',dofit=True,fileprefi
     print 'saving',outname
     plt.savefig(outname)
     plt.close()
+
+# compute rho for reconstructions using limited ell values
+# llmins is a list of tuples containing sets of (lmin,lmax)
+# domaps - bool, if true redoes isw rec maps, if false, just recomputes stats
+def anglmomtest_get_filteredrho(llims=[(2,3),(5,5)],Nreal=10000,varname='rho',domaps=True):
+    Nlim=len(llims)
+    lminlist=np.ones(Nlim,dtype=int)
+    lmaxlist=np.ones(Nlim,dtype=int)
+    for i in xrange(Nlim):
+        lminlist[i]=llims[i][0]
+        lmaxlist[i]=llims[i][1]
+    lmintest_iswrec(Nreal,lminlist,lmaxlist,domaps)
+
+
+
 #################################################################
 if __name__=="__main__":
     #plot_isw_kernel()
@@ -3255,28 +3417,63 @@ if __name__=="__main__":
         angmomfiles=['Lmax_true_Lmax_rec.dat','Lmax_true_Lmax_rec_5_to_5.dat']
         notes=[r'$\ell=2,3$',r'$\ell=5$']
         fprefix=['l23','l5']
-        angmomtest_checkrho_plot(shuffle=shuffle) #check that Dragan and i get same rho
+        #angmomtest_checkrho_plot(shuffle=shuffle) #check that Dragan and i get same rho
         for i in xrange(len(angmomfiles)):
             f=angmomfiles[i]
             n=notes[i]
             p=fprefix[i]
-            for dattype in ['change','abschange','ratio']:
+            for dattype in ['change','abschange']:
                 angmomtest_Lvsrho_plot(plotdat=dattype,Lfile=f,note=n,fileprefix=p,shuffleLrec=shuffle)
                 pass
-            for dattype in ['change','fracchange','abschange','ratio','Lrec']:
+            for dattype in ['change','abschange','Lrec']:
                 angmomtest_LvsLtrue_plot(plotdat=dattype,Lfile=f,note=n,fileprefix=p,shuffleLrec=shuffle)
                 pass
+    if 0: #more angular momentum tests, using filtered rho
+        llims=[(2,3),(5,5)]
+        angmomfiles=['Lmax_true_Lmax_rec.dat','Lmax_true_Lmax_rec_5_to_5.dat']
+        notes=[r'$\ell=2,3$',r'$\ell=5$']
+        fprefix=['l23','l5']
+        shuffle=0
+        #compute rho_filtered
+        #anglmomtest_get_filteredrho() #do rec for (lmin,lmax)
+
+        #plot rho_filtered vs rho and dL vs rho_filtered
+        for i in xrange(len(angmomfiles)):
+            f=angmomfiles[i]
+            n=notes[i]
+            p=fprefix[i]
+            notes=[r'$\ell=2,3$',r'$\ell=5$']
+            fprefix=['l23','l5']
+            for dattype in ['change','abschange']:
+                angmomtest_Lvsrho_plot(plotdat=dattype,Lfile=f,note=n,fileprefix=p,shuffleLrec=shuffle,ellfilter=llims[i])
+                pass
+            angmomtest_rhovsrho_plot(note=n,fileprefix=p,shufflerhofilt=shuffle,ellfilter=llims[i])
+
+
             
     #lmin tests
-    if 1: #generate rho data from many realizations
-        domaps=True
+    if 0: #generate rho data from many realizations
         Nreal=1
-        inlminlist=np.array([1,2,3,5])
+        inlminlist=np.array([1,2,3,5,10])
+        #inlminlist=np.array([10])
         inlmaxlist=np.array([-1])#3,5,10,20,-1])
         lminlist,lmaxlist=lmintest_get_lminmaxcombos(inlminlist,inlmaxlist)
         if 0: #do reconstructions for Nreal for combos of inlminlist and inlmax
+            domaps=True
             Nreal=10000
             lmintest_iswrec(Nreal=Nreal,lminlist=lminlist,lmaxlist=lmaxlist,domaps=domaps)
         lmintest_plot_rhoexp(overwrite=0,lminlist=np.arange(1,20),lmaxlist=inlmaxlist,varname='rho',dodata=True,datlmin=inlminlist)
         #lmintest_plot_rhoexp(overwrite=0,lmaxlist=np.array([-1]),varname='rho',dodata=False)
 
+    #lmin caltests
+    if 1:
+        if 1: #do recs for many realizations
+            pass
+        shortreclminlist=np.array([1,3])
+        shortvarlist=[1.e-7,1.e-6,1.e-5,1.e-4,1.e-3,1.e-2]
+        #shortvarlist=[1.e-6,1.e-5,1.e-4,1.e-3]
+        varlist=list(caltest_get_logspaced_varlist(minvar=1.e-8,maxvar=.1,Nperlog=10))
+        reclminlist=np.array([1,2,3,5,10])
+        
+        caltest_compare_clcal_shapes(varlist,shapelist=['g'],varname='rho',dodataplot=False,recminelllist=reclminlist,shortrecminelllist=shortreclminlist,shortvarlist=shortvarlist)
+        #working here
