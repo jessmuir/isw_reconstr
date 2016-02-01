@@ -835,7 +835,7 @@ def getglm_frommaps(dummyglm,rlzns=np.array([]),Nreal=1):
     #for r in rlzns:
     #    print 'r=',r, 'nonzeroglm?',np.any(outglm.glm[r,:,:])
     return outglm
-#working here
+
 #------------------------------------------------------------------------
 # plotmap - plot map, hanging onto various map/mod/mask info
 def plotmap(m,outfname,rlz,maptag,modtag='unmod',masktag='fullsky',titlenote=''):

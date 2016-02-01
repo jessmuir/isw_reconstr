@@ -33,19 +33,20 @@ from genMapsfromCor import * #functions which gen g_lm and maps from C_l
 #             needs to be present in cldat, but not necessarily glmdat
 ###########################################################################
 class RecData(object):
-    def __init__(self,includeglm=[],includecl=[],inmaptag='fromLSS',rectag='nonfid',minl_forrec=1,maxl_forrec=-1,NSIDE=32,zerotag='isw_bin0',maptagprefix='iswREC'):
+    def __init__(self,includeglm=[],includecl=[],inmaptag='fromLSS',rectag='nonfid',minl_forrec=1,maxl_forrec=-1,NSIDE=32,zerotag='isw_bin0',maptagprefix='iswREC',nolmintag=False):
         self.Nmap=len(includeglm)
         self.inmaptag=inmaptag
         self.maptag=maptagprefix+'.'+inmaptag
         self.rectag=rectag
         self.lmin=minl_forrec
         self.lmax=maxl_forrec #by default, uses max l available
-        lminstr="-lmin{0:02d}".format(self.lmin)
-        if self.lmax>0:
-            lmaxstr="-lmax{0:02d}".format(self.lmax)
-        else:
-            lmaxstr=""
-        self.masktag='fullsky'+lminstr+lmaxstr
+        if not nolmintag: #don't include to be compatible with old data
+            lminstr="-lmin{0:02d}".format(self.lmin)
+            if self.lmax>0:
+                lmaxstr="-lmax{0:02d}".format(self.lmax)
+            else:
+                lmaxstr=""
+            self.masktag='fullsky'+lminstr+lmaxstr
 
         
         self.NSIDE=NSIDE
