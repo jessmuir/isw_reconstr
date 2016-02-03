@@ -1150,18 +1150,22 @@ def caltest_getdataplot_forshapecompare(varname='rho',varlist=[],shapelist=['g']
         #print rhogrid.shape
         Nreal=rhogrid.shape[2]
         Nlmin=rhogrid.shape[0]
-        if not labellist[i] and getlabels:
+        if not labellist[i] and len(recminelllist)==1:
             if cleanplot:
                 label='Simulation'
             else:
                 label=shapetag+' Nreal={0:d}'.format(Nreal)
-        else:
+        elif len(recminelllist)==1:
             label=labellist[i]
+        else:
+            label=''
         #find mean, sigmas for each lmin
         means=np.zeros((Nlmin,Nvar))
         refmeans=np.zeros(Nlmin)
         sigs=np.zeros((Nlmin,Nvar))
         for k in xrange(Nlmin):
+            if Nlmin!=1:
+                label=labellist[k]
             if len(shapelist)==1: #colors hot being used for shapes, just lmin
                 col=colorlist[k%len(colorlist)]
             means[k,:]=np.array([np.mean(rhogrid[k,j,:]) for j in xrange(Nvar)])
@@ -1211,10 +1215,13 @@ def caltest_compare_clcal_shapes(varlist,shapelist=['g','l2'],varname='rho',lmax
     caltest_rhoexpplot(varlist,rhoexplist,labels,outtag=outtag,varname=varname,datplot=dataplot,cleanplot=cleanplot,colorlist=colorlist,plotdir=plotdir)
 
 #one shape, several lmin
-def caltest_compare_lmin(varlist,shapecal='g',varname='rho',lmaxcal=30,lmincal=0,widthcal=10.,dodataplot=True,shortvarlist=[],outtag='',cleanplot=False,recminelllist=np.array([1]),shortrecminelllist=np.array([]),plotdir='output/caltest_plots/'):
+def caltest_compare_lmin(varlist,shapecal='g',varname='rho',lmaxcal=30,lmincal=0,widthcal=10.,dodataplot=True,shortvarlist=[],outtag='',cleanplot=False,recminelllist=np.array([1]),shortrecminelllist=np.array([]),plotdir='output/caltest_plots/',justdat=False):
     Nlmin=len(recminelllist)   
     if not outtag: outtag='lmincompare'
-    colorlist=['black','#54278f','#756bb1','#9e9ac8','#bcbddc','#dadaeb']#sequential
+    #colorlist=['black','#54278f','#756bb1','#9e9ac8','#bcbddc','#dadaeb']#sequential
+    #colorlist=['black','#018571','#80cdc1','#dfc27d','#a6611a']
+    colorlist=['black','#018571','#80cdc1','#a6611a']
+
     if not shortrecminelllist.size:
         shortrecminelllist=recminelllist
         shortcolorlist=colorlist
@@ -1230,16 +1237,19 @@ def caltest_compare_lmin(varlist,shapecal='g',varname='rho',lmaxcal=30,lmincal=0
 
     rhoexplist=[] #will be 2D; [reclmin,variance ] 
     labels=[]
-    for i in xrange(Nlmin):
-        rhoexplist.append(caltest_get_rhoexp(varlist,lmax=lmaxcal,lmin=lmincal,shape=shapecal,width=widthcal,overwrite=False,doplot=False,saverho=True,varname=varname,reclmin=recminelllist[i]))
-        labels.append(r'$\ell_{{\rm min}}={0:d}$'.format(recminelllist[i]))
+    if not justdat:
+        for i in xrange(Nlmin):
+            rhoexplist.append(caltest_get_rhoexp(varlist,lmax=lmaxcal,lmin=lmincal,shape=shapecal,width=widthcal,overwrite=False,doplot=False,saverho=True,varname=varname,reclmin=recminelllist[i]))
+            labels.append(r'$\ell_{{\rm min}}={0:d}$'.format(recminelllist[i]))
             
     if dodataplot:
-        dataplot=caltest_getdataplot_forshapecompare(varname,shortvarlist,cleanplot=cleanplot,recminelllist=shortrecminelllist,colorlist=shortcolorlist)
+        print 'shortrecminelllist',shortrecminelllist
+        datlabellist=[r'$\ell_{{\rm min}}={0:d}$'.format(l) for l in shortrecminelllist]
+        dataplot=caltest_getdataplot_forshapecompare(varname,shortvarlist,cleanplot=cleanplot,recminelllist=shortrecminelllist,labellist=datlabellist,colorlist=shortcolorlist,getlabels=justdat)
     else:
         dataplot=[]
 
-    caltest_rhoexpplot_wratio(varlist,rhoexplist,labels,outtag=outtag,varname=varname,datplot=dataplot,cleanplot=cleanplot,colorlist=colorlist,plotdir=plotdir)
+    caltest_rhoexpplot_wratio(varlist,rhoexplist,labels,outtag=outtag,varname=varname,datplot=dataplot,cleanplot=cleanplot,colorlist=colorlist,plotdir=plotdir,plotlines=not justdat)
 
     
 #caltest_get_rhoexp - approximating calib errors as additive only,
@@ -1416,25 +1426,25 @@ def caltest_rhoexpplot(varlist,rhoarraylist,labellist=[],outname='',legtitle='',
             
     plt.sca(ax1)
     if varname=='rho':
-        plt.legend(fontsize=16,title=legtitle,loc='upper right',numpoints=1)
+        plt.legend(fontsize=18,title=legtitle,loc='upper right',numpoints=1)
     elif varname=='s':
-        plt.legend(fontsize=16,title=legtitle,loc='upper left',numpoints=1)
+        plt.legend(fontsize=18,title=legtitle,loc='upper left',numpoints=1)
     elif varname=='chisq':
-        plt.legend(fontsize=16,title=legtitle,loc='upper left',numpoints=1)
+        plt.legend(fontsize=18,title=legtitle,loc='upper left',numpoints=1)
 
     print 'Saving plot to ',plotdir+outname
     plt.savefig(plotdir+outname)
     plt.close()
 
-def caltest_rhoexpplot_wratio(varlist,rhoarraylist,labellist=[],outname='',legtitle='',colorlist=[],outtag='',varname='rho',datplot=[],cleanplot=False,plotdir='output/caltest_plots/'):
+def caltest_rhoexpplot_wratio(varlist,rhoarraylist,labellist=[],outname='',legtitle='',colorlist=[],outtag='',varname='rho',datplot=[],cleanplot=False,plotdir='output/caltest_plots/',plotlines=True):
     #assuming last entry in varlist, rhoarray is fiducial (var=0)
-    if type(rhoarraylist[0])!=np.ndarray: #just one array passed,not list of arr
+    if len(rhoarraylist) and type(rhoarraylist[0])!=np.ndarray: #just one array passed,not list of arr
         rhoarraylist=[rhoarraylist]
     scattercolors=['#e41a1c','#377eb8','#4daf4a','#984ea3','#ff7f00','#ffff33','#a65628','#f781bf']
     if not outname:
         outname='caltest_'+varname+'_exp'+outtag+'.png'
 
-    fig=plt.figure(0)
+    fig=plt.figure(figsize=(7,7))
     fig.subplots_adjust(bottom=.2)
     fig.subplots_adjust(left=.2)
     fig.subplots_adjust(hspace=.3)
@@ -1444,8 +1454,8 @@ def caltest_rhoexpplot_wratio(varlist,rhoarraylist,labellist=[],outname='',legti
     for item in ([ax1.xaxis.label, ax1.yaxis.label,ax2.xaxis.label, ax2.yaxis.label] +
                  ax2.get_xticklabels() + ax1.get_yticklabels()+ax2.get_yticklabels()):
         item.set_fontsize(18)
-    for item in (ax1.get_xticklabels()):
-        item.set_fontsize(12)
+    for item in (ax1.get_yticklabels()+ax2.get_yticklabels()):
+        item.set_fontsize(16)
     if not labellist:
         labellist=['']
     if not colorlist:
@@ -1455,6 +1465,9 @@ def caltest_rhoexpplot_wratio(varlist,rhoarraylist,labellist=[],outname='',legti
     ax1.grid(True)
     ax1.set_xscale('log')
     ax1.axhline(0,color='grey',linestyle='-')
+    ax1.axhline(1,color='grey',linestyle='-')
+    ax2.axhline(0,color='grey',linestyle='-')
+    ax2.axhline(-1,color='grey',linestyle='-')
     plt.setp(ax1.get_xticklabels(), visible=False)
     #ax1.ticklabel_format(axis='y',style='')
     ax2.grid(True)
@@ -1470,13 +1483,23 @@ def caltest_rhoexpplot_wratio(varlist,rhoarraylist,labellist=[],outname='',legti
         ax2.set_ylabel(r'$\langle \chi^2 \rangle /\langle \chi^2_{{c=0}} \rangle - 1$')
     
     ax2.set_xlabel(r'Variance of calib. error field ${\rm var}[c(\hat{{n}})]$')
-    for i in xrange(len(rhoarraylist)):
-        print len(varlist[:-1]),rhoarraylist[i][:-1].shape
-        ax1.semilogx(varlist[:-1],rhoarraylist[i][:-1],label=labellist[i],color=colorlist[i%len(colorlist)])
-        ax2.semilogx(varlist[:-1], rhoarraylist[i][:-1]/rhoarraylist[i][-1]-1.,label=labellist[i],color=colorlist[i%len(colorlist)])
+    if plotlines:
+        for i in xrange(len(rhoarraylist)):
+            print len(varlist[:-1]),rhoarraylist[i][:-1].shape
+            ax1.semilogx(varlist[:-1],rhoarraylist[i][:-1],label=labellist[i],color=colorlist[i%len(colorlist)])
+            ax2.semilogx(varlist[:-1], rhoarraylist[i][:-1]/rhoarraylist[i][-1]-1.,label=labellist[i],color=colorlist[i%len(colorlist)])
 
-    for i in xrange(len(datplot)):
+    Ndat=len(datplot) #offset points if Ndat>1
+    logoffsetunit=0
+    leftoffset=0
+    if Ndat>1:
+        logoffsetunit=.1
+        leftoffset=-1*(Ndat-1)/2.*logoffsetunit
+    for i in xrange(Ndat):
+        xoffset=leftoffset+i*logoffsetunit
+        #print 'datplot[i]:[LEN=',len(datplot[i]),'] ',datplot[i]
         datvar=datplot[i][0]#array
+        datvar=[d*10**xoffset for d in datvar]
         datrho=datplot[i][1]#array
         datlabel=datplot[i][2] #string
         datsig=0
@@ -1491,7 +1514,7 @@ def caltest_rhoexpplot_wratio(varlist,rhoarraylist,labellist=[],outname='',legti
                 if len(datplot[i])>5:
                     datrefmean=datplot[i][5]
                     if len(datplot[i])>6:
-                        datrefmean=datplot[i][6]
+                        datNreal=datplot[i][6]
         if not datcol:
             datcol=colorlist[(i+len(rhoarraylist))%len(colorlist)]
         if type(datsig)==0:
@@ -1499,12 +1522,12 @@ def caltest_rhoexpplot_wratio(varlist,rhoarraylist,labellist=[],outname='',legti
             if datrefmean:
                 ax2.plot(datvar,datrho/datrefmean -1.,label=datlabel,color=datcol,linestyle='None',marker='o')
         else: #uniform error bars if datsig is a number, nonuni if array
-            ax1.errorbar(datvar,datrho,yerr=datsig/datrefmean,label=datlabel,color=datcol,linestyle='None',marker='o')
+            ax1.errorbar(datvar,datrho,yerr=datsig/datrefmean,label=datlabel,color=datcol,linestyle='None',marker='o')#,capsize=5)
             if datrefmean:
-                ax2.errorbar(datvar,datrho/datrefmean-1.,yerr=datsig/datrefmean,label=datlabel,color=datcol,linestyle='None',marker='o')
+                ax2.errorbar(datvar,datrho/datrefmean-1.,yerr=datsig/datrefmean,label=datlabel,color=datcol,linestyle='None',marker='o')#,capsize=5)
 
     #plot dummy datapoint for legend
-    if len(datplot):
+    if len(datplot) and plotlines:
         xmin,xmax=ax1.get_xlim()
         ymin,ymax=ax1.get_ylim()
         datlabel='Mean from sim.'
@@ -1512,14 +1535,17 @@ def caltest_rhoexpplot_wratio(varlist,rhoarraylist,labellist=[],outname='',legti
         plt.errorbar([-1],[.9],yerr=[.01],linestyle='None',marker='o',color='black',label=datlabel)
         plt.xlim((xmin,xmax))
         plt.ylim((ymin,ymax))
+
+    #reduce number of ticklabels for ratio plot
+    ax2.set_yticks([-1.5+i*.25 for i in xrange(8)])
     
     plt.sca(ax1)
     if varname=='rho':
-        plt.legend(fontsize=16,title=legtitle,loc='lower left',numpoints=1)
+        plt.legend(fontsize=18,title=legtitle,loc='lower left',numpoints=1)
     elif varname=='s':
-        plt.legend(fontsize=16,title=legtitle,loc='upper left',numpoints=1)
+        plt.legend(fontsize=18,title=legtitle,loc='upper left',numpoints=1)
     elif varname=='chisq':
-        plt.legend(fontsize=16,title=legtitle,loc='upper left',numpoints=1)
+        plt.legend(fontsize=18,title=legtitle,loc='upper left',numpoints=1)
 
     print 'Saving plot to ',plotdir+outname
     plt.savefig(plotdir+outname)
@@ -3569,19 +3595,16 @@ if __name__=="__main__":
 
     #lmin caltests
     if 1:
-        #shortvarlist=[1.e-7,1.e-6,1.e-5,1.e-4,1.e-3,1.e-2]
-        shortvarlist=[1.e-6,1.e-4,1.e-3,1.e-2]
-        shortreclminlist=np.array([1,3,10])
+        shortvarlist=[1.e-7,1.e-6,1.e-5,1.e-4,1.e-3,1.e-2]
+        shortreclminlist=np.array([1,3,5])#1,3,10])
         if 0: #do recs for many realizations
             Nreal=10000
-            caltest_iswrec(Nreal,shortvarlist,scaletovar=1.e-3,recminelllist=shortreclminlist,domaps=False)#working here
-            pass
-
+            caltest_iswrec(Nreal,shortvarlist,scaletovar=1.e-3,recminelllist=shortreclminlist,domaps=True)#working here
 
         #shortvarlist=[1.e-6,1.e-5,1.e-4,1.e-3]
         varlist=list(caltest_get_logspaced_varlist(minvar=1.e-8,maxvar=.1,Nperlog=10))
-        reclminlist=np.array([1,2,3,5,10])
+        reclminlist=np.array([1,2,3,5])
         
         #caltest_compare_clcal_shapes(varlist,shapelist=['g'],varname='rho',dodataplot=False,recminelllist=reclminlist,shortrecminelllist=shortreclminlist,shortvarlist=shortvarlist)
-        caltest_compare_lmin(varlist,varname='rho',dodataplot=True,recminelllist=reclminlist,shortrecminelllist=shortreclminlist,shortvarlist=shortvarlist)
+        caltest_compare_lmin(varlist,varname='rho',dodataplot=True,recminelllist=reclminlist,shortrecminelllist=shortreclminlist,shortvarlist=shortvarlist,justdat=True)
         #working here; debug data points and their error bars
