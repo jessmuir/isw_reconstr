@@ -804,10 +804,9 @@ def bintest_plot_relldat(divstr=['6','222','111111'],getpred=True,reclabels=['1 
     if varname=='rell':
         plot_relldat(reclabels,testname,plotdir,plotname,rellgrid,rellpred)   
 #----------------
-def bintest_plot_zwindowfuncs(finestN=6,z0=0.7,sigz=0.05,doiswkernel=True):
+def bintest_plot_zwindowfuncs(finestN=6,z0=0.7,sigz=0.05,doiswkernel=True,plotdir='output/eucbintest/plots/'):
     bins=bintest_get_binmaps(finestN,z0=0.7,sigz=sigz,includeisw=False,justfinest=True)#just gal maps
     sigz0=sigz
-    plotdir='output/eucbintest/plots/'
     plotname='eucbintest_zbins_s{0:03d}'.format(int(1000*sigz))
     
     Nbins=len(bins)
@@ -823,17 +822,25 @@ def bintest_plot_zwindowfuncs(finestN=6,z0=0.7,sigz=0.05,doiswkernel=True):
         kernel=(1.-cosm.f_array)*cosm.g_array #isw kernel, stripped of prefactor
         
     colors=['#1b9e77','#d95f02','#7570b3','#e7298a','#66a61e','#e6ab02']
-    plt.figure(0)
-    plt.rcParams['axes.linewidth'] =2
+    plt.figure(0,figsize=(8,4))
+    plt.subplots_adjust(bottom=.2)
+    plt.subplots_adjust(left=.1)
+    plt.subplots_adjust(right=.85)
+    #plt.rcParams['axes.linewidth'] =2
     ax=plt.subplot()
+    for item in ([ax.title, ax.xaxis.label, ax.yaxis.label] +
+                 ax.get_xticklabels() + ax.get_yticklabels()):
+        item.set_fontsize(20)
+    for item in ([ax.xaxis.label, ax.yaxis.label] ):
+        item.set_fontsize(20)
     ax.set_yticklabels([])
-    plt.title(r'Bin test: redshift distributions',fontsize=16)
-    plt.xlabel('Redshift z',fontsize=16)
-    plt.ylabel('Source distribution (arbitrary units)',fontsize=16)
+    #plt.title(r'Bin test: redshift distributions',fontsize=16)
+    plt.xlabel('Redshift z')
+    plt.ylabel(r'$dn/dz$ (arb. units)')
     ymax=0.3
     plt.ylim(0,ymax)
     plt.xlim(0,zmax)
-    ax.tick_params(axis='x', labelsize=18)
+    ax.tick_params(axis='x')
     nbartot=0
     for n in xrange(Nbins):
         m=bins[n]
@@ -843,17 +850,19 @@ def bintest_plot_zwindowfuncs(finestN=6,z0=0.7,sigz=0.05,doiswkernel=True):
         #plt.fill_between(zgrid,0,wgrid, facecolor=colstr,edgecolor='none',linewidth=2, alpha=0.3)
         plt.plot(zgrid,wgrid,color=colstr,linestyle='-',linewidth=2)
 
+    
+
+
+    eqstr='$dn/dz$ binned with\n $\\sigma(z)={0:0.3f}(1+z)$'.format(sigz0)
+
+    plt.plot(np.array([]),np.array([]),linestyle='-',color='black',linewidth=2,label=eqstr)
+    #textbox=ax.text(1.7, .25, eqstr,fontsize=16,verticalalignment='top',ha='left')#, transform=ax.transAxes, fontsize=15,verticalalignment='top', ha='right',multialignment      = 'left',bbox={'facecolor':'none','edgecolor':'none'))
     if doiswkernel:
         kernelmax=np.max(kernel)
         wantmax=.8*ymax
         scaleby=wantmax/kernelmax
         plt.plot(cosmz,kernel*scaleby,color='grey',label='ISW kernel',linewidth=2,linestyle='--')
-        plt.legend(loc='upper right',fancybox=False, framealpha=0.,prop={'size':16},handlelength=3.5)
-        
-    eqstr='$\\frac{{dn}}{{dz}} \\propto \\,z^2 e^{{-\\left(z/z_0\\right)^{{1.5}}}}$\n $z_0={0:0.1f}$, $\\sigma_z={1:0.3f}(1+z)$\n $\\bar{{n}}_{{\\rm tot}}={2:g}$'.format(z0,sigz0,nbartot)
-    #eqstr='$\frac{{dn}}{{dz}} \propto \,z^2 e^{{-\left(z/z_0\right)^{{1.5}}}}$\n $z_0={0:0.1f}$, $\sigma_z={1:0.2f}(1+z)$'.format(z0,sigz0)
-
-    textbox=ax.text(1.7, .25, eqstr,fontsize=16,verticalalignment='top',ha='left')#, transform=ax.transAxes, fontsize=15,verticalalignment='top', ha='right',multialignment      = 'left',bbox={'facecolor':'none','edgecolor':'none'))
+    plt.legend(loc='upper right',fancybox=False, framealpha=0.,prop={'size':16},handlelength=3.5)
 
     outname=plotdir+plotname+'.png'
     print 'saving',outname

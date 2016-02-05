@@ -41,12 +41,15 @@ def depthtest_plot_rhohist_forpaper(z0vals=np.array([.3,.5,.6,.7,.8])):
     vallim=(minval,maxval)
     #rholim=(0.,maxrho)
     #colors=['#1b9e77','#e7298a']
-    colors=['#1b9e77','#d95f02','#e7298a','#7570b3','#66a61e','#e6ab02']
-    plt.figure(0)
-    plt.subplots_adjust(left=0.15, bottom=.17, right=.95, top=.95, wspace=0, hspace=0)
+    #colors=['#1b9e77','#d95f02','#e7298a','#7570b3','#66a61e','#e6ab02']
+    colors=['#e41a1c','#ff7f00','#984ea3','#377eb8','#4daf4a']
+    plt.figure()#figsize=(7,7))
+    plt.subplots_adjust(left=0.15, bottom=.2, right=.95, top=.95, wspace=0, hspace=0)
     #plt.title(plotname)
     plt.xlabel(xtitle,fontsize=26)
     plt.ylabel('Realizations',fontsize=26)
+    #plt.ylim((0,1300))
+    #plt.xlim(-.2,1.)
     plt.tick_params(axis='y', which='both', labelsize=16)
     plt.tick_params(axis='x', which='both', labelsize=16)
     for i in xrange(Nrecs):
@@ -61,13 +64,12 @@ def depthtest_plot_rhohist_forpaper(z0vals=np.array([.3,.5,.6,.7,.8])):
         nvals,evals,patches=plt.hist(rhogrid[i,:],bins=Nbins,range=vallim,histtype='stepfilled',label=label)
         plt.setp(patches,'facecolor',colstr,'alpha',0.6)
 
-    plt.plot(np.array([]),np.array([]),linestyle='--',color='black',label='mean from simulation')
+    plt.plot(np.array([]),np.array([]),linestyle='--',color='black',label='mean from sim.')
     plt.plot(np.array([]),np.array([]),linestyle='-',color='black',label='mean from theory')
-    plt.legend(loc='upper left',frameon=False,fontsize=14)
+    plt.legend(loc='upper left',frameon=True,fontsize=14,ncol=2)
 
     #plot window functions as inset
-    ax=plt.axes([.18,.27,.33,.24])#lower left
-    #ax=plt.axes([.2,.72,.33,.85])
+    ax=plt.axes([.2,.4,.35,.2])#lower left
     bins=depthtest_get_binmaps(z0vals,False) #just gal maps
     Nbins=len(bins)
     zmax=3.
@@ -83,14 +85,14 @@ def depthtest_plot_rhohist_forpaper(z0vals=np.array([.3,.5,.6,.7,.8])):
     #plt.ylabel(r'arbitrary units',fontsize=14)
     plt.ylim(0,.7)
     plt.xlim(0,zmax)
-    ax.tick_params(axis='x', labelsize=12)
+    ax.tick_params(axis='x', labelsize=14)
     for n in xrange(Nbins):
         m=bins[n]
         wgrid=m.window(zgrid)*m.nbar/1.e9
         colstr=colors[n%len(colors)]
         plt.plot(zgrid,wgrid,color=colstr,linestyle='-',linewidth=2)
     eqstr=r'$\frac{dn}{dz}\propto \,z^2 e^{-\left(z/z_0\right)^{1.5}}$'
-    textbox=ax.text(.75, .6, eqstr,fontsize=20,verticalalignment='top',ha='left')#, transform=ax.transAxes, fontsize=15,verticalalignment='top', ha='right',multialignment      = 'left',bbox={'facecolor':'none','edgecolor':'none'))
+    textbox=ax.text(.73, .7, eqstr,fontsize=20,verticalalignment='top',ha='left')#, transform=ax.transAxes, fontsize=15,verticalalignment='top', ha='right',multialignment      = 'left',bbox={'facecolor':'none','edgecolor':'none'))
     outname=plotdir+plotname+'.png'
     print 'saving',outname
     plt.savefig(outname)
@@ -122,7 +124,7 @@ def bintest_plot_rhohist_forpaper(divstr=['6','222','111111']):
     vallim=(minval,maxval)
     #rholim=(0.,maxrho)
     #colors=['#1b9e77','#d95f02','#e7298a','#7570b3','#66a61e','#e6ab02']
-    colors=['#d95f02','#1b9e77','#e7298a']
+    colors=['#ff7f00','#377eb8','#e7298a']#'#d95f02''#1b9e77'
     #colors=['#e7298a','#e6ab02','#66a61e']
     plt.figure(0)
     plt.subplots_adjust(left=0.15, bottom=.17, right=.95, top=.95, wspace=0, hspace=0)
@@ -145,10 +147,10 @@ def bintest_plot_rhohist_forpaper(divstr=['6','222','111111']):
 
     plt.plot(np.array([]),np.array([]),linestyle='--',color='black',label='mean from simulation')
     plt.plot(np.array([]),np.array([]),linestyle='-',color='black',label='mean from theory')
-    plt.legend(loc='upper left',frameon=False,fontsize=16)
+    plt.legend(loc='upper left',frameon=True,fontsize=16)
 
     #plot window functions as inset
-    ax=plt.axes([.21,.28,.33,.25])#lower left
+    ax=plt.axes([.21,.33,.33,.25])#lower left
     #ax=plt.axes([.2,.72,.33,.85])
     Nrecs=len(divstr)
     binsetlist=[]
@@ -183,9 +185,9 @@ def bintest_plot_rhohist_forpaper(divstr=['6','222','111111']):
     wantmax=.8*ymax
     scaleby=wantmax/kernelmax
 
-    eqstr=r'$\frac{dn({\rm bin})}{dz}$'
+    eqstr=r'$\frac{dn}{dz}$'
     #plt.plot(np.array([]),np.array([]),color='black',label=eqstr,linewidth=2,linestyle='-')#dummy line
-    plt.plot(cosmz,kernel*scaleby,color='grey',label='ISW kernel',linewidth=2,linestyle='--')
+    #plt.plot(cosmz,kernel*scaleby,color='grey',label='ISW kernel',linewidth=2,linestyle='--')
     #plt.legend(loc='upper right',fancybox=False, framealpha=0.,prop={'size':16},handlelength=3.5)
     
     #plot bin envelopes
@@ -198,7 +200,7 @@ def bintest_plot_rhohist_forpaper(divstr=['6','222','111111']):
             colstr=colors[n%len(colors)]
             plt.plot(zgrid,wgrid,color=colstr,linestyle=linestyles[n],linewidth=linewidths[n])
 
-    textbox=ax.text(1.75, .25, eqstr,fontsize=20,verticalalignment='top',ha='left')#, transform=ax.transAxes, fontsize=15,verticalalignment='top', ha='right',multialignment      = 'left',bbox={'facecolor':'none','edgecolor':'none'))
+    textbox=ax.text(1.75, .25, eqstr,fontsize=24,verticalalignment='top',ha='left')#, transform=ax.transAxes, fontsize=15,verticalalignment='top', ha='right',multialignment      = 'left',bbox={'facecolor':'none','edgecolor':'none'))
     
     outname=plotdir+plotname+'.png'
     print 'saving',outname
@@ -209,7 +211,8 @@ def bintest_plot_rhohist_forpaper(divstr=['6','222','111111']):
 #do Tisw-Trec scatter plot for a given realization r
 def depthtest_TTscatter_forpaper(r=0, z0vals=np.array([0.3,0.5,0.6,0.7,0.8]),savepngmaps=False):
     plotdir='output/plots_forpaper/'
-    colors=['#1b9e77','#d95f02','#e7298a','#7570b3','#66a61e','#e6ab02']
+    #colors=['#1b9e77','#d95f02','#e7298a','#7570b3','#66a61e','#e6ab02']
+    colors=['#e41a1c','#ff7f00','#984ea3','#377eb8','#4daf4a']
     Nrec=z0vals.size
     #get map names and read in maps
     recmapfiles=[]
@@ -266,8 +269,11 @@ def depthtest_TTscatter_forpaper(r=0, z0vals=np.array([0.3,0.5,0.6,0.7,0.8]),sav
 
 #################################################################
 if __name__=="__main__":
-    depthtest_plot_rhohist_forpaper(z0vals=np.array([.3,.5, .6,.7,.8]))
-    bintest_plot_rhohist_forpaper()
-    depthtest_TTscatter_forpaper()
-    bintest_rhoexp_comparesigs(sigzlist=[0.001,0.03,0.05,.1],markerlist=['v','d','o','^'],plotdir='output/plots_forpaper/')
+    #depthtest_plot_rhohist_forpaper(z0vals=np.array([.3,.5, .6,.7,.8]))
+    #depthtest_plot_dndz_forpaper()
+    #bintest_plot_rhohist_forpaper()
+    bintest_plot_zwindowfuncs(plotdir='output/plots_forpaper/')
+    
+    #depthtest_TTscatter_forpaper()
+    #bintest_rhoexp_comparesigs(sigzlist=[0.001,0.03,0.05,.1],markerlist=['v','d','o','^'],plotdir='output/plots_forpaper/')
     #z0test_get_rhoexp(simz0=np.array([]),recz0=np.array([]),perrors=np.array([1,10,20,30,50]),fidz0=.7,doplot=True,varname='rho',plotdir='output/plots_forpaper/')

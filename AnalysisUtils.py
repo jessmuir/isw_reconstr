@@ -1277,8 +1277,8 @@ def plot_Tin_Trec(iswmapfiles,recmapfiles,reclabels,plotdir='output/',plotname='
         plt.title('Pixel-by-pixel scatterplot',fontsize=18)
     plt.rcParams['axes.linewidth'] =2
     ax=plt.subplot()
-    plt.xlabel(r'$\rm{T}^{\rm ISW}_{\rm input}$  $(10^{-5}\rm{K})$',fontsize=20)
-    plt.ylabel(r'$\rm{T}^{\rm ISW}_{\rm rec}$  $(10^{-5}\rm{K})$',fontsize=20)
+    plt.xlabel(r'$\rm{T}^{\rm ISW}_{\rm true}$  $(10^{-5}\rm{K})$',fontsize=24)
+    plt.ylabel(r'$\rm{T}^{\rm ISW}_{\rm rec}$  $(10^{-5}\rm{K})$',fontsize=24)
     #plt.ticklabel_format(style='sci', axis='both', scilimits=(1,0))
     ax.yaxis.set_major_formatter(mtick.FormatStrFormatter('%.0f'))
     ax.xaxis.set_major_formatter(mtick.FormatStrFormatter('%.0f'))
