@@ -259,7 +259,7 @@ def depthtest_TTscatter_forpaper(r=0, z0vals=np.array([0.3,0.5,0.6,0.7,0.8]),sav
             
     #compute rho (could also read from file but this seams simplest)
     rhovals=[rho_onereal(iswmaps[n],recmaps[n]) for n in xrange(Nrec)]
-    reclabels=['z0={0:0.1f}'.format(z0) for z0 in z0vals]
+    reclabels=[r'$z_0={0:0.1f}$'.format(z0) for z0 in z0vals]
 
     #set up plot
     plotname='TrecTisw_scatter_depthtest.r{0:05d}'.format(r)
@@ -272,8 +272,8 @@ if __name__=="__main__":
     #depthtest_plot_rhohist_forpaper(z0vals=np.array([.3,.5, .6,.7,.8]))
     #depthtest_plot_dndz_forpaper()
     #bintest_plot_rhohist_forpaper()
-    bintest_plot_zwindowfuncs(plotdir='output/plots_forpaper/')
+    #bintest_plot_zwindowfuncs(plotdir='output/plots_forpaper/')
     
     #depthtest_TTscatter_forpaper()
-    #bintest_rhoexp_comparesigs(sigzlist=[0.001,0.03,0.05,.1],markerlist=['v','d','o','^'],plotdir='output/plots_forpaper/')
+    bintest_rhoexp_comparesigs(sigzlist=[0.001,0.03,0.05,.1],markerlist=['d','d','d','d'],plotdir='output/plots_forpaper/',datsigs=[0.05],datdivs=['111111','222','6'])
     #z0test_get_rhoexp(simz0=np.array([]),recz0=np.array([]),perrors=np.array([1,10,20,30,50]),fidz0=.7,doplot=True,varname='rho',plotdir='output/plots_forpaper/')

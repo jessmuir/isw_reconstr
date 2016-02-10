@@ -556,7 +556,7 @@ def bintest_get_rhoexp(finestN=6,z0=0.7,sigz=0.05,overwrite=False,doplot=True,ge
     return divstr,rhoarray
 
 #if we've computed Cl stuff for multiple values of sigz0, compare them
-def bintest_rhoexp_comparesigs(finestN=6,z0=0.7,sigzlist=[0.03,0.05],checkautoonly=False,varname='rho',plotdir='output/eucbintest/plots/',markerlist=[],colorlist=[]):
+def bintest_rhoexp_comparesigs(finestN=6,z0=0.7,sigzlist=[0.03,0.05],checkautoonly=False,varname='rho',plotdir='output/eucbintest/plots/',markerlist=[],colorlist=[],datsigs=[],datdivs=[]):
     rholist=[]
     for s in sigzlist:
         divstr,rho=bintest_get_rhoexp(finestN,z0,s,overwrite=False,doplot=False,varname=varname)
@@ -566,23 +566,34 @@ def bintest_rhoexp_comparesigs(finestN=6,z0=0.7,sigzlist=[0.03,0.05],checkautoon
     zedges0=bintest_get_finest_zedges(finestN,z0)
     allzedges=bintest_get_zedgeslist(zedges0,['all'],False)
     outtag=''
-    # if checkautoonly: #see what happens if cross bin power info not included
-    #     scattercolors=['#e41a1c','#377eb8','#4daf4a','#984ea3','#ff7f00','#ffff33','#a65628','#f781bf']
-    #     colorlist=scattercolors[:len(labellist)]
-    #     markerlist=['D']*len(labellist)
-    #     marks=['x','*']
-    #     for n in [1,0]:
-    #         i=0
-    #         for s in sigzlist:
-    #             divstr,rho=bintest_get_rhoexp(finestN,z0,s,overwrite=False,doplot=False,Nneighb=n,varname=varname)
-    #             #print divstr,rho
-    #             rholist.append(rho)
-    #             markerlist.append(marks[n])
-    #             labellist.append('${0:0.3f}$,{1:1d}nb'.format(s,n))
-    #             colorlist.append(scattercolors[i])
-    #             i+=1
     outname='eucbintest_'+varname+'exp'+outtag+'.png'
-    bintest_rhoexpplot(allzedges,divstr,rholist,labellist,outname,legtitle,markerlist,colorlist,outtag,varname=varname,plotdir=plotdir)
+
+    datplot=[]
+    if len(datsigs) and len(datdivs): #if we want to get datapoints
+        datrhos=[]
+        datstds=[]
+        datdivlist=[]
+        datlabels=[]
+        datcols=[]
+        for i in xrange(len(datsigs)):
+            datlabels.append('')
+            datdivlist.append(datdivs)
+            #color index gotten by comparing with sigzlist
+            for j in xrange(len(sigzlist)):
+                if sigzlist[j]==datsigs[i]:
+                    datcols.append(j)
+                    break
+            #read in appropraite rho data, assuming already generated
+            # get means and standard deviations
+            rhogrid=bintest_read_rho_wfiles(datdivs,datsigs[i],varname=varname)
+            print 'rhogrid.shape',rhogrid.shape
+            datrhos.append([np.mean(rhogrid[j,:]) for j in xrange(len(datdivs))])
+            datstds.append([np.std(rhogrid[j,:]) for j in xrange(len(datdivs))])
+
+        #bundle into datplot array
+        datplot=[datrhos,datstds,datdivlist,datlabels,datcols]
+        print datplot
+    bintest_rhoexpplot(allzedges,divstr,rholist,labellist,outname,legtitle,markerlist,colorlist,outtag,varname=varname,plotdir=plotdir,datplot=datplot)
 
 #--------------------
 def bintest_test_rhoexp():
@@ -651,8 +662,10 @@ def bintest_get_glm_and_rec(Nreal=1,divlist=['6','222','111111'],minreal=0,justg
 
 #get arrays of rho saved in .rho.dat files, or .s.dat files
 def bintest_read_rho_wfiles(divlist=['6','222','111111'],sigz=0.05,varname='rho'):
+    #print 'in READFILES, divlist=',divlist
     mapdir='output/eucbintest/map_output/'
     files=['iswREC.euc6bins{0:03d}div{1:s}.fid.fullsky.eucbintest6s{0:03d}all.{2:s}.dat'.format(int(1000*sigz),d,varname) for d in divlist]
+    #print files
     rhogrid=np.array([read_rhodat_wfile(mapdir+f) for f in files])
     return rhogrid
 
@@ -670,7 +683,9 @@ def bintest_read_rell_wfiles(divlist=['6','222','111111'],sigz=0.05,varname='rel
 #plot expectation value of rho for different binning strategy
 # with illustrative y axis
 # also works for s, switch in variable varname
-def bintest_rhoexpplot(allzedges,labels,rhoarraylist,labellist=[],outname='',legtitle='',markerlist=[],colorlist=[],outtag='',varname='rho',dotitle=False,plotdir='output/eucbintest/plots/'):
+#   dataplot=[(datrho,datstd,datdiv,datlabel,datcol),...] #if you want to plot
+#       some data points, pass their plotting info here. datsig!=0 adds error bars
+def bintest_rhoexpplot(allzedges,labels,rhoarraylist,labellist=[],outname='',legtitle='',markerlist=[],colorlist=[],outtag='',varname='rho',dotitle=False,plotdir='output/eucbintest/plots/',datplot=[]):
     if type(rhoarraylist[0])!=np.ndarray: #just one array passed,not list of arr
         rhoarraylist=[rhoarraylist]
     if not outname:
@@ -748,6 +763,30 @@ def bintest_rhoexpplot(allzedges,labels,rhoarraylist,labellist=[],outname='',leg
         markerlist=['D']*len(rhoarraylist)
     if not colorlist:
         colorlist=scattercolors
+    #plot datapoints if we have them
+    DODATA=False
+    for i in xrange(len(datplot[0])):
+        DODATA=True
+        datrho=datplot[0][i]#array
+        datstd=datplot[1][i]#array #of standard dev
+        datdiv=datplot[2][i]#list of strings, translate into arry of y vals
+        daty=[]
+        for d in datdiv:
+            for j in xrange(len(labels)):
+                if labels[j]==d:
+                    daty.append(yvals[j])
+        datlabel=datplot[3][i] #dummy empty string for now
+        datcol=''
+        datcol=datplot[4][i]
+        if type(datcol)==int: #is index rather tha color string
+            datcol=colorlist[datcol]
+        #uniform error bars if datsig is a number, nonuni if array
+
+        print datrho
+        print daty
+        print np.array(datstd)
+        ax2.errorbar(datrho,daty,xerr=np.array(datstd),label='',color=datcol,linestyle='None',marker='x',markersize=15,markeredgewidth=2,zorder=-32)
+        
     for i in xrange(len(rhoarraylist)):
         rhoarray=rhoarraylist[i]
         m=markerlist[i]
@@ -757,7 +796,11 @@ def bintest_rhoexpplot(allzedges,labels,rhoarraylist,labellist=[],outname='',leg
             ax2.scatter(rhoarray,yvals,color=colorlist[i],marker=m)
 
     if labellist:
-        plt.legend(loc=legloc,fontsize=16,title=legtitle)
+        if DODATA:
+            ax2.set_xlim((.78,.99))
+            plt.legend(bbox_to_anchor=(1,.8),fontsize=16,title=legtitle)
+        else:
+            plt.legend(loc=legloc,fontsize=16,title=legtitle)
 
     plt.setp(ax2.get_yticklabels(), visible=False)
     plt.setp(ax2.get_xticklabels()[0], visible=False)#don't show number at first label
