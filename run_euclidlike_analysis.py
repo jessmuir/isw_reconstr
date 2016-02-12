@@ -740,7 +740,7 @@ def bintest_rhoexpplot(allzedges,labels,rhoarraylist,labellist=[],outname='',leg
         yvalsi=i*np.ones(len(allzedges[i]))
         ax1.barh(yvalsi-.5,xvalsi[::-1],color=colors[Nbins-1],edgecolor='white',linewidth=2)
 
-d    #right side has the expectation values for rho plotted
+    #right side has the expectation values for rho plotted
     plt.sca(ax2)
     ax2.yaxis.set_ticks_position('left')
     ax2.xaxis.set_ticks_position('bottom')
@@ -3062,12 +3062,12 @@ def lmintest_plot_rhoexp(lminlist=np.arange(1,30),lmaxlist=-1,z0=.7,overwrite=Fa
         if Nlmax>1:
             linelabel=r'$\ell_{{\rm max}}={0:d}$'.format(lmaxlist[i])
         else:
-            linelabel=r'$\langle {0:s} \rangle$ from theory'.format(varstr)
+            linelabel=r'$\langle {0:s} \rangle_{{[\ell\geq \ell_{{\rm min}}]}}$ from theory'.format(varstr)
         Nrho=rhogrid[i,:].size
         plt.plot(lminlist[:Nrho],rhogrid[i,:],color=colors[i%len(colors)],label=linelabel)
     plt.xlabel(r'$\ell_{\rm min}$')
-    plt.ylabel(r'${0:s}$'.format(varstr))
-    plt.xlim((0,20))
+    plt.ylabel(r'${0:s}_{{[\ell\geq \ell_{{\rm min}}]}}$'.format(varstr))
+    plt.xlim((0,15))
     plt.ylim((.75,.965))
 
     if dodata:
@@ -3085,7 +3085,7 @@ def lmintest_plot_rhoexp(lminlist=np.arange(1,30),lmaxlist=-1,z0=.7,overwrite=Fa
             Nreal.append(Nreali)
             #colors will match lines
             plt.errorbar(datlmin,rhomeani,yerr=rhostdi,linestyle='None',marker='o',color=colors[i%len(colors)])
-        datlabel='Mean from {0:d} sim.'.format(Nreal[0])#assumes all for same #
+        datlabel='Results from {0:d} sim.'.format(Nreal[0])#assumes all for same #
         #plot dummy point for legend
         plt.errorbar([-1],[.9],yerr=[.01],linestyle='None',marker='o',color='black',label=datlabel)
 
@@ -3632,9 +3632,9 @@ if __name__=="__main__":
 
             
     #lmin tests
-    if 0: #generate rho data from many realizations
+    if 1: #generate rho data from many realizations
         Nreal=1
-        inlminlist=np.array([1,2,3,5,10])
+        inlminlist=np.array([1,2,3,5])
         #inlminlist=np.array([10])
         inlmaxlist=np.array([-1])#3,5,10,20,-1])
         lminlist,lmaxlist=lmintest_get_lminmaxcombos(inlminlist,inlmaxlist)
@@ -3646,7 +3646,7 @@ if __name__=="__main__":
         #lmintest_plot_rhoexp(overwrite=0,lmaxlist=np.array([-1]),varname='rho',dodata=False)
 
     #lmin caltests
-    if 1:
+    if 0:
         shortvarlist=[1.e-7,1.e-6,1.e-5,1.e-4,1.e-3,1.e-2]
         shortreclminlist=np.array([1,3,5])#1,3,10])
         if 0: #do recs for many realizations
