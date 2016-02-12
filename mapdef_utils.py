@@ -34,6 +34,12 @@ def dndz_Euclidlike(z,z0=0.7):
     result*=np.exp(exponent)
     return result
 
+def dndz_NVSSlike(z,z0=.32,alpha=0.36):
+    exponent=-1.*alpha*z/z0
+    result=(z/z0)**alpha
+    result*=np.exp(exponent)
+    return result
+
 #===============================================================
 # This will return a surveyType object with dndz like DES
 #     6 redshift bins; 10 of width .2 going from 0-1., then 1 for z>1

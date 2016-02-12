@@ -561,7 +561,7 @@ def bintest_rhoexp_comparesigs(finestN=6,z0=0.7,sigzlist=[0.03,0.05],checkautoon
     for s in sigzlist:
         divstr,rho=bintest_get_rhoexp(finestN,z0,s,overwrite=False,doplot=False,varname=varname)
         rholist.append(rho)
-    legtitle='$\\sigma_z(z)*(1+z)^{{-1}}$'
+    legtitle='$\\sigma_{z0}$'
     labellist=['${0:0.3f}$'.format(s) for s in sigzlist]
     zedges0=bintest_get_finest_zedges(finestN,z0)
     allzedges=bintest_get_zedgeslist(zedges0,['all'],False)
@@ -740,7 +740,7 @@ def bintest_rhoexpplot(allzedges,labels,rhoarraylist,labellist=[],outname='',leg
         yvalsi=i*np.ones(len(allzedges[i]))
         ax1.barh(yvalsi-.5,xvalsi[::-1],color=colors[Nbins-1],edgecolor='white',linewidth=2)
 
-    #right side has the expectation values for rho plotted
+d    #right side has the expectation values for rho plotted
     plt.sca(ax2)
     ax2.yaxis.set_ticks_position('left')
     ax2.xaxis.set_ticks_position('bottom')
