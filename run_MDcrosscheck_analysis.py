@@ -74,6 +74,7 @@ def MDtest_get_Cl(justread=True,Ndesbins=[2,3]):
     bins=MDtest_get_binmaps(Ndesbins=Ndesbins)
     zmax=max(m.zmax for m in bins)
     rundat = ClRunData(tag='MDtest',rundir='output/MDchecks/',lmax=95,zmax=zmax,iswilktag='fidisw',noilktag=True)
+    pair=[]
     #pair up isw and each LSS maps, but not lss maps together 
     for b in bins:
         if b.isGal:
