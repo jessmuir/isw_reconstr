@@ -130,6 +130,7 @@ def scale_Dl_byb0(inDl,b0):
 #       where indices go like [ell,maptype,maptype]
 #-------------------------------------------------------------------------
 def get_Dl_matrix(cldat,includelist=[],zerotag='isw_bin0'):
+    print 'in get dl, includlist:',includelist
     if not includelist:
         includelist=cldat.bintaglist
     #print 'getting D, includelist=',includelist
@@ -280,12 +281,12 @@ def get_glm_array_forrec(glmdat,includelist=[],zerotag='isw_bin0'):
 #                also saves to file
 #-------------------------------------------------------------------------
 def calc_isw_est(cldat,glmdat,recdat,writetofile=True,getmaps=True,redofits=True,makeplots=False,dorho=False):
+    
     maptag=recdat.maptag
     rectag=recdat.rectag
     lmin_forrec=recdat.lmin
     lmax_forrec=recdat.lmax
     print "Computing ISW estimator maptag,rectag:",maptag,rectag
-
     if not recdat.includeglm:
         useglm=cldat.bintaglist
         rectag.set_includeglm(useglm)
@@ -358,7 +359,7 @@ def calc_isw_est(cldat,glmdat,recdat,writetofile=True,getmaps=True,redofits=True
         #print "WRITING ALM DATA TO FILE"
         write_glm_to_files(almdat)
     if getmaps:
-        #print "GETTING ISW REC MAPS"
+        print "GETTING ISW REC MAPS"
         get_maps_from_glm(almdat,redofits=redofits,makeplots=makeplots,NSIDE=recdat.NSIDE)
 
         #compute rho
@@ -387,7 +388,7 @@ def calc_isw_est(cldat,glmdat,recdat,writetofile=True,getmaps=True,redofits=True
 #       (runtag will also show up in maps made from glmdat)
 #    writetofile - if True, writes output to file
 #    getmaps - if True, get fits files for maps that go with recs
-#    makeplots - if getmapes and True, also make png files
+#    makeplots - if getmaps and True, also make png files
 #  Assumes all recs have same Nlm and Nreal
 def domany_isw_recs(cldatlist,glmdatlist,reclist,outfiletag='iswREC',outruntag='',writetofile=True,getmaps=True,redofits=True,makeplots=False,dorho=True):
     SameCl=False
@@ -411,6 +412,7 @@ def domany_isw_recs(cldatlist,glmdatlist,reclist,outfiletag='iswREC',outruntag='
             glmdat=glmdatlist[0]
         else:
             glmdat=glmdatlist[i]
+        #rec contains expected info here
         almdat=calc_isw_est(cldat,glmdat,rec,writetofile=False,getmaps=getmaps,redofits=redofits,makeplots=makeplots,dorho=dorho)
 
         if i==0:
@@ -439,7 +441,7 @@ def get_dummy_recalmdat(glmdat,reclist,outfiletag='iswREC',outruntag=''):
     for rec in reclist:
         outmaptags.append(rec.maptag)
         outmodtags.append(rec.rectag)
-        outmasktags.append('fullsky')
+        outmasktags.append(rec.masktag)
     #in domany_isw_rec, the runtag is only set by first glmdat?
     almdat=glmData(np.array([]),glmdat.lmax,outmaptags,outruntag,glmdat.rundir,filetags=[outfiletag],modtaglist=outmodtags,masktaglist=outmasktags)
 
@@ -577,11 +579,13 @@ def getmaps_fromCl(cldat,Nreal=1,rlzns=np.array([]),reclist=[],Nglm=1,block=100,
         if not justgetrho:
             print "Making maps for rlzns {0:d}-{1:d}".format(nrlzns[0],nrlzns[-1])
             #print "   thisNglm=",thisNglm
-            
             glmdat=generate_many_glm_fromcl(cldat,rlzns=nrlzns,savedat=False)
             almdat=domany_isw_recs(cldat,glmdat,reclist,writetofile=False,getmaps=True,makeplots=False,outruntag=glmdat.runtag,dorho=False)
+            print 'getting galaxy maps'
             get_maps_from_glm(glmdat,redofits=True,makeplots=False)
+            # note that 'getmaps' is done for isw Recs in 'domany_isw_recs'
             if thisNglm:
+                print '  Saving glm data for Nreal=',thisNglm 
                 saveglm=glmdat.copy(Nreal=thisNglm) #save glm for these
                 saveglm= write_glm_to_files(saveglm,setnewfiletag=True,newfiletag=glmfiletag)
                 get_maps_from_glm(saveglm,redofits=False,makeplots=True)
@@ -598,6 +602,7 @@ def getmaps_fromCl(cldat,Nreal=1,rlzns=np.array([]),reclist=[],Nglm=1,block=100,
         if dorho:
             print "   Computing and saving rho statistics"
             calc_rho_forreclist(glmdat,almdat,reclist,nrlzns,filetag=rhofiletag,overwrite=NEWRHOFILE,varname='rho') #start new file for first block, then add to it
+            print 'done computing rho'
         if dos:
             print "   Computing and saving s statistics"
             calc_rho_forreclist(glmdat,almdat,reclist,nrlzns,filetag=rhofiletag,overwrite=NEWRHOFILE,varname='s') #start new file for first block, then add to it
@@ -713,15 +718,16 @@ def doiswrec_formaps(dummyglm,cldat,Nreal=1,rlzns=np.array([]),reclist=[],Nglm=0
 #          if overwrite, will makenew rho output file
 #          otherwise, will add rho data to that in existing file
 def calc_rho_forreclist(glmdat,almdat,reclist,rlzns,savedat=True,overwrite=False,filetag='',varname='rho'):
-    #print "Computing rho statistics"
+    print "Computing rho statistics"
     rhogrid=[]
     for i in xrange(len(reclist)):
         truemapf=glmdat.get_mapfile_fortags(0,reclist[i].zerotagstr) #mod/mask tags default
         truemapbase=truemapf[:truemapf.rfind('.r')]
         recmapf=almdat.get_mapfile(0,i,'fits') #realization 0, map index i, filetype fits
         recmapbase=recmapf[:recmapf.rfind('.r')]
-        #print 'truemapbase',truemapbase
-        #print 'recmapbase',recmapbase
+        print '----'
+        print 'truemapbase',truemapbase
+        print 'recmapbase',recmapbase
         lmin=reclist[i].lmin
         lmax=reclist[i].lmax
         rhovals=rho_manyreal(truemapbase,recmapbase,rlzns=rlzns,savedat=False,varname=varname,lmin=lmin,lmax=lmax)           
@@ -1369,14 +1375,18 @@ def plothist(varstr,datagrid,reclabels,plottitle,xlabel,plotdir,plotname,predval
     Nreal=datagrid.shape[1]
     maxval=np.max(datagrid)
     minval=np.min(datagrid)
+    print 'min,max for hist',minval,maxval
     if not vallim: #default setup works well for s, rho, but not chisq
         vallim=(minval,maxval)
     #rholim=(0.,maxrho)
     colors=['#1b9e77','#d95f02','#e7298a','#7570b3','#66a61e','#e6ab02']
     plt.figure(0)
+    plt.subplots_adjust(left=0.15, bottom=.2, right=.95, top=.95, wspace=0, hspace=0)
     plt.title(plotname)
-    plt.xlabel(xlabel,fontsize=12)
-    plt.ylabel('realizations',fontsize=16)
+    plt.xlabel(xlabel,fontsize=26)
+    plt.ylabel('Realizations',fontsize=26)
+    plt.tick_params(axis='y', which='both', labelsize=16)
+    plt.tick_params(axis='x', which='both', labelsize=16)
     for i in xrange(Nrecs):
         mean=np.mean(datagrid[i,:])
         sigma=np.std(datagrid[i,:])

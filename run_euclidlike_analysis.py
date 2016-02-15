@@ -649,12 +649,6 @@ def bintest_get_glm_and_rec(Nreal=1,divlist=['6','222','111111'],minreal=0,justg
     maptypes=bintest_get_maptypelist(finestN=6,getdivs=divlist,z0=0.7,sigz=0.05,includeisw=True)
     mapsfor=[mt.tag for mt in maptypes] #tags for maps we want to make
     cldat=get_reduced_cldata(allcldat,dothesemaps=mapsfor)
-    print '--------cldat info-----------------'
-    print 'nmaps',cldat.Nmap
-    print 'ncross',cldat.Ncross
-    print cldat.bintaglist
-    print 'shape',cldat.cl.shape
-    print '-----------------------------------'
     
     getmaps_fromCl(cldat,rlzns=rlzns,reclist=reclist,justgetrho=justgetrho,dorell=dorell)
     t1=time.time()
