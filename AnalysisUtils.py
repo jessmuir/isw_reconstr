@@ -130,7 +130,7 @@ def scale_Dl_byb0(inDl,b0):
 #       where indices go like [ell,maptype,maptype]
 #-------------------------------------------------------------------------
 def get_Dl_matrix(cldat,includelist=[],zerotag='isw_bin0'):
-    print 'in get dl, includlist:',includelist
+    #print 'in get dl, includlist:',includelist
     if not includelist:
         includelist=cldat.bintaglist
     #print 'getting D, includelist=',includelist
@@ -546,7 +546,7 @@ def rell_onereal(truemap,recmap,varname='rell'):
 #  -only save glm data for Nglm realizations (make plots for these too)
 def getmaps_fromCl(cldat,Nreal=1,rlzns=np.array([]),reclist=[],Nglm=1,block=100,glmfiletag='',almfiletag='iswREC',rhofiletag='',justgetrho=False,dorho=True,dos=True,dochisq=True,dorell=False,dochisqell=False):
     #block=3
-    print '======in getmaps_fromCl==========='
+    #print '======in getmaps_fromCl==========='
     arangereal=not rlzns.size
     if rlzns.size:
         Nreal=rlzns.size
@@ -588,7 +588,8 @@ def getmaps_fromCl(cldat,Nreal=1,rlzns=np.array([]),reclist=[],Nglm=1,block=100,
             print "Making maps for rlzns {0:d}-{1:d}".format(nrlzns[0],nrlzns[-1])
             #print "   thisNglm=",thisNglm
             glmdat=generate_many_glm_fromcl(cldat,rlzns=nrlzns,savedat=False)
-            almdat=domany_isw_recs(cldat,glmdat,reclist,writetofile=False,getmaps=True,makeplots=False,outruntag=glmdat.runtag,dorho=False)
+            if reclist:
+                almdat=domany_isw_recs(cldat,glmdat,reclist,writetofile=False,getmaps=True,makeplots=False,outruntag=glmdat.runtag,dorho=False)
             #print '  glm generated from healpy:',glmdat.maptaglist
             #print '  ************alm after rec:',almdat.maptaglist
             #print 'getting galaxy maps'
@@ -599,31 +600,31 @@ def getmaps_fromCl(cldat,Nreal=1,rlzns=np.array([]),reclist=[],Nglm=1,block=100,
                 saveglm=glmdat.copy(Nreal=thisNglm) #save glm for these
                 saveglm= write_glm_to_files(saveglm,setnewfiletag=True,newfiletag=glmfiletag)
                 get_maps_from_glm(saveglm,redofits=False,makeplots=True)
-
-                savealm=almdat.copy(Nreal=thisNglm)
-                savealm=write_glm_to_files(savealm,setnewfiletag=True,newfiletag=almfiletag)
-                get_maps_from_glm(savealm,redofits=False,makeplots=True)
-        else:
+                if reclist:
+                    savealm=almdat.copy(Nreal=thisNglm)
+                    savealm=write_glm_to_files(savealm,setnewfiletag=True,newfiletag=almfiletag)
+                    get_maps_from_glm(savealm,redofits=False,makeplots=True)
+        elif reclist:
             print "Reading maps for rlzns {0:d}-{1:d}".format(nrlzns[0],nrlzns[-1])
             #need to get almdat and glmdat for filenames
             glmdat=get_glm(cldat,filetag=glmfiletag,Nreal=0,runtag=cldat.rundat.tag)
             almdat=get_dummy_recalmdat(glmdat,reclist,outruntag=glmdat.runtag)
         #for each list, get rho
-        if dorho:
+        if dorho and reclist:
             print "   Computing and saving rho statistics"
             calc_rho_forreclist(glmdat,almdat,reclist,nrlzns,filetag=rhofiletag,overwrite=NEWRHOFILE,varname='rho') #start new file for first block, then add to it
             #print 'done computing rho'
-        if dos:
+        if dos and reclist:
             print "   Computing and saving s statistics"
             calc_rho_forreclist(glmdat,almdat,reclist,nrlzns,filetag=rhofiletag,overwrite=NEWRHOFILE,varname='s') #start new file for first block, then add to it
-        if dochisq:
+        if dochisq and reclist:
             print "   Computing and saving chisq statistics"
             calc_rho_forreclist(glmdat,almdat,reclist,nrlzns,filetag=rhofiletag,overwrite=NEWRHOFILE,varname='chisq') #start new file for first block, then add to it
-        if dorell: #this is slow
+        if dorell and reclist: #this is slow
             print "  Computing and saving r_ell statistics."
             calc_rell_forreclist(glmdat,almdat,reclist,nrlzns,overwrite=NEWRHOFILE,filetag=rhofiletag)
 
-        if dochisqell: #this is slow
+        if dochisqell and reclist: #this is slow
             print "  Computing and saving chisq_ell statistics."
             calc_rell_forreclist(glmdat,almdat,reclist,nrlzns,overwrite=NEWRHOFILE,filetag=rhofiletag,varname='chisqell')
         
@@ -649,7 +650,7 @@ def getmaps_fromCl(cldat,Nreal=1,rlzns=np.array([]),reclist=[],Nglm=1,block=100,
 #           if we want to just calc rho and other stats
 #  dorell - set to True if we want to compute variance at different ell
 
-def doiswrec_formaps(dummyglm,cldat,Nreal=1,rlzns=np.array([]),reclist=[],Nglm=0,block=100,glmfiletag='',almfiletag='iswREC',rhofiletag='',domaps=True,dorell=False):
+def doiswrec_formaps(dummyglm,cldat,Nreal=1,rlzns=np.array([]),reclist=[],Nglm=0,block=100,glmfiletag='',almfiletag='iswREC',rhofiletag='',domaps=True,dorell=False,dos=True):
     #block=3
     arangereal=not rlzns.size
     if rlzns.size:
@@ -709,7 +710,8 @@ def doiswrec_formaps(dummyglm,cldat,Nreal=1,rlzns=np.array([]),reclist=[],Nglm=0
         #for each list, get rho
         #print "   Computing and saving rho and s statistics"
         calc_rho_forreclist(glmdat,almdat,reclist,nrlzns,filetag=rhofiletag,overwrite=NEWRHOFILE,varname='rho') #start new file for first block, then add to it
-        calc_rho_forreclist(glmdat,almdat,reclist,nrlzns,filetag=rhofiletag,overwrite=NEWRHOFILE,varname='s') #start new file for first block, then add to it
+        if dos:
+            calc_rho_forreclist(glmdat,almdat,reclist,nrlzns,filetag=rhofiletag,overwrite=NEWRHOFILE,varname='s') #start new file for first block, then add to it
         if dorell: #this is slow
             print "  Computing and saving r_ell statistics."
             calc_rell_forreclist(glmdat,almdat,reclist,nrlzns,overwrite=NEWRHOFILE,filetag=rhofiletag)

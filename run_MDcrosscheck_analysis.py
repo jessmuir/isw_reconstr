@@ -41,7 +41,7 @@ def get_MDDESlike_SurveyType(tag='',nbins=2):
     nbar=1.e9 #picking a big number, assuming shot noise will be negligible
 
     if nbins==2:
-        zedges=np.array([0.01,.5,1.6])
+        zedges=np.array([0.1,.5,1.6])
     elif nbins==3:
         zedges=np.array([0.1,.5,1.,1.6])
     bias=nobias
@@ -50,20 +50,19 @@ def get_MDDESlike_SurveyType(tag='',nbins=2):
     sigz=.025 #only one bin, so this won't be used
     return SurveyType(tag,zedges,sigz,nbar,dndz,bias,longtag=longtag)
 
-def MDtest_get_maptypelist(includeisw=False,Ndesbins=[2,3]):
+def MDtest_get_maptypelist(includeisw=False,Ndesbins=[2,3],nvss=True):
     surveys=[]
-    surveys.append(get_NVSSlike_SurveyType())
+    if nvss:
+        surveys.append(get_NVSSlike_SurveyType())
     #print 'dndz nvss args:',surveys[0].dndzargs
+    if includeisw:
+        surveys.append(get_fullISW_MapType(zmax=15))   
     for n in Ndesbins:
         surveys.append(get_MDDESlike_SurveyType(nbins=n))
-    if includeisw:
-        surveys.append(get_fullISW_MapType(zmax=15))
-
-
     return surveys
     
-def MDtest_get_binmaps(includeisw=True,Ndesbins=[2,3]):
-    surveys=MDtest_get_maptypelist(Ndesbins=Ndesbins)
+def MDtest_get_binmaps(includeisw=True,Ndesbins=[2,3],nvss=True):
+    surveys=MDtest_get_maptypelist(Ndesbins=Ndesbins,nvss=nvss)
     bins=[]
     for survey in surveys:
         bins=bins+survey.binmaps
@@ -73,9 +72,9 @@ def MDtest_get_binmaps(includeisw=True,Ndesbins=[2,3]):
         bins=iswbins+bins
     return bins
 
-def MDtest_get_Cl(justread=True,Ndesbins=[2,3]):
-    surveys=MDtest_get_maptypelist(Ndesbins=Ndesbins)
-    bins=MDtest_get_binmaps(Ndesbins=Ndesbins)
+def MDtest_get_Cl(justread=True,Ndesbins=[2,3],nvss=True):
+    surveys=MDtest_get_maptypelist(Ndesbins=Ndesbins,nvss=nvss)
+    bins=MDtest_get_binmaps(Ndesbins=Ndesbins,nvss=nvss)
     zmax=max(m.zmax for m in bins)
     rundat = ClRunData(tag='MDtest',rundir='output/MDchecks/',lmax=95,zmax=zmax,iswilktag='fidisw',noilktag=True)
     pairs=[]
@@ -85,8 +84,8 @@ def MDtest_get_Cl(justread=True,Ndesbins=[2,3]):
         pairs.append((s.tag,s.tag))
     return getCl(bins,rundat,dopairs=pairs,DoNotOverwrite=justread)
 
-def MDtest_get_reclist(Ndesbins=[2,3],lmin=3,lmax=80):
-    maptypes=MDtest_get_maptypelist(Ndesbins=Ndesbins)
+def MDtest_get_reclist(Ndesbins=[2,3],lmin=3,lmax=80,nvss=True):
+    maptypes=MDtest_get_maptypelist(Ndesbins=Ndesbins,nvss=nvss)
     Nrec=len(maptypes)
     reclist=[]
     for i in xrange(Nrec):
@@ -98,29 +97,38 @@ def MDtest_get_reclist(Ndesbins=[2,3],lmin=3,lmax=80):
     return reclist
 
 #use cldat to generate glm, alm, and maps; saves maps but not alm
-def MDtest_get_glm_and_rec(Nreal=1,minreal=0,justgetrho=0,dorho=1,Ndesbins=[2,3],lmin=3,lmax=80,rhofiletag=''):
+def MDtest_get_glm_and_rec(Nreal=1,minreal=0,justgetrho=0,dorho=1,Ndesbins=[2,3],lmin=3,lmax=80,rhofiletag='',nvss=True):
     #adding this block of text fixed bug when passing two sets of analysis. why?
-    maptypes=MDtest_get_maptypelist(Ndesbins=Ndesbins)
+    maptypes=MDtest_get_maptypelist(Ndesbins=Ndesbins,nvss=nvss)
     mapsfor=[mt.tag for mt in maptypes] #tags for maps we want to make
     mapsfor.append('isw')
-    allcldat=MDtest_get_Cl(justread=True,Ndesbins=Ndesbins)
-    cldat=get_reduced_cldata(allcldat,dothesemaps=mapsfor)#basically just reorders
-    #cldat=allcldat
-    print '-----allcldat'
-    print '  ',allcldat.Nmap,allcldat.bintaglist
-    print '  ',allcldat.nbar,allcldat.Nmap
-    print '-----reducedcldat'
-    print '  ',cldat.Nmap,cldat.bintaglist
-    print '  ',cldat.nbar,cldat.Nmap
+    allcldat=MDtest_get_Cl(justread=True,Ndesbins=Ndesbins,nvss=nvss)
+    #cldat=get_reduced_cldata(allcldat,dothesemaps=mapsfor)#basically just reorders
+    cldat=allcldat
     
     makeplots=Nreal==1
     rlzns=np.arange(minreal,minreal+Nreal)
-    reclist=MDtest_get_reclist(Ndesbins=Ndesbins,lmin=lmin,lmax=lmax)
+    reclist=MDtest_get_reclist(Ndesbins=Ndesbins,lmin=lmin,lmax=lmax,nvss=nvss)
     getmaps_fromCl(cldat,rlzns=rlzns,reclist=reclist,justgetrho=justgetrho,dorho=dorho,dos=False,dochisq=False,rhofiletag=rhofiletag)
 
+#use cldat to generate glm, no iswrec #WORKING HERE, bug is in this func
+def MDtest_get_glm(Nreal=1,minreal=0,Ndesbins=[2,3],nvss=True):
+    cldat=MDtest_get_Cl(justread=True,Ndesbins=Ndesbins,nvss=nvss)
+    rlzns=np.arange(minreal,minreal+Nreal)
+    #leaving reclist empty means just gen gal and isw maps
+    getmaps_fromCl(cldat,rlzns=rlzns)
+
+#assuming maps already generated, do reconstructions
+def MDtest_iswrec(Nreal,minreal=0,justgetrho=0,dorho=1,Ndesbins=[2,3],lmin=3,lmax=80,rhofiletag='',nvss=True):
+    rlzns=np.arange(minreal,minreal+Nreal)
+    cldat=MDtest_get_Cl(justread=True,Ndesbins=Ndesbins,nvss=nvss)
+    reclist=MDtest_get_reclist(Ndesbins=Ndesbins,lmin=lmin,lmax=lmax,nvss=nvss)
+    dummyglm=get_glm(cldat,Nreal=0,runtag=cldat.rundat.tag)
+    doiswrec_formaps(dummyglm,cldat,rlzns=rlzns,reclist=reclist,rhofiletag=rhofiletag,dos=False)
+    
 #get arrays of rho saved in .rho.dat files or .s.dat
-def MDtest_read_rho_wfiles(varname='rho',Ndesbins=[2,3],lmin=3,lmax=80,rhofiletag=''):
-    maptypes=MDtest_get_maptypelist(Ndesbins=Ndesbins)  #list of LSS survey types
+def MDtest_read_rho_wfiles(varname='rho',Ndesbins=[2,3],lmin=3,lmax=80,rhofiletag='',nvss=True):
+    maptypes=MDtest_get_maptypelist(Ndesbins=Ndesbins,nvss=nvss)  #list of LSS survey types
     mapdir='output/MDchecks/map_output/'
     if not rhofiletag:
         tagstr=''
@@ -134,18 +142,18 @@ def MDtest_read_rho_wfiles(varname='rho',Ndesbins=[2,3],lmin=3,lmax=80,rhofileta
     return rhogrid
 
 # get expectation values of rho or s, choose variable via varname
-def MDtest_get_expected_rho(varname='rho',Ndesbins=[2,3],lmin=3,lmax=80):
-    Nrec=len(Ndesbins)+1 
-    cldat=MDtest_get_Cl(Ndesbins=Ndesbins)
-    reclist=MDtest_get_reclist(Ndesbins,lmin,lmax)
+def MDtest_get_expected_rho(varname='rho',Ndesbins=[2,3],lmin=3,lmax=80,nvss=True):
+    Nrec=len(Ndesbins)+nvss
+    cldat=MDtest_get_Cl(Ndesbins=Ndesbins,nvss=nvss)
+    reclist=MDtest_get_reclist(Ndesbins,lmin,lmax,nvss=nvss)
     rhopred=np.zeros(Nrec)
     for i in xrange(Nrec):
         rhopred[i]=compute_rho_fromcl(cldat,reclist[i],varname=varname)
     return rhopred
 
 ######################
-def MDtest_plot_zwindowfuncs(desNbins=3):
-    maptypes=MDtest_get_maptypelist(includeisw=False,Ndesbins=[desNbins])
+def MDtest_plot_zwindowfuncs(desNbins=[3],nvss=True):
+    maptypes=MDtest_get_maptypelist(includeisw=False,Ndesbins=desNbins,nvss=True)
     Nrecs=len(maptypes)
     plotdir='output/MDchecks/plots/'
     plotname='MDtest_zbins'
@@ -195,9 +203,9 @@ def MDtest_plot_zwindowfuncs(desNbins=3):
     plt.close()
 
 
-def MDtest_plot_rhohist(varname='rho',Ndesbins=[2,3],lmin=3,lmax=80,getrhopred=True,firstNreal=-1,rhofiletag=''):
+def MDtest_plot_rhohist(varname='rho',Ndesbins=[2,3],lmin=3,lmax=80,getrhopred=True,firstNreal=-1,rhofiletag='',nvss=True):
     plotdir='output/MDchecks/plots/'
-    rhogrid=MDtest_read_rho_wfiles(varname,Ndesbins,lmin,lmax,rhofiletag)
+    rhogrid=MDtest_read_rho_wfiles(varname,Ndesbins,lmin,lmax,rhofiletag,nvss=nvss)
     #output order are nvss, then the des-like surveys in given Ndesbins order
     Nreal=rhogrid.shape[1]
     if firstNreal>0 and firstNreal<Nreal:
@@ -205,12 +213,13 @@ def MDtest_plot_rhohist(varname='rho',Ndesbins=[2,3],lmin=3,lmax=80,getrhopred=T
         rhogrid=rhogrid[:,:Nreal]
     testname='MDchecks'
     if getrhopred:
-        rhopred=MDtest_get_expected_rho(varname,Ndesbins,lmin,lmax)
+        rhopred=MDtest_get_expected_rho(varname,Ndesbins,lmin,lmax,nvss=nvss)
     else:
         rhopred=[]
     plotname ='MDtest_{1:s}hist_r{0:05d}'.format(Nreal,varname)
     reclabels=[]
-    reclabels.append('NVSS')
+    if nvss:
+        reclabels.append('NVSS')
     for n in Ndesbins:
         reclabels.append('DES {0:d} bins'.format(n))
 
@@ -222,20 +231,21 @@ def MDtest_plot_rhohist(varname='rho',Ndesbins=[2,3],lmin=3,lmax=80,getrhopred=T
 
 #################################################################
 if __name__=="__main__":
-    #MDtest_plot_zwindowfuncs()
+    MDtest_plot_zwindowfuncs([2,3])
     Ndesbins=[2,3]
     lmin=3
     lmax=80
-    #gen maps
-    # reclist=MDtest_get_reclist(Ndesbins=[2,3],lmin=3,lmax=80)
-    # for r in reclist:
-    #     print '----------'
-    #     print r.inmaptag
-    #     print r.includeglm
-    #     print r.lmin,r.lmax
-    Nreal=100#0000
+    
+    Nreal=10#0000
     if 1:
         #rhofiletag=''
         rhofiletag='test'
-        MDtest_get_glm_and_rec(Nreal,justgetrho=False,dorho=1,Ndesbins=Ndesbins,lmin=lmin,lmax=lmax,rhofiletag=rhofiletag)
-    MDtest_plot_rhohist('rho',Ndesbins,lmin=lmin,lmax=lmax,firstNreal=Nreal,rhofiletag=rhofiletag)
+        #MDtest_get_glm_and_rec(Nreal,justgetrho=False,dorho=1,Ndesbins=Ndesbins,lmin=lmin,lmax=lmax,rhofiletag=rhofiletag)
+        donvss=False
+        MDtest_get_glm(Nreal,Ndesbins=[3],nvss=donvss)#this seems to be where mixup is happening
+
+        MDtest_iswrec(Nreal,Ndesbins=[2,3],nvss=1,lmin=lmin,lmax=lmax,rhofiletag=rhofiletag) #including more maps here doesn't mess up results
+        #MDtest_iswrec(Nreal,Ndesbins=[2],lmin=lmin,lmax=lmax,rhofiletag=rhofiletag)
+
+
+    MDtest_plot_rhohist('rho',Ndesbins=[2,3],nvss=1,lmin=lmin,lmax=lmax,firstNreal=Nreal,rhofiletag=rhofiletag)
