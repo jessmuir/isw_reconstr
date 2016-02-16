@@ -145,11 +145,14 @@ def depthtest_plot_zwindowfuncs(z0vals=np.array([.3,.6,.7,.8])):
     
 #--------------------------------
 # plot histogram of rho or s, switch between variables given by varname
-def depthtest_plot_rhohist(z0vals=np.array([.3,.6,.7,.8]),getrhopred=True,varname='rho'):
+def depthtest_plot_rhohist(z0vals=np.array([.3,.6,.7,.8]),getrhopred=True,varname='rho',firstNreal=-1):
     plotdir='output/depthtest/plots/'
     testname="Depth test"
     rhogrid=depthtest_read_rho_wfiles(z0vals,varname)
     Nreal=rhogrid.shape[1]
+    if firstNreal>0 and firstNreal<Nreal:
+        Nreal=firstNreal
+        rhogrid=rhogrid[:,:Nreal]
     if getrhopred:
         rhopred=depthtest_get_expected_rho(z0vals,varname)
     else:
@@ -803,11 +806,14 @@ def bintest_rhoexpplot(allzedges,labels,rhoarraylist,labellist=[],outname='',leg
     plt.close()
 
 #----------------
-def bintest_plot_rhohist(divstr=['6','222','111111'],getrhopred=True,reclabels=['1 bin','3 bins','6 bins'],varname='rho'):
+def bintest_plot_rhohist(divstr=['6','222','111111'],getrhopred=True,reclabels=['1 bin','3 bins','6 bins'],varname='rho',firstNreal=-1):
     plotdir='output/eucbintest/plots/'
     Nrecs=len(divstr)
     rhogrid=bintest_read_rho_wfiles(divstr,varname=varname)
     Nreal=rhogrid.shape[1]
+    if firstNreal>0 and firstNreal<Nreal:
+        Nreal=firstNreal
+        rhogrid=rhogrid[:,:Nreal]
     plotname='eucbintest_{1:s}hist_r{0:05d}'.format(Nreal,varname)
     testname='Bin test'
     if not reclabels:
@@ -3462,11 +3468,13 @@ if __name__=="__main__":
         Nreal=10000
         depthtest_get_glm_and_rec(Nreal=Nreal,z0vals=depthtestz0,justgetrho=nomaps,minreal=0,dorho=1,dos=True,dochisq=False,dorell=0,dochisqell=False)
     if 0: #plot info about depthtest maps
-        depthtest_TTscatter(0,depthtestz0,savepngmaps=False)
+        #depthtest_TTscatter(0,depthtestz0,savepngmaps=False)
         #depthtest_TTscatter(0,np.array([.3,.6,.8]),colors=['#1b9e77','#7570b3','#66a61e'],savepngmaps=False)
         #depthtest_plot_zwindowfuncs(depthtestz0)
-        depthtest_plot_rhohist(depthtestz0,varname='rho')
-        depthtest_plot_rhohist(depthtestz0,varname='s')
+        for N in 1000*np.arange(1,11):
+            depthtest_plot_rhohist(depthtestz0,varname='rho',firstNreal=N)
+        #depthtest_plot_rhohist(depthtestz0,varname='rho')
+        #depthtest_plot_rhohist(depthtestz0,varname='s')
         #depthtest_plot_rhohist(depthtestz0,varname='chisq')
         #depthtest_plot_relldat(depthtestz0,getpred=True,varname='rell')
         #depthtest_plot_relldat(depthtestz0,getpred=True,varname='chisqell')
@@ -3492,9 +3500,11 @@ if __name__=="__main__":
     if 0: #bin test with many realizations, generate maps
         nomaps=False
         bintest_get_glm_and_rec(Nreal=10000,divlist=['6','222','111111'],minreal=0,justgetrho=nomaps,dorell=0)
-    if 0: #bin test with many realizations, make plots
-        bintest_plot_rhohist(getrhopred=True,varname='rho')
-        bintest_plot_rhohist(getrhopred=True,varname='s')
+    if 1: #bin test with many realizations, make plots
+        for N in 1000*np.arange(1,11):
+            bintest_plot_rhohist(getrhopred=True,varname='rho',firstNreal=N)
+        #bintest_plot_rhohist(getrhopred=True,varname='rho')
+        #bintest_plot_rhohist(getrhopred=True,varname='s')
         #bintest_plot_rhohist(getrhopred=True,varname='chisq')
         #bintest_plot_relldat()
 
@@ -3626,7 +3636,7 @@ if __name__=="__main__":
 
             
     #lmin tests
-    if 1: #generate rho data from many realizations
+    if 0: #generate rho data from many realizations
         Nreal=1
         inlminlist=np.array([1,2,3,5])
         #inlminlist=np.array([10])

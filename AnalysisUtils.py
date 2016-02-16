@@ -305,6 +305,12 @@ def calc_isw_est(cldat,glmdat,recdat,writetofile=True,getmaps=True,redofits=True
     Nreal=glmgrid.shape[0]
     NLSS=glmgrid.shape[1]
     Nell=Dl.shape[0]
+    lmin=lmin_forrec
+    if lmax_forrec<0 or lmax_forrec>Nell-1:
+        lmax=Nell-1
+    else:
+        lmax=lmax_forrec
+    
     b0=np.ones((Nreal,NLSS))#find best fit bias for each real, for each LSS tracer
     for i in xrange(NLSS):
         #get cltheory form diagonal entry in Dl
@@ -313,7 +319,7 @@ def calc_isw_est(cldat,glmdat,recdat,writetofile=True,getmaps=True,redofits=True
         #for each realization, get clobs from glm and do a fit
         for r in xrange(Nreal):
             clobs[:,r]=hp.alm2cl(glmgrid[r,i,:])
-        b0[:,i]=fitcl_forb0_onereal(cltheory,clobs)
+        b0[:,i]=fitcl_forb0_onereal(cltheory[lmin:lmax+1],clobs[lmin:lmax+1,:])#only fit to desired ell
 
         #print b0[:,i]
         showtestplot=False
@@ -413,6 +419,9 @@ def domany_isw_recs(cldatlist,glmdatlist,reclist,outfiletag='iswREC',outruntag='
         else:
             glmdat=glmdatlist[i]
         #rec contains expected info here
+        #print '-->rec.includeglm',rec.includeglm
+        #print '   rec.includecl',rec.includeglm
+        #print '   rec.lmin,.lmax',rec.lmin,rec.lmax
         almdat=calc_isw_est(cldat,glmdat,rec,writetofile=False,getmaps=getmaps,redofits=redofits,makeplots=makeplots,dorho=dorho)
 
         if i==0:
@@ -537,6 +546,7 @@ def rell_onereal(truemap,recmap,varname='rell'):
 #  -only save glm data for Nglm realizations (make plots for these too)
 def getmaps_fromCl(cldat,Nreal=1,rlzns=np.array([]),reclist=[],Nglm=1,block=100,glmfiletag='',almfiletag='iswREC',rhofiletag='',justgetrho=False,dorho=True,dos=True,dochisq=True,dorell=False,dochisqell=False):
     #block=3
+    print '======in getmaps_fromCl==========='
     arangereal=not rlzns.size
     if rlzns.size:
         Nreal=rlzns.size
@@ -548,8 +558,6 @@ def getmaps_fromCl(cldat,Nreal=1,rlzns=np.array([]),reclist=[],Nglm=1,block=100,
     #rhogrid will hold rho values
     #first index dientifies which recdata, second is block
     rhogrid=[] #will have indices [block][rec][real]
-    truemapbases=['' for i in xrange(len(reclist))]
-    recmapbases=['' for i in xrange(len(reclist))]
 
     NEWRHOFILE=(not rlzns.size) or np.all(rlzns==np.arange(rlzns.size))
 
@@ -581,7 +589,9 @@ def getmaps_fromCl(cldat,Nreal=1,rlzns=np.array([]),reclist=[],Nglm=1,block=100,
             #print "   thisNglm=",thisNglm
             glmdat=generate_many_glm_fromcl(cldat,rlzns=nrlzns,savedat=False)
             almdat=domany_isw_recs(cldat,glmdat,reclist,writetofile=False,getmaps=True,makeplots=False,outruntag=glmdat.runtag,dorho=False)
-            print 'getting galaxy maps'
+            #print '  glm generated from healpy:',glmdat.maptaglist
+            #print '  ************alm after rec:',almdat.maptaglist
+            #print 'getting galaxy maps'
             get_maps_from_glm(glmdat,redofits=True,makeplots=False)
             # note that 'getmaps' is done for isw Recs in 'domany_isw_recs'
             if thisNglm:
@@ -602,7 +612,7 @@ def getmaps_fromCl(cldat,Nreal=1,rlzns=np.array([]),reclist=[],Nglm=1,block=100,
         if dorho:
             print "   Computing and saving rho statistics"
             calc_rho_forreclist(glmdat,almdat,reclist,nrlzns,filetag=rhofiletag,overwrite=NEWRHOFILE,varname='rho') #start new file for first block, then add to it
-            print 'done computing rho'
+            #print 'done computing rho'
         if dos:
             print "   Computing and saving s statistics"
             calc_rho_forreclist(glmdat,almdat,reclist,nrlzns,filetag=rhofiletag,overwrite=NEWRHOFILE,varname='s') #start new file for first block, then add to it
@@ -652,8 +662,6 @@ def doiswrec_formaps(dummyglm,cldat,Nreal=1,rlzns=np.array([]),reclist=[],Nglm=0
     #rhogrid will hold rho values
     #first index dientifies which recdata, second is block
     rhogrid=[] #will have indices [block][rec][real]
-    truemapbases=['' for i in xrange(len(reclist))]
-    recmapbases=['' for i in xrange(len(reclist))]
 
     NEWRHOFILE=(not rlzns.size) or np.all(rlzns==np.arange(rlzns.size))
 
@@ -725,9 +733,9 @@ def calc_rho_forreclist(glmdat,almdat,reclist,rlzns,savedat=True,overwrite=False
         truemapbase=truemapf[:truemapf.rfind('.r')]
         recmapf=almdat.get_mapfile(0,i,'fits') #realization 0, map index i, filetype fits
         recmapbase=recmapf[:recmapf.rfind('.r')]
-        print '----'
-        print 'truemapbase',truemapbase
-        print 'recmapbase',recmapbase
+        #print '----'
+        #print 'truemapbase',truemapbase
+        #print 'recmapbase',recmapbase
         lmin=reclist[i].lmin
         lmax=reclist[i].lmax
         rhovals=rho_manyreal(truemapbase,recmapbase,rlzns=rlzns,savedat=False,varname=varname,lmin=lmin,lmax=lmax)           
@@ -1038,6 +1046,7 @@ def compute_rho_fromcl(cldat,recdat,reccldat=0,varname='rho'):
 
     lmin=recdat.lmin
     lmax=recdat.lmax
+    
     # These are the Cl used for simulating maps (hence the recdat.includeglm)
     Dl,dtags=get_Dl_matrix(cldat,recdat.includeglm,recdat.zerotagstr)
     #print Dl[5,:,:]
@@ -1049,9 +1058,8 @@ def compute_rho_fromcl(cldat,recdat,reccldat=0,varname='rho'):
         if Dinv[l,0,0]!=0:
             Nl[l]=1/Dinv[l,0,0]
 
-    includel=(lvals>=lmin)
-    if lmax>0:
-        includel*=(lvals<=lmax)
+    if lmax<0 or  (lmax>(Nell-1)):
+        lmax=Nell-1
     NLSS=recdat.Nmap
 
     #if DIFFREC, get Dl data for those Cl, these are Cl for making estimator
@@ -1060,7 +1068,8 @@ def compute_rho_fromcl(cldat,recdat,reccldat=0,varname='rho'):
         #fit for b0 for each LSS map by compareing Dl Cl to recDl
         b0=np.ones(NLSS)
         for i in xrange(NLSS):
-            b0[i]=fitcl_forb0_onereal(Dl[:,i+1,i+1],recDl[:,i+1,i+1])
+            #only fit to lvalues we want to use
+            b0[i]=fitcl_forb0_onereal(Dl[lmin:lmax+1,i+1,i+1],recDl[lmin:lmax+1,i+1,i+1])
             #print dtags[i+1],recdtags[i+1],'bias:',b0[i]
             
         recDl=scale_Dl_byb0(recDl,b0)
@@ -1077,11 +1086,11 @@ def compute_rho_fromcl(cldat,recdat,reccldat=0,varname='rho'):
     #print 'Are rec and sim Dl different?',np.any(recDl-Dl)
     # construct estimator operators
     estop=np.zeros((NLSS,Nell))#"estimator operator"
-    for i in xrange(NLSS):
-        estop[i,:]=-1*recNl*recDinv[:,0,i+1]
+    for i in xrange(NLSS): #estop set to zero outside ell range
+        estop[i,lmin:lmax+1]=-1*recNl[lmin:lmax+1]*recDinv[lmin:lmax+1,0,i+1]
 
     #for sigisw, just sum over l
-    sig2iswl=includel*(2.*lvals+1)*Dl[:,0,0]
+    sig2iswl=(2.*lvals[lmin:lmax+1]+1)*Dl[lmin:lmax+1,0,0]
     sig2isw=np.sum(sig2iswl)
     
     #for sigrec, sum over LSS maps 2x (ij), then l
@@ -1089,17 +1098,17 @@ def compute_rho_fromcl(cldat,recdat,reccldat=0,varname='rho'):
     for i in xrange(NLSS):
         sig2recli=np.zeros(lvals.size)
         for j in xrange(NLSS):
-            sig2recli+=estop[j,:]*Dl[:,j+1,i+1]
+            sig2recli+=estop[j,:]*Dl[:,j+1,i+1] #estop set to zero outside ell range
         sig2recl+=sig2recli*estop[i,:]
-    sig2recl*=includel*(2.*lvals+1)
+    sig2recl*=(2.*lvals+1)
     sig2rec=np.sum(sig2recl)
     
     if varname=='rho':
         #for each l sum over LSS maps for numerator, the sum over l
         numell = np.zeros(lvals.size)
         for i in xrange(NLSS):
-            numell+=estop[i,:]*Dl[:,0,i+1]
-        numell*=includel*(2.*lvals+1)
+            numell+=estop[i,:]*Dl[:,0,i+1]#estop already zero for unwanted ell
+        numell*=(2.*lvals+1)
         numerator=np.sum(numell)
 
         denom=np.sqrt(sig2isw*sig2rec)
@@ -1110,7 +1119,7 @@ def compute_rho_fromcl(cldat,recdat,reccldat=0,varname='rho'):
         crosspowerell = np.zeros(lvals.size)
         for i in xrange(NLSS):
             crosspowerell+=estop[i,:]*Dl[:,0,i+1]
-        crosspowerell*=includel*(2.*lvals+1)
+        crosspowerell*=(2.*lvals+1)
         numerator=np.sqrt(sig2rec+sig2isw -2*np.sum(crosspowerell))
     
         denom=np.sqrt(sig2isw)
@@ -1192,10 +1201,9 @@ def compute_rell_fromcl(cldat,recdat,reccldat=0,varname='rell'):
     for l in xrange(Nell):
         if Dinv[l,0,0]!=0:
             Nl[l]=1/Dinv[l,0,0]
-
-    includel=(lvals>=lmin)
-    if lmax>0:
-        includel*=(lvals<=lmax)
+            
+    if lmax<0 or  (lmax>(Nell-1)):
+        lmax=Nell-1
     NLSS=recdat.Nmap
 
     rell=np.zeros(Nell)
@@ -1208,7 +1216,7 @@ def compute_rell_fromcl(cldat,recdat,reccldat=0,varname='rell'):
         #fit for b0 for each LSS map by compareing Dl Cl to recDl
         b0=np.ones(NLSS)
         for i in xrange(NLSS):
-            b0[i]=np.squeeze(fitcl_forb0_onereal(recDl[:,i+1,i+1],Dl[:,i+1,i+1]))
+            b0[i]=np.squeeze(fitcl_forb0_onereal(recDl[lmin:lmax+1,i+1,i+1],Dl[lmin:lmax+1,i+1,i+1]))
         recDl=scale_Dl_byb0(recDl,b0)
         recDinv=invert_Dl(recDl)
         recNl=np.zeros(Nell)
@@ -1223,7 +1231,7 @@ def compute_rell_fromcl(cldat,recdat,reccldat=0,varname='rell'):
     # construct estimator operators
     estop=np.zeros((NLSS,Nell))#"estimator operator"
     for i in xrange(NLSS):
-        estop[i,:]=-1*recNl*recDinv[:,0,i+1]
+        estop[i,lmin:lmax+1]=-1*recNl[lmin:lmax+1]*recDinv[lmin:lmax+1,0,i+1]
 
         
     #for rec auto power, sum over LSS maps 2x (ij)
@@ -1375,7 +1383,7 @@ def plothist(varstr,datagrid,reclabels,plottitle,xlabel,plotdir,plotname,predval
     Nreal=datagrid.shape[1]
     maxval=np.max(datagrid)
     minval=np.min(datagrid)
-    print 'min,max for hist',minval,maxval
+    #print 'min,max for hist',minval,maxval
     if not vallim: #default setup works well for s, rho, but not chisq
         vallim=(minval,maxval)
     #rholim=(0.,maxrho)

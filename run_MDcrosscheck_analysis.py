@@ -39,6 +39,7 @@ def get_MDDESlike_SurveyType(tag='',nbins=2):
     if not tag:
         tag='desMD{0:d}bin'.format(nbins)
     nbar=1.e9 #picking a big number, assuming shot noise will be negligible
+
     if nbins==2:
         zedges=np.array([0.01,.5,1.6])
     elif nbins==3:
@@ -57,6 +58,8 @@ def MDtest_get_maptypelist(includeisw=False,Ndesbins=[2,3]):
         surveys.append(get_MDDESlike_SurveyType(nbins=n))
     if includeisw:
         surveys.append(get_fullISW_MapType(zmax=15))
+
+
     return surveys
     
 def MDtest_get_binmaps(includeisw=True,Ndesbins=[2,3]):
@@ -95,30 +98,44 @@ def MDtest_get_reclist(Ndesbins=[2,3],lmin=3,lmax=80):
     return reclist
 
 #use cldat to generate glm, alm, and maps; saves maps but not alm
-def MDtest_get_glm_and_rec(Nreal=1,minreal=0,justgetrho=0,dorho=1,Ndesbins=[2,3],lmin=3,lmax=80):
+def MDtest_get_glm_and_rec(Nreal=1,minreal=0,justgetrho=0,dorho=1,Ndesbins=[2,3],lmin=3,lmax=80,rhofiletag=''):
     #adding this block of text fixed bug when passing two sets of analysis. why?
     maptypes=MDtest_get_maptypelist(Ndesbins=Ndesbins)
     mapsfor=[mt.tag for mt in maptypes] #tags for maps we want to make
     mapsfor.append('isw')
     allcldat=MDtest_get_Cl(justread=True,Ndesbins=Ndesbins)
-    cldat=get_reduced_cldata(allcldat,dothesemaps=mapsfor)
+    cldat=get_reduced_cldata(allcldat,dothesemaps=mapsfor)#basically just reorders
+    #cldat=allcldat
+    print '-----allcldat'
+    print '  ',allcldat.Nmap,allcldat.bintaglist
+    print '  ',allcldat.nbar,allcldat.Nmap
+    print '-----reducedcldat'
+    print '  ',cldat.Nmap,cldat.bintaglist
+    print '  ',cldat.nbar,cldat.Nmap
     
     makeplots=Nreal==1
     rlzns=np.arange(minreal,minreal+Nreal)
     reclist=MDtest_get_reclist(Ndesbins=Ndesbins,lmin=lmin,lmax=lmax)
-    getmaps_fromCl(cldat,rlzns=rlzns,reclist=reclist,justgetrho=justgetrho,dorho=dorho,dos=False,dochisq=False)
+    getmaps_fromCl(cldat,rlzns=rlzns,reclist=reclist,justgetrho=justgetrho,dorho=dorho,dos=False,dochisq=False,rhofiletag=rhofiletag)
 
 #get arrays of rho saved in .rho.dat files or .s.dat
-def MDtest_read_rho_wfiles(varname='rho',Ndesbins=[2,3],lmin=3,lmax=80):
+def MDtest_read_rho_wfiles(varname='rho',Ndesbins=[2,3],lmin=3,lmax=80,rhofiletag=''):
     maptypes=MDtest_get_maptypelist(Ndesbins=Ndesbins)  #list of LSS survey types
     mapdir='output/MDchecks/map_output/'
-    files=['iswREC.{0:s}.fid.fullsky-lmin{2:02d}-lmax{3:02d}.MDtest.{1:s}.dat'.format(mtype.tag,varname,lmin,lmax) for mtype in maptypes]
+    if not rhofiletag:
+        tagstr=''
+    else:
+        tagstr='_'+rhofiletag
+    if lmax>0:
+        files=['iswREC.{0:s}.fid.fullsky-lmin{2:02d}-lmax{3:02d}.MDtest{4:s}.{1:s}.dat'.format(mtype.tag,varname,lmin,lmax,tagstr) for mtype in maptypes]
+    else:
+        files=['iswREC.{0:s}.fid.fullsky-lmin{2:02d}.MDtest{3:s}.{1:s}.dat'.format(mtype.tag,varname,lmin,tagstr) for mtype in maptypes]
     rhogrid=np.array([read_rhodat_wfile(mapdir+f) for f in files])
     return rhogrid
 
 # get expectation values of rho or s, choose variable via varname
 def MDtest_get_expected_rho(varname='rho',Ndesbins=[2,3],lmin=3,lmax=80):
-    Nrec=len(Ndesbins)+1
+    Nrec=len(Ndesbins)+1 
     cldat=MDtest_get_Cl(Ndesbins=Ndesbins)
     reclist=MDtest_get_reclist(Ndesbins,lmin,lmax)
     rhopred=np.zeros(Nrec)
@@ -178,20 +195,25 @@ def MDtest_plot_zwindowfuncs(desNbins=3):
     plt.close()
 
 
-def MDtest_plot_rhohist(varname='rho',Ndesbins=[2,3],lmin=3,lmax=80,getrhopred=True):
+def MDtest_plot_rhohist(varname='rho',Ndesbins=[2,3],lmin=3,lmax=80,getrhopred=True,firstNreal=-1,rhofiletag=''):
     plotdir='output/MDchecks/plots/'
-    rhogrid=MDtest_read_rho_wfiles(varname,Ndesbins,lmin)
+    rhogrid=MDtest_read_rho_wfiles(varname,Ndesbins,lmin,lmax,rhofiletag)
     #output order are nvss, then the des-like surveys in given Ndesbins order
     Nreal=rhogrid.shape[1]
+    if firstNreal>0 and firstNreal<Nreal:
+        Nreal=firstNreal
+        rhogrid=rhogrid[:,:Nreal]
     testname='MDchecks'
     if getrhopred:
         rhopred=MDtest_get_expected_rho(varname,Ndesbins,lmin,lmax)
     else:
         rhopred=[]
     plotname ='MDtest_{1:s}hist_r{0:05d}'.format(Nreal,varname)
-    reclabels=['NVSS']
+    reclabels=[]
+    reclabels.append('NVSS')
     for n in Ndesbins:
         reclabels.append('DES {0:d} bins'.format(n))
+
 
     if varname=='rho':
         plot_rhohist(rhogrid,reclabels,testname,plotdir,plotname,rhopred)
@@ -211,7 +233,9 @@ if __name__=="__main__":
     #     print r.inmaptag
     #     print r.includeglm
     #     print r.lmin,r.lmax
+    Nreal=100#0000
     if 1:
-        Nreal=1#0000
-        MDtest_get_glm_and_rec(Nreal,justgetrho=False,dorho=1,Ndesbins=Ndesbins,lmin=lmin,lmax=lmax)
-    MDtest_plot_rhohist('rho',Ndesbins,lmin=lmin,lmax=lmax)
+        #rhofiletag=''
+        rhofiletag='test'
+        MDtest_get_glm_and_rec(Nreal,justgetrho=False,dorho=1,Ndesbins=Ndesbins,lmin=lmin,lmax=lmax,rhofiletag=rhofiletag)
+    MDtest_plot_rhohist('rho',Ndesbins,lmin=lmin,lmax=lmax,firstNreal=Nreal,rhofiletag=rhofiletag)
