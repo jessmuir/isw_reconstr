@@ -465,6 +465,9 @@ def rho_onereal(map1,map2):
     if map1.size!=map2.size:
         print "Can't compute correlation between maps with different NSIDE.***"
         return 0
+    if (not np.any(map1)) or (not np.any(map2)):
+        print "At least one of these maps is all zeros."
+        return 0
     product=map1*map2
     avgprod=np.mean(product)
     sig1=np.sqrt(np.var(map1))
@@ -484,6 +487,9 @@ def s_onereal(truemap,recmap):
     if truemap.size!=recmap.size:
         print "Can't compute correlation between maps with different NSIDE.***"
         return 0
+    if (not np.any(trumap)) or (not np.any(recmap)):
+        print "At least one of these maps is all zeros."
+        return 0
     diff=recmap-truemap
     vardiff=np.mean(diff*diff)
     sigtrue=np.sqrt(np.var(truemap))
@@ -497,6 +503,9 @@ def s_onereal(truemap,recmap):
 def chisq_onereal(truemap,recmap):
     if truemap.size!=recmap.size:
         print "Can't compute correlation between maps with different NSIDE.***"
+        return 0
+    if (not np.any(trumap)) or (not np.any(recmap)):
+        print "At least one of these maps is all zeros."
         return 0
     almtrue=hp.map2alm(truemap)
     almrec =hp.map2alm(recmap)
@@ -545,7 +554,7 @@ def rell_onereal(truemap,recmap,varname='rell'):
 #  -perform some isw reconstructions (maybe for a few lmin?)
 #  -only save glm data for Nglm realizations (make plots for these too)
 def getmaps_fromCl(cldat,Nreal=1,rlzns=np.array([]),reclist=[],Nglm=1,block=100,glmfiletag='',almfiletag='iswREC',rhofiletag='',justgetrho=False,dorho=True,dos=True,dochisq=True,dorell=False,dochisqell=False):
-    #block=3
+    #block=1
     #print '======in getmaps_fromCl==========='
     arangereal=not rlzns.size
     if rlzns.size:
@@ -590,9 +599,9 @@ def getmaps_fromCl(cldat,Nreal=1,rlzns=np.array([]),reclist=[],Nglm=1,block=100,
             glmdat=generate_many_glm_fromcl(cldat,rlzns=nrlzns,savedat=False)
             if reclist:
                 almdat=domany_isw_recs(cldat,glmdat,reclist,writetofile=False,getmaps=True,makeplots=False,outruntag=glmdat.runtag,dorho=False)
-            #print '  glm generated from healpy:',glmdat.maptaglist
-            #print '  ************alm after rec:',almdat.maptaglist
-            #print 'getting galaxy maps'
+            #    print '  ************alm after rec:',almdat.maptaglist
+            #print '  *****glm generated from healpy:',glmdat.maptaglist
+            print 'getting galaxy maps'
             get_maps_from_glm(glmdat,redofits=True,makeplots=False)
             # note that 'getmaps' is done for isw Recs in 'domany_isw_recs'
             if thisNglm:
@@ -1114,8 +1123,11 @@ def compute_rho_fromcl(cldat,recdat,reccldat=0,varname='rho'):
         numerator=np.sum(numell)
 
         denom=np.sqrt(sig2isw*sig2rec)
-        #print '   FINAL   num,demon:',numerator,denom
-        result=numerator/denom
+        if denom==0:
+            result=0
+        else:
+            #print '   FINAL   num,demon:',numerator,denom
+            result=numerator/denom
     elif varname=='s':
         #for each l sum over LSS maps for numerator, the sum over l
         crosspowerell = np.zeros(lvals.size)
