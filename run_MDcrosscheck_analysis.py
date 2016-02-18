@@ -77,55 +77,77 @@ def MDtest_get_Cl(justread=True,Ndesbins=[2,3],nvss=True):
     bins=MDtest_get_binmaps(Ndesbins=Ndesbins,nvss=nvss)
     zmax=max(m.zmax for m in bins)
     rundat = ClRunData(tag='MDtest',rundir='output/MDchecks/',lmax=95,zmax=zmax,iswilktag='fidisw',noilktag=True)
-    pairs=[]
+    pairs=['all']
     #pair up isw and each LSS maps, but not lss maps together 
-    for s in surveys:
-        pairs.append((s.tag,'isw'))
-        pairs.append((s.tag,s.tag))
+    # for s in surveys:
+    #     pairs.append((s.tag,'isw'))
+    #     pairs.append((s.tag,s.tag))
     cldat=getCl(bins,rundat,dopairs=pairs,DoNotOverwrite=justread)
 
-    #messing with cldata for test case; make des3_bin0 copy of nvss
-    #workin ghere
-    des20inds=[]
-    des30inds=[]
-    for m in xrange(cldat.Nmap):
-        if 'nvss' in cldat.bintaglist[m]:
-            nvssind=m
-        elif ('desMD3' in cldat.bintaglist[m]):
-            des30inds.append(m)
-        elif ('desMD2' in cldat.bintaglist[m]):
-            des20inds.append(m)
-        elif ('isw' in cldat.bintaglist[m]):
-            iswind=m
-    nvsscl=cldat.cl[cldat.crossinds[nvssind,nvssind],:]
-    nvssiswcl=cldat.cl[cldat.crossinds[nvssind,iswind],:]
-    for n in xrange(cldat.Ncross): #basically, make des3 bin 0 a copy of nvss
-        p,q=cldat.crosspairs[n,:]
-        if (p in des30inds and q in des30inds):
-            if p==des30inds[0] and q==des30inds[0]: 
-                cldat.cl[cldat.crossinds[des20inds[0],des20inds[0]],:]
-            elif  p==des30inds[1] and q==des30inds[1]: 
-                cldat.cl[cldat.crossinds[des20inds[1],des20inds[1]],:]
-            elif  (p==des30inds[1] and q==des30inds[0]) or (p==des30inds[0] and q==des30inds[1]): 
-                cldat.cl[cldat.crossinds[des20inds[0],des20inds[1]],:]
-            else:
-                cldat.cl[n,:]=np.zeros(cldat.Nell)  
-        elif p in des30inds or q in des30inds:
-            if p in des30inds:
-                y=p #ind assiciated with 3 bin des
-                x=q # other map
-            else:
-                y=q
-                x=p
-            if x==iswind or (x in des20inds):
-                if y==des30inds[0]:
-                    cldat.cl[cldat.crossinds[des20inds[0],x],:]
-                elif y==des30inds[1]:
-                    cldat.cl[cldat.crossinds[des20inds[1],x],:]
-                else:
-                    cldat.cl[n,:]=np.zeros(cldat.Nell) 
-            else:
-                cldat.cl[n,:]=np.zeros(cldat.Nell)   
+    # #messing with cldata for test case; make des3_bin0 copy of nvss
+    # des20inds=[]
+    # des30inds=[]
+    # #print 'gettind indices'
+    # for m in xrange(cldat.Nmap):
+    #     #print m,cldat.bintaglist[m]
+    #     if 'nvss' in cldat.bintaglist[m]:
+    #         nvssind=m
+    #         #print '   nvss!'
+    #     elif ('desMD3' in cldat.bintaglist[m]):
+    #         des30inds.append(m)
+    #         #print '   des3'
+    #     elif ('desMD2' in cldat.bintaglist[m]):
+    #         des20inds.append(m)
+    #         #print '   des2'
+    #     elif ('isw' in cldat.bintaglist[m]):
+    #         iswind=m
+    #         #print '   isw'
+    # nvsscl=cldat.cl[cldat.crossinds[nvssind,nvssind],:]
+    # nvssiswcl=cldat.cl[cldat.crossinds[nvssind,iswind],:]
+    # for n in xrange(cldat.Ncross): #basically, make des3 bin 0 a copy of nvss
+    #     p,q=cldat.crosspairs[n,:]
+    #     #clvalues are still good here
+    #     if (p in des30inds and q in des30inds):
+    #         if p==des30inds[0] and q==des30inds[0]: 
+    #             cldat.cl[n,:]=cldat.cl[cldat.crossinds[des20inds[0],des20inds[0]],:]
+    #             pass
+
+    #         elif  (p==des30inds[1]) and (q==des30inds[1]):
+    #             cldat.cl[n,:]=cldat.cl[cldat.crossinds[des20inds[1],des20inds[1]],:]
+    #             pass
+    #         elif  (p==des30inds[1] and q==des30inds[0]) or (p==des30inds[0] and q==des30inds[1]):
+    #             cldat.cl[n,:]=cldat.cl[cldat.crossinds[des20inds[0],des20inds[1]],:]
+    #             pass
+    #         else:
+    #             cldat.cl[n,:]=np.zeros(cldat.Nell)#
+    #             pass
+    #     elif p in des30inds or q in des30inds:
+    #         if p in des30inds:
+    #             y=p #ind assiciated with 3 bin des
+    #             x=q # other map
+    #         else:
+    #             y=q
+    #             x=p
+    #         if x==iswind:
+    #             if y==des30inds[0]:
+    #                 cldat.cl[n,:]=cldat.cl[cldat.crossinds[des20inds[0],x],:]
+    #                 #cldat.cl[n,:]=np.zeros(cldat.Nell) 
+    #             elif y==des30inds[1]:
+    #                 cldat.cl[n,:]=cldat.cl[cldat.crossinds[des20inds[1],x],:]
+    #                 #cldat.cl[n,:]=np.zeros(cldat.Nell) 
+    #             else:
+    #                 pass
+    #                 cldat.cl[n,:]=np.zeros(cldat.Nell) 
+    #         elif (x in des20inds):
+    #             if y==des30inds[0]:
+    #                 #cldat.cl[n,:]=cldat.cl[cldat.crossinds[des20inds[0],x],:]
+    #                 cldat.cl[n,:]=np.zeros(cldat.Nell) 
+    #             elif y==des30inds[1]:
+    #                 #cldat.cl[n,:]=cldat.cl[cldat.crossinds[des20inds[1],x],:]
+    #                 cldat.cl[n,:]=np.zeros(cldat.Nell) 
+    #             else:
+    #                 pass
+    #                 cldat.cl[n,:]=np.zeros(cldat.Nell) 
     
     return cldat
 
@@ -391,7 +413,7 @@ if __name__=="__main__":
     #checkMD_cl_ordering() #when order of maps changes, cl vals shift as expected
     if 1:
         rhofiletag=''
-        rhofiletag='3only'
+        #rhofiletag='3only'
         #MDtest_get_glm_and_rec(Nreal,justgetrho=False,dorho=1,Ndesbins=Ndesbins,lmin=lmin,lmax=lmax,rhofiletag=rhofiletag)
         donvss=False
         MDtest_get_glm(Nreal,Ndesbins=[3,2],nvss=1)#this seems to be where mixup is happening; nvss+2 ok, each individually is ok, but if i pass all three maps, only the first one gets a reasonable looking histogram. When I play with the content of the cldat.cl matrix, the results respond in a reasonable way. not sure what's up
@@ -404,3 +426,35 @@ if __name__=="__main__":
         MDtest_plot_clvals(Ndesbins=[3],nvss=0,tag='just3')
         MDtest_plot_clvals(Ndesbins=[2],nvss=0,tag='just2')
         MDtest_plot_clvals(Ndesbins=[],nvss=1,tag='justnvss')
+
+
+# NOTES FROM 2/17,2/18 ON WHY ORDER OF NDESBINS SEEMS TO MATTER
+# what have I found so far?
+#  passing both des surveys and nvss gives messed up results (low rho) for the second survey passed.
+#  if nvss is in list of surveys before des bins it is fine, if after, it gets messed up too.
+#  if des maps are passed [2,3], 2 is ok but 3 is messed up, but if [3,2] both are messed up
+
+# if I set all cl vals for des3 or des2 to zero, hsitogram behaves as expected
+# if run get_glm on subset of maps, but the do iswrec for all, or and/or plot rhohist for all, the histogram behaves as expected: maps not simulated with other have rho=0. So I think the problem is in the get_glm func
+# if nvss+ one des survey passed, seeems ok, though des3 might be still giving slightly low rho.
+# checked that even when re-ordered, cl values are still associated with correct pairs of maps. This is true whether or not nvss is included.
+#<rho> seems ok, but the rho extracted from realizations is off
+
+#when messing with cls for desMD3
+# setting isw cross corss to zero has expected effect; all rho are zero indep of order for desmaps.
+# when passed in getglm as [2,3], making first two md3 bins equal to those of md2
+#   gives rho which matches <rho> and has <rho>~barrho
+
+#however: if i make the 3 map a copy of 2 in terms of auto and isw corr
+#   but no md2-md3 cross corrs, <rho> stays high but barrho drops for whichever
+#       map is passed second;
+#   if i reduce cross cor of map 3 with isw, with 3-2 cross corr=0, md2 fixes
+#
+# COULD IT BE THAT I NEED THESE MAPS TO BE CORRELATED IN ORDER FOR HEALPY
+# TO BE ABLE TO GENERATE PROPER MAPS? AS IN, AM I GIVING INCOMPATIBLE SETS OF CL?
+#  --maybe! I think in the depthtest I was doing cross corrs between all maps
+#           and for bintest too...
+# rerunning MD checks with cross corr pairs set to 'all'
+
+
+

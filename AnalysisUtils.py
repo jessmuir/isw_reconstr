@@ -555,7 +555,7 @@ def rell_onereal(truemap,recmap,varname='rell'):
 #  -only save glm data for Nglm realizations (make plots for these too)
 def getmaps_fromCl(cldat,Nreal=1,rlzns=np.array([]),reclist=[],Nglm=1,block=100,glmfiletag='',almfiletag='iswREC',rhofiletag='',justgetrho=False,dorho=True,dos=True,dochisq=True,dorell=False,dochisqell=False):
     #block=1
-    #print '======in getmaps_fromCl==========='
+    print '======in getmaps_fromCl==========='
     arangereal=not rlzns.size
     if rlzns.size:
         Nreal=rlzns.size
@@ -598,6 +598,7 @@ def getmaps_fromCl(cldat,Nreal=1,rlzns=np.array([]),reclist=[],Nglm=1,block=100,
             #print "   thisNglm=",thisNglm
             glmdat=generate_many_glm_fromcl(cldat,rlzns=nrlzns,savedat=False)
             if reclist:
+                print "  Doing ISW reconstructions."
                 almdat=domany_isw_recs(cldat,glmdat,reclist,writetofile=False,getmaps=True,makeplots=False,outruntag=glmdat.runtag,dorho=False)
             #    print '  ************alm after rec:',almdat.maptaglist
             #print '  *****glm generated from healpy:',glmdat.maptaglist
