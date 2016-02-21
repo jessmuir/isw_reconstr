@@ -280,7 +280,7 @@ def get_glm_array_forrec(glmdat,includelist=[],zerotag='isw_bin0'):
 #   iswrecglm - glmData object containing just ISW reconstructed
 #                also saves to file
 #-------------------------------------------------------------------------
-def calc_isw_est(cldat,glmdat,recdat,writetofile=True,getmaps=True,redofits=True,makeplots=False,dorho=False):
+def calc_isw_est(cldat,glmdat,recdat,writetofile=True,getmaps=True,redofits=True,makeplots=False,dorho=False,fitbias=True):
     
     maptag=recdat.maptag
     rectag=recdat.rectag
@@ -301,7 +301,6 @@ def calc_isw_est(cldat,glmdat,recdat,writetofile=True,getmaps=True,redofits=True
     glmgrid,dinds=get_glm_array_forrec(glmdat,recdat.includeglm,recdat.zerotag)
 
     #fit for constant bias for each LSS map (assume all non-zero indices are LSS)
-    #added 12/3/15
     Nreal=glmgrid.shape[0]
     NLSS=glmgrid.shape[1]
     Nell=Dl.shape[0]
@@ -312,35 +311,36 @@ def calc_isw_est(cldat,glmdat,recdat,writetofile=True,getmaps=True,redofits=True
         lmax=lmax_forrec
     
     b0=np.ones((Nreal,NLSS))#find best fit bias for each real, for each LSS tracer
-    for i in xrange(NLSS):
-        #get cltheory form diagonal entry in Dl
-        cltheory=Dl[:,i+1,i+1]#0th entry is ISW
-        clobs=np.zeros((Nell,Nreal))
-        #for each realization, get clobs from glm and do a fit
-        for r in xrange(Nreal):
-            clobs[:,r]=hp.alm2cl(glmgrid[r,i,:])
-        b0[:,i]=fitcl_forb0_onereal(cltheory[lmin:lmax+1],clobs[lmin:lmax+1,:])#only fit to desired ell
-
-        #print b0[:,i]
-        showtestplot=False
-        if showtestplot:
-            plt.figure(0)
-            col=['#a6cee3','#1f78b4','#b2df8a','#33a02c','#fb9a99','#e31a1c','#fdbf6f','#ff7f00','#cab2d6','#6a3d9a','#ffff99','#b15928']
+    if fitbias:
+        for i in xrange(NLSS):
+            #get cltheory form diagonal entry in Dl
+            cltheory=Dl[:,i+1,i+1]#0th entry is ISW
+            clobs=np.zeros((Nell,Nreal))
+            #for each realization, get clobs from glm and do a fit
             for r in xrange(Nreal):
-                plt.plot(cltheory,clobs[:,r],linestyle='none',marker='x',color=col[r%len(col)])
-                plt.plot(cltheory,cltheory*(b0[r,i]**2),color=col[r%len(col)])
-                plt.xscale('log')
-                plt.yscale('log')
-                plt.show()
-    #print recdat.includeglm,'bias',b0
+                clobs[:,r]=hp.alm2cl(glmgrid[r,i,:])
+            b0[:,i]=fitcl_forb0_onereal(cltheory[lmin:lmax+1],clobs[lmin:lmax+1,:])#only fit to desired ell
+
+            showtestplot=False
+            if showtestplot:
+                plt.figure(0)
+                col=['#a6cee3','#1f78b4','#b2df8a','#33a02c','#fb9a99','#e31a1c','#fdbf6f','#ff7f00','#cab2d6','#6a3d9a','#ffff99','#b15928']
+                for r in xrange(Nreal):
+                    plt.plot(cltheory,clobs[:,r],linestyle='none',marker='x',color=col[r%len(col)])
+                    plt.plot(cltheory,cltheory*(b0[r,i]**2),color=col[r%len(col)])
+                    plt.xscale('log')
+                    plt.yscale('log')
+                    plt.show()
+
+
+        print "Scaling by best-fit constant bias. Looping through realizations..."
+    else:
+        print "***Skipping bias fitting step!***"            
     #scaling according to bias will make Dl and Dinv depend on realization
-    print "Scaling by best-fit constant bias. Looping through realizations..."
     Dlr=np.zeros((Nreal,Nell,NLSS+1,NLSS+1))
     Dinvr=np.zeros((Nreal,Nell,NLSS+1,NLSS+1))
     for r in xrange(Nreal):
-        Dlr[r,:,:,:]=scale_Dl_byb0(Dl,b0[r,:])
-        #print 'Dlr.shape',Dlr.shape
-        #print 'Dinvr[r].shape',Dinvr[r,:,:,:].shape
+        Dlr[r,:,:,:]=scale_Dl_byb0(Dl,b0[r,:]) #b0=1 if no fitting
         Dinvr[r,:,:,:] = invert_Dl(Dlr[r,:,:,:])
 
     #compute estimator; will have same number of realizations as glmdat
@@ -365,7 +365,6 @@ def calc_isw_est(cldat,glmdat,recdat,writetofile=True,getmaps=True,redofits=True
         #print "WRITING ALM DATA TO FILE"
         write_glm_to_files(almdat)
     if getmaps:
-        print "GETTING ISW REC MAPS"
         get_maps_from_glm(almdat,redofits=redofits,makeplots=makeplots,NSIDE=recdat.NSIDE)
 
         #compute rho
@@ -396,7 +395,7 @@ def calc_isw_est(cldat,glmdat,recdat,writetofile=True,getmaps=True,redofits=True
 #    getmaps - if True, get fits files for maps that go with recs
 #    makeplots - if getmaps and True, also make png files
 #  Assumes all recs have same Nlm and Nreal
-def domany_isw_recs(cldatlist,glmdatlist,reclist,outfiletag='iswREC',outruntag='',writetofile=True,getmaps=True,redofits=True,makeplots=False,dorho=True):
+def domany_isw_recs(cldatlist,glmdatlist,reclist,outfiletag='iswREC',outruntag='',writetofile=True,getmaps=True,redofits=True,makeplots=False,dorho=True,fitbias=True):
     SameCl=False
     Sameglm=False
     if type(cldatlist)!=list:#if a clData object is passed
@@ -422,7 +421,7 @@ def domany_isw_recs(cldatlist,glmdatlist,reclist,outfiletag='iswREC',outruntag='
         #print '-->rec.includeglm',rec.includeglm
         #print '   rec.includecl',rec.includeglm
         #print '   rec.lmin,.lmax',rec.lmin,rec.lmax
-        almdat=calc_isw_est(cldat,glmdat,rec,writetofile=False,getmaps=getmaps,redofits=redofits,makeplots=makeplots,dorho=dorho)
+        almdat=calc_isw_est(cldat,glmdat,rec,writetofile=False,getmaps=getmaps,redofits=redofits,makeplots=makeplots,dorho=dorho,fitbias=fitbias)
 
         if i==0:
             outalmdat=almdat
@@ -660,7 +659,7 @@ def getmaps_fromCl(cldat,Nreal=1,rlzns=np.array([]),reclist=[],Nglm=1,block=100,
 #           if we want to just calc rho and other stats
 #  dorell - set to True if we want to compute variance at different ell
 
-def doiswrec_formaps(dummyglm,cldat,Nreal=1,rlzns=np.array([]),reclist=[],Nglm=0,block=100,glmfiletag='',almfiletag='iswREC',rhofiletag='',domaps=True,dorell=False,dos=True):
+def doiswrec_formaps(dummyglm,cldat,Nreal=1,rlzns=np.array([]),reclist=[],Nglm=0,block=100,glmfiletag='',almfiletag='iswREC',rhofiletag='',domaps=True,dorell=False,dos=True,fitbias=True):
     #block=3
     arangereal=not rlzns.size
     if rlzns.size:
@@ -703,7 +702,7 @@ def doiswrec_formaps(dummyglm,cldat,Nreal=1,rlzns=np.array([]),reclist=[],Nglm=0
             print "Getting glm from maps for rlzns {0:d}-{1:d}".format(nrlzns[0],nrlzns[-1])
             #glmdat=generate_many_glm_fromcl(cldat,rlzns=nrlzns,savedat=False)
             glmdat=getglm_frommaps(dummyglm,rlzns=nrlzns)
-            almdat=domany_isw_recs(cldat,glmdat,reclist,writetofile=False,getmaps=True,makeplots=False,outruntag=glmdat.runtag,dorho=False)
+            almdat=domany_isw_recs(cldat,glmdat,reclist,writetofile=False,getmaps=True,makeplots=False,outruntag=glmdat.runtag,dorho=False,fitbias=fitbias)
             if thisNglm:
                 saveglm=glmdat.copy(Nreal=thisNglm) #save glm for these
                 saveglm= write_glm_to_files(saveglm,setnewfiletag=True,newfiletag=glmfiletag)

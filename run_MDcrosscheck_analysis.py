@@ -177,7 +177,7 @@ def MDtest_get_glm_and_rec(Nreal=1,minreal=0,justgetrho=0,dorho=1,Ndesbins=[2,3]
     reclist=MDtest_get_reclist(Ndesbins=Ndesbins,lmin=lmin,lmax=lmax,nvss=nvss)
     getmaps_fromCl(cldat,rlzns=rlzns,reclist=reclist,justgetrho=justgetrho,dorho=dorho,dos=False,dochisq=False,rhofiletag=rhofiletag)
 
-#use cldat to generate glm, no iswrec #WORKING HERE, bug is in this func
+#use cldat to generate glm, no iswrec
 def MDtest_get_glm(Nreal=1,minreal=0,Ndesbins=[2,3],nvss=True):
     cldat=MDtest_get_Cl(justread=True,Ndesbins=Ndesbins,nvss=nvss)
     print 'cldat.bintaglist:',cldat.bintaglist
@@ -189,12 +189,12 @@ def MDtest_get_glm(Nreal=1,minreal=0,Ndesbins=[2,3],nvss=True):
     getmaps_fromCl(cldat,rlzns=rlzns)
     
 #assuming maps already generated, do reconstructions
-def MDtest_iswrec(Nreal,minreal=0,justgetrho=0,dorho=1,Ndesbins=[2,3],lmin=3,lmax=80,rhofiletag='',nvss=True):
+def MDtest_iswrec(Nreal,minreal=0,justgetrho=0,dorho=1,Ndesbins=[2,3],lmin=3,lmax=80,rhofiletag='',nvss=True,fitbias=True):
     rlzns=np.arange(minreal,minreal+Nreal)
     cldat=MDtest_get_Cl(justread=True,Ndesbins=Ndesbins,nvss=nvss)
     reclist=MDtest_get_reclist(Ndesbins=Ndesbins,lmin=lmin,lmax=lmax,nvss=nvss)
     dummyglm=get_glm(cldat,Nreal=0,runtag=cldat.rundat.tag)
-    doiswrec_formaps(dummyglm,cldat,rlzns=rlzns,reclist=reclist,rhofiletag=rhofiletag,dos=False)
+    doiswrec_formaps(dummyglm,cldat,rlzns=rlzns,reclist=reclist,rhofiletag=rhofiletag,dos=False,fitbias=fitbias)
     
 #get arrays of rho saved in .rho.dat files or .s.dat
 def MDtest_read_rho_wfiles(varname='rho',Ndesbins=[2,3],lmin=3,lmax=80,rhofiletag='',nvss=True):
@@ -299,7 +299,7 @@ def MDtest_plot_zwindowfuncs(desNbins=[3],nvss=True):
     plt.close()
 
 
-def MDtest_plot_rhohist(varname='rho',Ndesbins=[2,3],lmin=3,lmax=80,getrhopred=True,firstNreal=-1,rhofiletag='',nvss=True):
+def MDtest_plot_rhohist(varname='rho',Ndesbins=[2,3],lmin=3,lmax=80,getrhopred=True,firstNreal=-1,rhofiletag='',nvss=True,plottag=''):
     plotdir='output/MDchecks/plots/'
     rhogrid=MDtest_read_rho_wfiles(varname,Ndesbins,lmin,lmax,rhofiletag,nvss=nvss)
     #output order are nvss, then the des-like surveys in given Ndesbins order
@@ -312,7 +312,11 @@ def MDtest_plot_rhohist(varname='rho',Ndesbins=[2,3],lmin=3,lmax=80,getrhopred=T
         rhopred=MDtest_get_expected_rho(varname,Ndesbins,lmin,lmax,nvss=nvss)
     else:
         rhopred=[]
-    plotname ='MDtest_{1:s}hist_r{0:05d}'.format(Nreal,varname)
+    if plottag:
+        tag='_'+plottag
+    else:
+        tag=''
+    plotname ='MDtest_{1:s}hist_r{0:05d}{2:s}'.format(Nreal,varname,tag)
     reclabels=[m.tag for m in MDtest_get_maptypelist(Ndesbins=Ndesbins,nvss=nvss)]
     # if nvss:
     #     reclabels.append('NVSS')
@@ -409,19 +413,19 @@ if __name__=="__main__":
     lmin=3
     lmax=80
     
-    Nreal=10#0000
+    Nreal=10000
     #checkMD_cl_ordering() #when order of maps changes, cl vals shift as expected
     if 1:
+        #rhofiletag='nob0fit'
         rhofiletag=''
-        #rhofiletag='3only'
         #MDtest_get_glm_and_rec(Nreal,justgetrho=False,dorho=1,Ndesbins=Ndesbins,lmin=lmin,lmax=lmax,rhofiletag=rhofiletag)
-        donvss=False
-        MDtest_get_glm(Nreal,Ndesbins=[3,2],nvss=1)#this seems to be where mixup is happening; nvss+2 ok, each individually is ok, but if i pass all three maps, only the first one gets a reasonable looking histogram. When I play with the content of the cldat.cl matrix, the results respond in a reasonable way. not sure what's up
+        MDtest_get_glm(Nreal,Ndesbins=[2,3],nvss=1)
 
-        MDtest_iswrec(Nreal,Ndesbins=[2,3],nvss=1,lmin=lmin,lmax=lmax,rhofiletag=rhofiletag) #including more maps here doesn't mess up results
+        MDtest_iswrec(Nreal,Ndesbins=[2,3],nvss=1,lmin=lmin,lmax=lmax,rhofiletag=rhofiletag,fitbias=True) #including more maps here doesn't mess up results
 
-        MDtest_plot_rhohist('rho',Ndesbins=[2,3],nvss=1,lmin=lmin,lmax=lmax,firstNreal=Nreal,rhofiletag=rhofiletag)
-    if 0: #these all look reasonable
+        MDtest_plot_rhohist('rho',Ndesbins=[2,3],nvss=1,lmin=lmin,lmax=lmax,firstNreal=Nreal,rhofiletag=rhofiletag,plottag=rhofiletag)
+        
+    if 0: #Looking at Cl to try and debug rho problems these all look reasonable
         MDtest_plot_clvals(Ndesbins=[2,3],nvss=True,tag='all')
         MDtest_plot_clvals(Ndesbins=[3],nvss=0,tag='just3')
         MDtest_plot_clvals(Ndesbins=[2],nvss=0,tag='just2')
