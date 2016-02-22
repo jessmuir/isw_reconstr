@@ -486,7 +486,7 @@ def s_onereal(truemap,recmap):
     if truemap.size!=recmap.size:
         print "Can't compute correlation between maps with different NSIDE.***"
         return 0
-    if (not np.any(trumap)) or (not np.any(recmap)):
+    if (not np.any(truemap)) or (not np.any(recmap)):
         print "At least one of these maps is all zeros."
         return 0
     diff=recmap-truemap
@@ -503,7 +503,7 @@ def chisq_onereal(truemap,recmap):
     if truemap.size!=recmap.size:
         print "Can't compute correlation between maps with different NSIDE.***"
         return 0
-    if (not np.any(trumap)) or (not np.any(recmap)):
+    if (not np.any(truemap)) or (not np.any(recmap)):
         print "At least one of these maps is all zeros."
         return 0
     almtrue=hp.map2alm(truemap)

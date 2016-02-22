@@ -1112,7 +1112,7 @@ def caltest_get_reclist(varlist,shape='g',width=10.,lmin=0,lmax=30,recminelllist
     includecl=[lssbin]
     inmaptype=lsstype
     if recminelllist.size==1: #should eventually remove this, but old data has no tag
-        NOLMINTAG=True
+        NOLMINTAG=False#True
     else:
         NOLMINTAG=False
     for recminell in recminelllist:
@@ -1150,7 +1150,7 @@ def caltest_get_logspaced_varlist(minvar=1.e-9,maxvar=.1,Nperlog=10):
 # and return an array which can be used to add those points to a plot
 #for compatibility with pre-lmintest data, if recminelllist.size==1, no lmin tag
 def caltest_getrhodat_fromfiles(varlist,shape='g',width=10.,lmin=0,lmax=30,recminelllist=np.array([1]),varname='rho'):
-    NOLMINTAG=recminelllist.size==1
+    NOLMINTAG=False#recminelllist.size==1
     Nvar=len(varlist)
     #read in rho values
     modnames=[getmodtag_fixedvar(v,shape,lmin,lmax,width) for v in varlist]
@@ -1248,7 +1248,8 @@ def caltest_compare_clcal_shapes(varlist,shapelist=['g','l2'],varname='rho',lmax
     rhoexplist=[] #will be 2D; [shape,variance ] 
     labels=[]
     for s in xrange(Nshapes):
-        rhoexplist.append(caltest_get_rhoexp(varlist,lmax=lmaxlist[s],lmin=lminlist[s],shape=shapelist[s],width=widthlist[s],overwrite=False,doplot=False,saverho=True,varname=varname,reclmin=reclmin,nolmintag=True)) #nolmintag for compatibility with pre-lmintest data
+        nolmintag=False
+        rhoexplist.append(caltest_get_rhoexp(varlist,lmax=lmaxlist[s],lmin=lminlist[s],shape=shapelist[s],width=widthlist[s],overwrite=False,doplot=False,saverho=True,varname=varname,reclmin=reclmin,nolmintag=nolmintag)) #nolmintag for compatibility with pre-lmintest data
             
         if shapelist[s]=='g':
             shapestr=r'$C_{{\ell}}^{{\rm cal}}\propto e^{{-(\ell/{0:.0f})^2}}$'.format(widthlist[s],lminlist[s],lmaxlist[s])
@@ -3468,13 +3469,13 @@ if __name__=="__main__":
         Nreal=10000
         depthtest_get_glm_and_rec(Nreal=Nreal,z0vals=depthtestz0,justgetrho=nomaps,minreal=0,dorho=1,dos=True,dochisq=False,dorell=0,dochisqell=False)
     if 0: #plot info about depthtest maps
-        #depthtest_TTscatter(0,depthtestz0,savepngmaps=False)
+        depthtest_TTscatter(0,depthtestz0,savepngmaps=False)
         #depthtest_TTscatter(0,np.array([.3,.6,.8]),colors=['#1b9e77','#7570b3','#66a61e'],savepngmaps=False)
         #depthtest_plot_zwindowfuncs(depthtestz0)
-        for N in 1000*np.arange(1,11):
-            depthtest_plot_rhohist(depthtestz0,varname='rho',firstNreal=N)
-        #depthtest_plot_rhohist(depthtestz0,varname='rho')
-        #depthtest_plot_rhohist(depthtestz0,varname='s')
+        #for N in 1000*np.arange(1,11):
+        #    depthtest_plot_rhohist(depthtestz0,varname='rho',firstNreal=N)
+        depthtest_plot_rhohist(depthtestz0,varname='rho')
+        depthtest_plot_rhohist(depthtestz0,varname='s')
         #depthtest_plot_rhohist(depthtestz0,varname='chisq')
         #depthtest_plot_relldat(depthtestz0,getpred=True,varname='rell')
         #depthtest_plot_relldat(depthtestz0,getpred=True,varname='chisqell')
@@ -3500,11 +3501,11 @@ if __name__=="__main__":
     if 0: #bin test with many realizations, generate maps
         nomaps=False
         bintest_get_glm_and_rec(Nreal=10000,divlist=['6','222','111111'],minreal=0,justgetrho=nomaps,dorell=0)
-    if 1: #bin test with many realizations, make plots
-        for N in 1000*np.arange(1,11):
-            bintest_plot_rhohist(getrhopred=True,varname='rho',firstNreal=N)
-        #bintest_plot_rhohist(getrhopred=True,varname='rho')
-        #bintest_plot_rhohist(getrhopred=True,varname='s')
+    if 0: #bin test with many realizations, make plots
+        #for N in 1000*np.arange(1,11):
+        #    bintest_plot_rhohist(getrhopred=True,varname='rho',firstNreal=N)
+        bintest_plot_rhohist(getrhopred=True,varname='rho')
+        bintest_plot_rhohist(getrhopred=True,varname='s')
         #bintest_plot_rhohist(getrhopred=True,varname='chisq')
         #bintest_plot_relldat()
 
@@ -3532,11 +3533,11 @@ if __name__=="__main__":
         #caltest_get_scaleinfo(shortvarlist,scaletovar=False)
         Nreal=10000
         #caltest_apply_caliberrors(Nreal=Nreal,varlist=shortvarlist,overwritecalibmap=False,scaletovar=1.e-3,shape='g',width=10.,lmin=0,lmax=30)
-        caltest_apply_caliberrors(Nreal=Nreal,varlist=shortvarlist,overwritecalibmap=False,scaletovar=1.e-3,shape='l2',lmin=1,lmax=30) #working here, run l2 datapoints
+        #caltest_apply_caliberrors(Nreal=Nreal,varlist=shortvarlist,overwritecalibmap=False,scaletovar=1.e-3,shape='l2',lmin=1,lmax=30) #working here, run l2 datapoints
         
         #domaps= do we redo reconstructions?
-        #caltest_iswrec(Nreal=Nreal,varlist=shortvarlist,shape='g',width=10.,callmin=0,callmax=30,scaletovar=1.e-3,domaps=False)
-        caltest_iswrec(Nreal=Nreal,varlist=shortvarlist,shape='l2',callmin=1,callmax=30,scaletovar=1.e-3,domaps=False) #working here; run this
+        caltest_iswrec(Nreal=Nreal,varlist=shortvarlist,shape='g',width=10.,callmin=0,callmax=30,scaletovar=1.e-3,domaps=False)
+        #caltest_iswrec(Nreal=Nreal,varlist=shortvarlist,shape='l2',callmin=1,callmax=30,scaletovar=1.e-3,domaps=False) #working here; run this
 
     
     if 0: #scatter plots for calib test
@@ -3638,11 +3639,11 @@ if __name__=="__main__":
     #lmin tests
     if 0: #generate rho data from many realizations
         Nreal=1
-        inlminlist=np.array([1,2,3,5])
+        inlminlist=np.array([2,3,4,5])
         #inlminlist=np.array([10])
         inlmaxlist=np.array([-1])#3,5,10,20,-1])
         lminlist,lmaxlist=lmintest_get_lminmaxcombos(inlminlist,inlmaxlist)
-        if 0: #do reconstructions for Nreal for combos of inlminlist and inlmax
+        if 1: #do reconstructions for Nreal for combos of inlminlist and inlmax
             domaps=True
             Nreal=10000
             lmintest_iswrec(Nreal=Nreal,lminlist=lminlist,lmaxlist=lmaxlist,domaps=domaps)
@@ -3653,7 +3654,7 @@ if __name__=="__main__":
     if 0:
         shortvarlist=[1.e-7,1.e-6,1.e-5,1.e-4,1.e-3,1.e-2]
         shortreclminlist=np.array([1,3,5])#1,3,10])
-        if 0: #do recs for many realizations
+        if 1: #do recs for many realizations
             Nreal=10000
             caltest_iswrec(Nreal,shortvarlist,scaletovar=1.e-3,recminelllist=shortreclminlist,domaps=True)#working here
 
@@ -3663,4 +3664,4 @@ if __name__=="__main__":
         
         #caltest_compare_clcal_shapes(varlist,shapelist=['g'],varname='rho',dodataplot=False,recminelllist=reclminlist,shortrecminelllist=shortreclminlist,shortvarlist=shortvarlist)
         caltest_compare_lmin(varlist,varname='rho',dodataplot=True,recminelllist=reclminlist,shortrecminelllist=shortreclminlist,shortvarlist=shortvarlist,justdat=True)
-        #working here; debug data points and their error bars
+        
