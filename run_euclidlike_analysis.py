@@ -95,14 +95,14 @@ def depthtest_get_glm_and_rec(Nreal=1,z0vals=np.array([.3,.6,.7,.8]),minreal=0,j
 #get arrays of rho saved in .rho.dat files or .s.dat
 def depthtest_read_rho_wfiles(z0vals=np.array([.3,.6,.7,.8]),varname='rho'):
     mapdir='output/depthtest/map_output/'
-    files=['iswREC.eucz{0:02d}.fid.fullsky.depthtest.{1:s}.dat'.format(int(10*z0),varname) for z0 in z0vals]
+    files=['iswREC.eucz{0:02d}.fid.fullsky-lmin01.depthtest.{1:s}.dat'.format(int(10*z0),varname) for z0 in z0vals]
     rhogrid=np.array([read_rhodat_wfile(mapdir+f) for f in files])
     return rhogrid
 
 #get arrays of rho saved in .rell.dat files
 def depthtest_read_rell_wfiles(z0vals=np.array([.3,.6,.7,.8]),varname='rell'):
     mapdir='output/depthtest/map_output/'
-    files=['iswREC.eucz{0:02d}.fid.fullsky.depthtest.{1:s}.dat'.format(int(10*z0),varname) for z0 in z0vals]
+    files=['iswREC.eucz{0:02d}.fid.fullsky-lmin01.depthtest.{1:s}.dat'.format(int(10*z0),varname) for z0 in z0vals]
     rellgrid=np.array([read_relldat_wfile(mapdir+f) for f in files])
     return rellgrid #[reconstruction,realization,ell]
 
@@ -661,7 +661,7 @@ def bintest_get_glm_and_rec(Nreal=1,divlist=['6','222','111111'],minreal=0,justg
 def bintest_read_rho_wfiles(divlist=['6','222','111111'],sigz=0.05,varname='rho'):
     #print 'in READFILES, divlist=',divlist
     mapdir='output/eucbintest/map_output/'
-    files=['iswREC.euc6bins{0:03d}div{1:s}.fid.fullsky.eucbintest6s{0:03d}all.{2:s}.dat'.format(int(1000*sigz),d,varname) for d in divlist]
+    files=['iswREC.euc6bins{0:03d}div{1:s}.fid.fullsky-lmin01.eucbintest6s{0:03d}all.{2:s}.dat'.format(int(1000*sigz),d,varname) for d in divlist]
     #print files
     rhogrid=np.array([read_rhodat_wfile(mapdir+f) for f in files])
     return rhogrid
@@ -669,7 +669,7 @@ def bintest_read_rho_wfiles(divlist=['6','222','111111'],sigz=0.05,varname='rho'
 #get arrays of rho saved in .rell.dat files
 def bintest_read_rell_wfiles(divlist=['6','222','111111'],sigz=0.05,varname='rell'):
     mapdir='output/eucbintest/map_output/'
-    files=['iswREC.euc6bins{0:03d}div{1:s}.fid.fullsky.eucbintest6s{0:03d}all.{2:s}.dat'.format(int(1000*sigz),d,varname) for d in divlist]
+    files=['iswREC.euc6bins{0:03d}div{1:s}.fid.fullsky-lmin01.eucbintest6s{0:03d}all.{2:s}.dat'.format(int(1000*sigz),d,varname) for d in divlist]
     rellgrid=np.array([read_relldat_wfile(mapdir+f) for f in files])
     return rellgrid
 
@@ -1410,7 +1410,7 @@ def caltest_rhoexpplot(varlist,rhoarraylist,labellist=[],outname='',legtitle='',
         rhoarraylist=[rhoarraylist]
     scattercolors=['#e41a1c','#377eb8','#4daf4a','#984ea3','#ff7f00','#ffff33','#a65628','#f781bf']
     if not outname:
-        outname='caltest_'+varname+'_exp'+outtag+'.png'
+        outname='caltest_'+varname+'_exp'+outtag+'.pdf'
 
     fig=plt.figure(figsize=(8,4))
     fig.subplots_adjust(bottom=.2)
@@ -1495,7 +1495,7 @@ def caltest_rhoexpplot_wratio(varlist,rhoarraylist,labellist=[],outname='',legti
         rhoarraylist=[rhoarraylist]
     scattercolors=['#e41a1c','#377eb8','#4daf4a','#984ea3','#ff7f00','#ffff33','#a65628','#f781bf']
     if not outname:
-        outname='caltest_'+varname+'_exp'+outtag+'.png'
+        outname='caltest_'+varname+'_exp'+outtag+'.pdf'
 
     fig=plt.figure(figsize=(7,7))
     fig.subplots_adjust(bottom=.2)
@@ -1681,7 +1681,7 @@ def caltest_Clcomp(varlist=[1.e-7,1.e-6,1.e-5,1.e-4],shape='g',callmin=0,callmax
 
     plotdir='output/caltest_plots/'
     plotname='caltest_cl_compare'
-    outname=plotdir+plotname+'.png'
+    outname=plotdir+plotname+'.pdf'
     print 'saving',outname
     plt.savefig(outname)
     plt.close()
@@ -1732,8 +1732,8 @@ def caltest_TTscatter(r=0,varlist=[1.e-7,1.e-6,1.e-5,1.e-4],savepngmaps=False):
             plotmax=lssmax#0.7*np.max(np.fabs(lssm))
             lssfbase=lssf[lssf.rfind('/')+1:lssf.rfind('.fits')]
             hp.mollview(lssm,title=lssfbase,unit=r' $\delta\rho/\rho$',max=plotmax,min=-1*plotmax,cmap=mono_cm)
-            plt.savefig(plotdir+'mapplot_'+lssfbase+'.png')
-            lsspngf.append(plotdir+'mapplot_'+lssfbase+'.png')
+            plt.savefig(plotdir+'mapplot_'+lssfbase+'.pdf')
+            lsspngf.append(plotdir+'mapplot_'+lssfbase+'.pdf')
             maxtemp=np.max(truemap)
             maxtemp=max(maxtemp,np.max(recmap))
             plotmax=tmax#0.7*maxtemp
@@ -1741,14 +1741,14 @@ def caltest_TTscatter(r=0,varlist=[1.e-7,1.e-6,1.e-5,1.e-4],savepngmaps=False):
             if dotrueiswpng:
                 truefbase=truemapf[truemapf.rfind('/')+1:truemapf.rfind('.fits')]
                 hp.mollview(truemap,title=truefbase,unit='K',max=plotmax,min=-1*plotmax)
-                plt.savefig(plotdir+'mapplot_'+truefbase+'.png')
-                iswpngf=plotdir+'mapplot_'+truefbase+'.png'
+                plt.savefig(plotdir+'mapplot_'+truefbase+'.pdf')
+                iswpngf=plotdir+'mapplot_'+truefbase+'.pdf'
                 trueiswpng=False #only do this once
             #reconstructed isw
             recfbase=recmapf[recmapf.rfind('/')+1:recmapf.rfind('.fits')]
             hp.mollview(recmap,title=recfbase,unit='K',max=plotmax,min=-1*plotmax)
-            recpngf.append(plotdir+'mapplot_'+recfbase+'.png')
-            plt.savefig(plotdir+'mapplot_'+recfbase+'.png')
+            recpngf.append(plotdir+'mapplot_'+recfbase+'.pdf')
+            plt.savefig(plotdir+'mapplot_'+recfbase+'.pdf')
     #then do fiducial case
     fidrecf=dummyalm.get_mapfile_fortags(r,'iswREC.eucz07','unmod')
     recmapfiles.append(fidrecf)
@@ -1759,16 +1759,16 @@ def caltest_TTscatter(r=0,varlist=[1.e-7,1.e-6,1.e-5,1.e-4],savepngmaps=False):
         plotmax=lssmax#0.7*np.max(np.fabs(lssm))
         lssfbase=lssf[lssf.rfind('/')+1:lssf.rfind('.fits')]
         hp.mollview(lssm,title=lssfbase,unit=r' $\delta\rho/\rho$',max=plotmax,min=-1*plotmax,cmap=mono_cm)
-        plt.savefig(plotdir+'mapplot_'+lssfbase+'.png')
-        lsspngf.append(plotdir+'mapplot_'+lssfbase+'.png')
+        plt.savefig(plotdir+'mapplot_'+lssfbase+'.pdf')
+        lsspngf.append(plotdir+'mapplot_'+lssfbase+'.pdf')
         maxtemp=np.max(truemap)
         maxtemp=max(maxtemp,np.max(recmap))
         plotmax=tmax#0.7*maxtemp
         recmapf=fidrecf
         recfbase=recmapf[recmapf.rfind('/')+1:recmapf.rfind('.fits')]
         hp.mollview(recmap,title=recfbase,unit='K',max=plotmax,min=-1*plotmax)
-        recpngf.append(plotdir+'mapplot_'+recfbase+'.png')
-        plt.savefig(plotdir+'mapplot_'+recfbase+'.png')
+        recpngf.append(plotdir+'mapplot_'+recfbase+'.pdf')
+        plt.savefig(plotdir+'mapplot_'+recfbase+'.pdf')
 
     #colors=['#253494','#2c7fb8','#41b6c4','#a1dab4','#ffffcc']
     colors=['#a6611a','#08519c','#41b6c4','#78c679','#ffffb2']
@@ -1806,7 +1806,7 @@ def zdisttest_rhoexpplot(rhogrid,simx,recx=np.array([]),varname='z0',statname='r
     if outtag:
         outtag='_'+outtag
     if not outname:
-        outname=varname+'test_'+statname+'_exp'+outtag+'.png'
+        outname=varname+'test_'+statname+'_exp'+outtag+'.pdf'
     plotnums=np.zeros((Nrec,Nsim)) #column index=xcoord,row=ycoord
     bestforsim=np.zeros(Nsim)
     wherebestforsim=np.zeros(Nsim) #index of rec where best occus
@@ -2003,7 +2003,7 @@ def z0test_onesim_plot(fidz0=0.7,perrors=np.array([1,10,20,50]),varname='rho',co
     if outtag:
         outtag='_'+outtag
     if not outname:
-        outname='z0test_'+varname+'_exp'+outtag+'.png'
+        outname='z0test_'+varname+'_exp'+outtag+'.pdf'
 
     fig=plt.figure(figsize=(8,4))
     fig.subplots_adjust(bottom=.2)
@@ -2080,7 +2080,7 @@ def z0test_onesim_plot(fidz0=0.7,perrors=np.array([1,10,20,50]),varname='rho',co
     if outtag:
         outtag='_'+outtag
     if not outname:
-        outname=varname+'test_'+statname+'_exp'+outtag+'.png'
+        outname=varname+'test_'+statname+'_exp'+outtag+'.pdf'
     print 'Saving plot to ',plotdir+outname
     plt.savefig(plotdir+outname)
     plt.close()
@@ -2095,7 +2095,7 @@ def z0test_rhoexpplot_lines(simz0,recz0,rhogrid,varname='rho',outtag='',outname=
     if outtag:
         outtag='_'+outtag
     if not outname:
-        outname='z0test_'+varname+'_exp'+outtag+'.png'
+        outname='z0test_'+varname+'_exp'+outtag+'.pdf'
 
     fig=plt.figure(0)
     plt.suptitle('Effect of incorrectly modeled median redshift')
@@ -2204,7 +2204,7 @@ def z0test_Clcomp(perrors=np.array([1,10,20,30,50]),fidz0=.7):
     plt.legend(handles=[line1,line2,line3],loc='lower right')
     plotdir='output/zdisttest/plots/'
     plotname='z0test_cl_compare'
-    outname=plotdir+plotname+'.png'
+    outname=plotdir+plotname+'.pdf'
     print 'saving',outname
     plt.savefig(outname)
     plt.close()
@@ -2319,7 +2319,7 @@ def bztest_onesim_plot(fidb2=0.5,recb2=np.array([0.,.01,.1,.5,1.,2.,5.,10.]),var
     if outtag:
         outtag='_'+outtag
     if not outname:
-        outname='bztest_'+varname+'_exp'+outtag+'.png'
+        outname='bztest_'+varname+'_exp'+outtag+'.pdf'
 
     fig=plt.figure(figsize=(8,4))
     fig.subplots_adjust(bottom=.2)
@@ -2366,7 +2366,7 @@ def bztest_onesim_plot(fidb2=0.5,recb2=np.array([0.,.01,.1,.5,1.,2.,5.,10.]),var
     if outtag:
         outtag='_'+outtag
     if not outname:
-        outname=varname+'test_'+statname+'_exp'+outtag+'.png'
+        outname=varname+'test_'+statname+'_exp'+outtag+'.pdf'
     print 'Saving plot to ',plotdir+outname
     plt.savefig(plotdir+outname)
     plt.close()
@@ -2382,7 +2382,7 @@ def bztest_onerec_plot(fidrecb2=0.,simb2=np.array([0.,.01,.1,.5,1.,2.,5.,10.]),v
     if outtag:
         outtag='_'+outtag
     if not outname:
-        outname='bztest_'+varname+'_exp'+outtag+'.png'
+        outname='bztest_'+varname+'_exp'+outtag+'.pdf'
 
     fig=plt.figure(figsize=(8,4))
     fig.subplots_adjust(bottom=.2)
@@ -2428,7 +2428,7 @@ def bztest_onerec_plot(fidrecb2=0.,simb2=np.array([0.,.01,.1,.5,1.,2.,5.,10.]),v
     if outtag:
         outtag='_'+outtag
     if not outname:
-        outname=varname+'test_'+statname+'_exp'+outtag+'.png'
+        outname=varname+'test_'+statname+'_exp'+outtag+'.pdf'
     print 'Saving plot to ',plotdir+outname
     plt.savefig(plotdir+outname)
     plt.close()    
@@ -2498,7 +2498,7 @@ def bztest_Clcomp(b2vals=np.array([0.,.01,.1,.5,1.,2.,5.,10.])):
     plt.legend(handles=[line1,line2,line3],loc='lower right')
     plotdir='output/zdisttest/plots/'
     plotname='bztest_cl_compare'
-    outname=plotdir+plotname+'.png'
+    outname=plotdir+plotname+'.pdf'
     print 'saving',outname
     plt.savefig(outname)
     plt.close()
@@ -2592,7 +2592,7 @@ def catz_windowtest(badfracs,Nbins=3): #check that my modeling of catastrophic p
             colstr=colors[n%len(colors)]
             plt.plot(zgrid,wgrid,color=colstr,linestyle='-',linewidth=2)
         plotname='catztestwindow_{1:d}bins_catz{0:.0e}'.format(badfracs[i],Nbins)
-        outname=plotdir+plotname+'.png'
+        outname=plotdir+plotname+'.pdf'
         print 'saving',outname
         plt.savefig(outname)
         plt.close()
@@ -2659,7 +2659,7 @@ def catztest_onerec_plot(fidrecf=0.,simf=np.array([0.,5.e-4,1.e-3,2.e-3,.01,.02,
     if outtag:
         outtag='_'+outtag
     if not outname:
-        outname='catztest{0:d}bin_{1:s}_exp{2:s}.png'.format(Nbins,varname,outtag)
+        outname='catztest{0:d}bin_{1:s}_exp{2:s}.pdf'.format(Nbins,varname,outtag)
 
     fig=plt.figure(figsize=(8,4))
     fig.subplots_adjust(bottom=.2)
@@ -2714,7 +2714,7 @@ def catztest_onerec_plot(fidrecf=0.,simf=np.array([0.,5.e-4,1.e-3,2.e-3,.01,.02,
     if outtag:
         outtag='_'+outtag
     if not outname:
-        outname=varname+'test_'+statname+'_exp'+outtag+'.png'
+        outname=varname+'test_'+statname+'_exp'+outtag+'.pdf'
     print 'Saving plot to ',plotdir+outname
     plt.savefig(plotdir+outname)
     plt.close()
@@ -2729,7 +2729,7 @@ def catztest_onesim_plot(fidf=0.02,recf=np.array([0.,5.e-4,1.e-3,2.e-3,.01,.02,.
     if outtag:
         outtag='_'+outtag
     if not outname:
-        outname='catztest{0:d}bin_{1:s}_exp{2:s}.png'.format(Nbins,varname,outtag)
+        outname='catztest{0:d}bin_{1:s}_exp{2:s}.pdf'.format(Nbins,varname,outtag)
 
     fig=plt.figure(figsize=(8,4))
     fig.subplots_adjust(bottom=.2)
@@ -2850,7 +2850,7 @@ def catz_Clcomp(badfracs=np.array([0.,5.e-4,1.e-3,2.e-3,1.e-2,2.e-2,.1,.2]),Nbin
     plt.legend(handles=[line1,line2,line3],loc='lower right')
     plotdir='output/zdisttest/plots/'
     plotname='catztest_cl_compare'
-    outname=plotdir+plotname+'.png'
+    outname=plotdir+plotname+'.pdf'
     print 'saving',outname
     plt.savefig(outname)
     plt.close()
@@ -3099,7 +3099,7 @@ def lmintest_plot_rhoexp(lminlist=np.arange(1,30),lmaxlist=-1,z0=.7,overwrite=Fa
         outtag='_'+filetag
     else:
         outtag=filetag
-    outname='lmintest_'+varname+'_exp'+outtag+'.png'
+    outname='lmintest_'+varname+'_exp'+outtag+'.pdf'
     print 'Saving plot to ',plotdir+outname
     plt.savefig(plotdir+outname)
     plt.close()
@@ -3131,7 +3131,7 @@ def angmomtest_Lvsrho_plot(plotdat='change',Lfile='Lmax_true_Lmax_rec.dat',plotd
         randstr=''
         if shuffleLrec: randstr='shuffled'
         fileprefix=fileprefix+randstr+'_'
-    outfile='{0:s}L_vs_rho{2:s}{3:s}_{1:s}.png'.format(fileprefix,plotdat,lminstr,lmaxstr)
+    outfile='{0:s}L_vs_rho{2:s}{3:s}_{1:s}.pdf'.format(fileprefix,plotdat,lminstr,lmaxstr)
     scatcolor='#92c5de'
     meancolor='#ca0020'
     #read in data
@@ -3211,12 +3211,12 @@ def angmomtest_Lvsrho_plot(plotdat='change',Lfile='Lmax_true_Lmax_rec.dat',plotd
     
 def angmomtest_LvsLtrue_plot(plotdat='change',Lfile='Lmax_true_Lmax_rec.dat',plotdir='output/angmom_study/',dofit=True,note=r'$\ell=2,3$',fileprefix='',shuffleLrec=False):
     z0fid=0.7
-    rhofile='iswREC.eucz07.fid.fullsky.depthtest.rho.dat'
+    rhofile='iswREC.eucz07.fid.fullsky-lmin01.depthtest.rho.dat'
     if fileprefix:
         randstr=''
         if shuffleLrec: randstr='shuffled'
         fileprefix=fileprefix+randstr+'_'
-    outfile='{0:s}dL_vs_Ltrue_{1:s}.png'.format(fileprefix,plotdat)
+    outfile='{0:s}dL_vs_Ltrue_{1:s}.pdf'.format(fileprefix,plotdat)
     scatcolor='#92c5de'
     meancolor='#ca0020'
 
@@ -3308,13 +3308,13 @@ def angmomtest_rhovsrho_plot(plotdir='output/angmom_study/',dofit=True,note=r'$\
         lminstr="-lmin{0:02d}".format(lmin)
         if lmax>0:
             lmaxstr="-lmax{0:02d}".format(lmax)
-    nofilterfile='iswREC.eucz07.fid.fullsky.depthtest.rho.dat'
+    nofilterfile='iswREC.eucz07.fid.fullsky-lmin01.depthtest.rho.dat'
     filterfile='iswREC.eucz07.fid.fullsky'+lminstr+lmaxstr+'.depthtest.rho.dat'
     if fileprefix:
         randstr=''
         if shufflerhofilt: randstr='shuffled'
         fileprefix=fileprefix+randstr+'_'
-    outfile='{0:s}rho{1:s}{2:s}_vs_rho.png'.format(fileprefix,lminstr,lmaxstr)
+    outfile='{0:s}rho{1:s}{2:s}_vs_rho.pdf'.format(fileprefix,lminstr,lmaxstr)
     scatcolor='#92c5de'
     meancolor='#ca0020'
     #read in data
@@ -3379,13 +3379,13 @@ def angmomtest_rhovsrho_plot(plotdir='output/angmom_study/',dofit=True,note=r'$\
     
 def angmomtest_checkrho_plot(plotdir='output/angmom_study/',dofit=True,fileprefix='',note='',shuffle=False):
     z0fid=0.7
-    rhofile='iswREC.eucz07.fid.fullsky.depthtest.rho.dat'
+    rhofile='iswREC.eucz07.fid.fullsky-lmin01.depthtest.rho.dat'
     draganrhofile='fromdragan_l5_rho_10000.dat'
     randstr=''
     if shuffle:
         randstr='shuffled'
         fileprefix=fileprefix+randstr+'_'
-    outfile='{0:s}rhocomp.png'.format(fileprefix)
+    outfile='{0:s}rhocomp.pdf'.format(fileprefix)
     scatcolor='#92c5de'
     meancolor='#ca0020'
 
@@ -3471,9 +3471,9 @@ if __name__=="__main__":
     if 0: #plot info about depthtest maps
         depthtest_TTscatter(0,depthtestz0,savepngmaps=False)
         #depthtest_TTscatter(0,np.array([.3,.6,.8]),colors=['#1b9e77','#7570b3','#66a61e'],savepngmaps=False)
-        #depthtest_plot_zwindowfuncs(depthtestz0)
-        #for N in 1000*np.arange(1,11):
-        #    depthtest_plot_rhohist(depthtestz0,varname='rho',firstNreal=N)
+        depthtest_plot_zwindowfuncs(depthtestz0)
+        for N in 1000*np.arange(1,11):
+            depthtest_plot_rhohist(depthtestz0,varname='rho',firstNreal=N)
         depthtest_plot_rhohist(depthtestz0,varname='rho')
         depthtest_plot_rhohist(depthtestz0,varname='s')
         #depthtest_plot_rhohist(depthtestz0,varname='chisq')
@@ -3502,8 +3502,8 @@ if __name__=="__main__":
         nomaps=False
         bintest_get_glm_and_rec(Nreal=10000,divlist=['6','222','111111'],minreal=0,justgetrho=nomaps,dorell=0)
     if 0: #bin test with many realizations, make plots
-        #for N in 1000*np.arange(1,11):
-        #    bintest_plot_rhohist(getrhopred=True,varname='rho',firstNreal=N)
+        for N in 1000*np.arange(1,11):
+            bintest_plot_rhohist(getrhopred=True,varname='rho',firstNreal=N)
         bintest_plot_rhohist(getrhopred=True,varname='rho')
         bintest_plot_rhohist(getrhopred=True,varname='s')
         #bintest_plot_rhohist(getrhopred=True,varname='chisq')

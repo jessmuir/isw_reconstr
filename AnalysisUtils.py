@@ -1322,7 +1322,7 @@ def plot_Tin_Trec(iswmapfiles,recmapfiles,reclabels,plotdir='output/',plotname='
         labeli=reclabels[i]+'\n$\\rho={0:0.2f}$'.format(rhoi)
         mrec=recmaps[i]
         misw=iswmaps[i]
-        plt.plot(misw,mrec,linestyle='None',marker='o',alpha=1,label=labeli,markersize=4.,color=coli,markeredgecolor='None')#markerfacecolor='None',markeredgecolor=coli
+        plt.plot(misw,mrec,linestyle='None',marker='o',alpha=1,label=labeli,markersize=4.,color=coli,markeredgecolor='None',rasterized=True)#markerfacecolor='None',markeredgecolor=coli
     plt.plot(10*np.array([-xmax,xmax]),10*np.array([-xmax,xmax]),linestyle='--',linewidth=4.,color='black')
 
     # try doing text boxes instead of legends?
@@ -1443,7 +1443,7 @@ def plothist(varstr,datagrid,reclabels,plottitle,xlabel,plotdir,plotname,predval
         plt.yscale('log')
         #plt.ylim(.1,1.e5)
         plt.ylim(.1,1.e6)
-    outname=plotdir+plotname+'.png'
+    outname=plotdir+plotname+'.pdf'
     print 'saving',outname
     plt.savefig(outname)
     plt.close()
@@ -1513,7 +1513,7 @@ def plot_relldat(reclabels,testname,plotdir,plotname,rellgrid=[],rellpred=[],var
     elif doexp:
         plt.legend(title='Expectation vals',loc='center right')
     
-    outname=plotdir+plotname+'.png'
+    outname=plotdir+plotname+'.pdf'
     print 'saving',outname
     plt.savefig(outname)
     plt.close()
