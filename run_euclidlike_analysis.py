@@ -35,7 +35,7 @@ def plot_isw_kernel(zmax=5):
     #plt.xlim(0,zmax)
     plt.plot(z,kernel)
     plotname='isw_kernel'
-    outname=plotdir+plotname+'.png'
+    outname=plotdir+plotname+'.pdf'
     print 'saving',outname
     plt.savefig(outname)
     plt.close()
@@ -138,7 +138,7 @@ def depthtest_plot_zwindowfuncs(z0vals=np.array([.3,.6,.7,.8])):
     textbox=ax.text(.75, .6, eqstr,fontsize=30,verticalalignment='top',ha='left')#, transform=ax.transAxes, fontsize=15,verticalalignment='top', ha='right',multialignment      = 'left',bbox={'facecolor':'none','edgecolor':'none'))
 
     plotname='depthtest_zbins'
-    outname=plotdir+plotname+'.png'
+    outname=plotdir+plotname+'.pdf'
     print 'saving',outname
     plt.savefig(outname)
     plt.close()
@@ -276,16 +276,16 @@ def depthtest_TTscatter(r=0, z0vals=np.array([0.3,0.6,0.7,0.8]),savepngmaps=True
                 plotmax=0.7*np.max(np.fabs(lssm))
                 lssfbase=lssf[lssf.rfind('/')+1:lssf.rfind('.fits')]
                 hp.mollview(lssm,title=lssfbase,unit=r' $\delta\rho/\rho$',max=plotmax,min=-1*plotmax,cmap=mono_cm)
-                plt.savefig(plotdir+'mapplot_'+lssfbase+'.png')
+                plt.savefig(plotdir+'mapplot_'+lssfbase+'.pdf')
             maxtemp=np.max(truemap)
             maxtemp=max(maxtemp,np.max(recmap))
             plotmax=0.7*maxtemp
             truefbase=truemapf[truemapf.rfind('/')+1:truemapf.rfind('.fits')]
             hp.mollview(truemap,title=truefbase,unit='K',max=plotmax,min=-1*plotmax)
-            plt.savefig(plotdir+'mapplot_'+truefbase+'.png')
+            plt.savefig(plotdir+'mapplot_'+truefbase+'.pdf')
             recfbase=recmapf[recmapf.rfind('/')+1:recmapf.rfind('.fits')]
             hp.mollview(recmap,title=recfbase,unit='K',max=plotmax,min=-1*plotmax)
-            plt.savefig(plotdir+'mapplot_'+recfbase+'.png')
+            plt.savefig(plotdir+'mapplot_'+recfbase+'.pdf')
 
             
     #compute rho (could also read from file but this seams simplest)
@@ -569,7 +569,7 @@ def bintest_rhoexp_comparesigs(finestN=6,z0=0.7,sigzlist=[0.03,0.05],checkautoon
     zedges0=bintest_get_finest_zedges(finestN,z0)
     allzedges=bintest_get_zedgeslist(zedges0,['all'],False)
     outtag=''
-    outname='eucbintest_'+varname+'exp'+outtag+'.png'
+    outname='eucbintest_'+varname+'exp'+outtag+'.pdf'
 
     datplot=[]
     if len(datsigs) and len(datdivs): #if we want to get datapoints
@@ -686,7 +686,7 @@ def bintest_rhoexpplot(allzedges,labels,rhoarraylist,labellist=[],outname='',leg
     if type(rhoarraylist[0])!=np.ndarray: #just one array passed,not list of arr
         rhoarraylist=[rhoarraylist]
     if not outname:
-        outname='eucbintest_'+varname+'exp'+outtag+'.png'
+        outname='eucbintest_'+varname+'exp'+outtag+'.pdf'
     colors=['#1b9e77','#d95f02','#7570b3','#e7298a','#66a61e','#e6ab02']
     scattercolors=['#e41a1c','#377eb8','#4daf4a','#984ea3','#ff7f00','#ffff33','#a65628','#f781bf']
     Npoints=len(labels)
@@ -907,7 +907,7 @@ def bintest_plot_zwindowfuncs(finestN=6,z0=0.7,sigz=0.05,doiswkernel=True,plotdi
         plt.plot(cosmz,kernel*scaleby,color='grey',label='ISW kernel',linewidth=2,linestyle='--')
     plt.legend(loc='upper right',fancybox=False, framealpha=0.,prop={'size':16},handlelength=3.5)
 
-    outname=plotdir+plotname+'.png'
+    outname=plotdir+plotname+'.pdf'
     print 'saving',outname
     plt.savefig(outname)
     plt.close()
@@ -916,7 +916,7 @@ def bintest_plot_zwindowfuncs(finestN=6,z0=0.7,sigz=0.05,doiswkernel=True,plotdi
 #look at how correlated differnt base-bins are with one another and ISW
 def bintest_plot_cl_vals(finestN=6,z0=0.7,sigz=0.05):
     outdir='output/eucbintest/plots/'
-    outname='clvals_eucbintest{0:d}s{1:03d}.png'.format(finestN,int(1000*sigz))
+    outname='clvals_eucbintest{0:d}s{1:03d}.pdf'.format(finestN,int(1000*sigz))
     title='$C_{{\\ell}}^{{XY}}$ for Euclid-like survey with {0:d} bins, $\\sigma_z={1:0.3f}$'.format(finestN,sigz)
     cldat=bintest_get_baseClvals(finestN,z0,sigz,justread=True)
     ell=cldat.rundat.lvals
@@ -1261,7 +1261,7 @@ def caltest_compare_clcal_shapes(varlist,shapelist=['g','l2'],varname='rho',lmax
             #shapestr='l2_{0:d}l{1:d}'.format(lminlist[s],lmaxlist[s])
         labels.append(shapestr)
     if dodataplot:
-        dataplot=caltest_getdataplot_forshapecompare(varname,shortvarlist,shapelist,widthlist,lminlist,lmaxlist,cleanplot=cleanplot,recminelllist=np.array([reclmin]),colorlist=colorlist) #don't get labels
+        dataplot=caltest_getdataplot_forshapecompare(varname,shortvarlist,shapelist,widthlist,lminlist,lmaxlist,cleanplot=cleanplot,recminelllist=np.array([reclmin]),colorlist=colorlist,getlabels=False) #don't get labels
     else:
         dataplot=[]
 
@@ -3511,7 +3511,6 @@ if __name__=="__main__":
 
     #shortvarlist=[1.e-6,1.e-5,1.e-4,1.e-3] #for testing datapoints
     #
-    #caltest_iswrec(Nreal=10000,varlist=[1.e-3],domaps=False)
     if 0: #cal test, rho expectation value calcs
         shortvarlist=[1.e-7,1.e-6,1.e-5,1.e-4,1.e-3,1.e-2]
         #shortvarlist=[1.e-6,1.e-5,1.e-4,1.e-3]
@@ -3643,7 +3642,7 @@ if __name__=="__main__":
         #inlminlist=np.array([10])
         inlmaxlist=np.array([-1])#3,5,10,20,-1])
         lminlist,lmaxlist=lmintest_get_lminmaxcombos(inlminlist,inlmaxlist)
-        if 1: #do reconstructions for Nreal for combos of inlminlist and inlmax
+        if 0: #do reconstructions for Nreal for combos of inlminlist and inlmax
             domaps=True
             Nreal=10000
             lmintest_iswrec(Nreal=Nreal,lminlist=lminlist,lmaxlist=lmaxlist,domaps=domaps)
@@ -3654,7 +3653,7 @@ if __name__=="__main__":
     if 0:
         shortvarlist=[1.e-7,1.e-6,1.e-5,1.e-4,1.e-3,1.e-2]
         shortreclminlist=np.array([1,3,5])#1,3,10])
-        if 1: #do recs for many realizations
+        if 0: #do recs for many realizations
             Nreal=10000
             caltest_iswrec(Nreal,shortvarlist,scaletovar=1.e-3,recminelllist=shortreclminlist,domaps=True)#working here
 
@@ -3662,6 +3661,5 @@ if __name__=="__main__":
         varlist=list(caltest_get_logspaced_varlist(minvar=1.e-8,maxvar=.1,Nperlog=10))
         reclminlist=np.array([1,2,3,5])
         
-        #caltest_compare_clcal_shapes(varlist,shapelist=['g'],varname='rho',dodataplot=False,recminelllist=reclminlist,shortrecminelllist=shortreclminlist,shortvarlist=shortvarlist)
         caltest_compare_lmin(varlist,varname='rho',dodataplot=True,recminelllist=reclminlist,shortrecminelllist=shortreclminlist,shortvarlist=shortvarlist,justdat=True)
         

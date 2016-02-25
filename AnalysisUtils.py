@@ -1284,7 +1284,7 @@ def compute_rell_fromcl(cldat,recdat,reccldat=0,varname='rell'):
 #------------------------------------------------------------------------------
 #plot_Tin_Trec  - make scatter plot comparing true to reconstructed isw
 #------------------------------------------------------------------------------
-def plot_Tin_Trec(iswmapfiles,recmapfiles,reclabels,plotdir='output/',plotname='',colorlist=[],dotitle=False):
+def plot_Tin_Trec(iswmapfiles,recmapfiles,reclabels,plotdir='output/',plotname='',colorlist=[],dotitle=False,filesuffix='png'):
     if not colorlist:
         colors=['#404040','#c51b8a','#0571b0','#66a61e','#ffa319','#d7191c']
     else:
@@ -1343,8 +1343,8 @@ def plot_Tin_Trec(iswmapfiles,recmapfiles,reclabels,plotdir='output/',plotname='
     #plotdir='output/plots_forposter/'
     if not plotname:
         plotname='TrecTisw_scatter_variousRECs'
-    print 'saving',plotdir+plotname+'.png'
-    plt.savefig(plotdir+plotname+'.png')
+    print 'saving',plotdir+plotname+'.'+filesuffix
+    plt.savefig(plotdir+plotname+'.'+filesuffix)
     plt.close()
 
 #-----------------------------------------------------------------------------

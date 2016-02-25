@@ -83,72 +83,17 @@ def MDtest_get_Cl(justread=True,Ndesbins=[2,3],nvss=True):
     #     pairs.append((s.tag,'isw'))
     #     pairs.append((s.tag,s.tag))
     cldat=getCl(bins,rundat,dopairs=pairs,DoNotOverwrite=justread)
+    return cldat
 
-    # #messing with cldata for test case; make des3_bin0 copy of nvss
-    # des20inds=[]
-    # des30inds=[]
-    # #print 'gettind indices'
-    # for m in xrange(cldat.Nmap):
-    #     #print m,cldat.bintaglist[m]
-    #     if 'nvss' in cldat.bintaglist[m]:
-    #         nvssind=m
-    #         #print '   nvss!'
-    #     elif ('desMD3' in cldat.bintaglist[m]):
-    #         des30inds.append(m)
-    #         #print '   des3'
-    #     elif ('desMD2' in cldat.bintaglist[m]):
-    #         des20inds.append(m)
-    #         #print '   des2'
-    #     elif ('isw' in cldat.bintaglist[m]):
-    #         iswind=m
-    #         #print '   isw'
-    # nvsscl=cldat.cl[cldat.crossinds[nvssind,nvssind],:]
-    # nvssiswcl=cldat.cl[cldat.crossinds[nvssind,iswind],:]
-    # for n in xrange(cldat.Ncross): #basically, make des3 bin 0 a copy of nvss
-    #     p,q=cldat.crosspairs[n,:]
-    #     #clvalues are still good here
-    #     if (p in des30inds and q in des30inds):
-    #         if p==des30inds[0] and q==des30inds[0]: 
-    #             cldat.cl[n,:]=cldat.cl[cldat.crossinds[des20inds[0],des20inds[0]],:]
-    #             pass
-
-    #         elif  (p==des30inds[1]) and (q==des30inds[1]):
-    #             cldat.cl[n,:]=cldat.cl[cldat.crossinds[des20inds[1],des20inds[1]],:]
-    #             pass
-    #         elif  (p==des30inds[1] and q==des30inds[0]) or (p==des30inds[0] and q==des30inds[1]):
-    #             cldat.cl[n,:]=cldat.cl[cldat.crossinds[des20inds[0],des20inds[1]],:]
-    #             pass
-    #         else:
-    #             cldat.cl[n,:]=np.zeros(cldat.Nell)#
-    #             pass
-    #     elif p in des30inds or q in des30inds:
-    #         if p in des30inds:
-    #             y=p #ind assiciated with 3 bin des
-    #             x=q # other map
-    #         else:
-    #             y=q
-    #             x=p
-    #         if x==iswind:
-    #             if y==des30inds[0]:
-    #                 cldat.cl[n,:]=cldat.cl[cldat.crossinds[des20inds[0],x],:]
-    #                 #cldat.cl[n,:]=np.zeros(cldat.Nell) 
-    #             elif y==des30inds[1]:
-    #                 cldat.cl[n,:]=cldat.cl[cldat.crossinds[des20inds[1],x],:]
-    #                 #cldat.cl[n,:]=np.zeros(cldat.Nell) 
-    #             else:
-    #                 pass
-    #                 cldat.cl[n,:]=np.zeros(cldat.Nell) 
-    #         elif (x in des20inds):
-    #             if y==des30inds[0]:
-    #                 #cldat.cl[n,:]=cldat.cl[cldat.crossinds[des20inds[0],x],:]
-    #                 cldat.cl[n,:]=np.zeros(cldat.Nell) 
-    #             elif y==des30inds[1]:
-    #                 #cldat.cl[n,:]=cldat.cl[cldat.crossinds[des20inds[1],x],:]
-    #                 cldat.cl[n,:]=np.zeros(cldat.Nell) 
-    #             else:
-    #                 pass
-    #                 cldat.cl[n,:]=np.zeros(cldat.Nell) 
-    
+def MDtest_boostNVSSnoise(cldat):
+    newnbar=5.e5 #smaller than prev used 1.e9
+    for i in xrange(cldat.Nmap):
+        if 'nvss' in cldat.bintaglist[i]:
+            nvssind=i
+            break
+    cldat.nbar[i]=newnbar
+    nvssdiagind=cldat.crossinds[nvssind,nvssind]
+    cldat.noisecl[nvssdiagind,:]=1./newnbar
     return cldat
 
 def MDtest_get_reclist(Ndesbins=[2,3],lmin=3,lmax=80,nvss=True):
@@ -215,6 +160,7 @@ def MDtest_read_rho_wfiles(varname='rho',Ndesbins=[2,3],lmin=3,lmax=80,rhofileta
 def MDtest_get_expected_rho(varname='rho',Ndesbins=[2,3],lmin=3,lmax=80,nvss=True):
     Nrec=len(Ndesbins)+nvss
     cldat=MDtest_get_Cl(Ndesbins=Ndesbins,nvss=nvss)
+    #cldat=MDtest_boostNVSSnoise(cldat)
     reclist=MDtest_get_reclist(Ndesbins,lmin,lmax,nvss=nvss)
     rhopred=np.zeros(Nrec)
     for i in xrange(Nrec):
@@ -248,13 +194,20 @@ def checkMD_cl_ordering():
     
 
 ######################
-def MDtest_plot_zwindowfuncs(desNbins=[3],nvss=True):
+def MDtest_plot_zwindowfuncs(desNbins=[3],nvss=True,plotdir='output/MDchecks/plots/'):
     maptypes=MDtest_get_maptypelist(includeisw=False,Ndesbins=desNbins,nvss=True)
     Nrecs=len(maptypes)
-    plotdir='output/MDchecks/plots/'
     plotname='MDtest_zbins'
     Nrecs=len(maptypes)
     binsetlist=[s.binmaps for s in maptypes]
+    labels=[]
+    for s in maptypes:
+        if 'nvss' in s.tag:
+            labels.append('NVSS')
+        elif 'desMD2bin' in s.tag:
+            labels.append('DES 2 bin')
+        elif 'desMD3bin' in s.tag:
+            labels.append('DES 3 bin')
     colors=['#ff7f00','#377eb8','#e7298a']#'#d95f02''#1b9e77'
     zmax=3.
     nperz=100
@@ -267,7 +220,7 @@ def MDtest_plot_zwindowfuncs(desNbins=[3],nvss=True):
     plt.subplots_adjust(right=.85)
     for item in ([ax.title, ax.xaxis.label, ax.yaxis.label] +
                  ax.get_xticklabels() + ax.get_yticklabels()):
-        item.set_fontsize(20)
+        item.set_fontsize(24)
     plt.xlabel('Redshift z')
     plt.ylabel(r'$dn/dz$ (arb. units)')
     #ymax=.33
@@ -287,13 +240,13 @@ def MDtest_plot_zwindowfuncs(desNbins=[3],nvss=True):
             else:
                 wgrid=m.window(zgrid)*m.nbar/ntot
             if i==0:
-                label=maptypes[n].tag
+                label=labels[n]
             else:
                 label=''
-            plt.plot(zgrid,wgrid,color=colstr,label=label)
+            plt.plot(zgrid,wgrid,color=colstr,label=label,linewidth=2)
 
-    plt.legend()
-    outname=plotdir+plotname+'.png'
+    plt.legend(prop={'size':20})
+    outname=plotdir+plotname+'.pdf'
     print 'saving',outname
     plt.savefig(outname)
     plt.close()
@@ -405,6 +358,8 @@ def MDtest_plot_clvals(Ndesbins=[2,3],nvss=True,tag='check'):
     print "Saving plot to ",outdir+outname
     plt.savefig(outdir+outname)
     plt.close()
+
+    
 
 #################################################################
 if __name__=="__main__":

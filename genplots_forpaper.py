@@ -11,6 +11,7 @@ from AnalysisUtils import *
 from mapdef_utils import *
 import time
 from run_euclidlike_analysis import *
+from run_MDcrosscheck_analysis import *
 
      #plots for isw paper
 #################################################################
@@ -93,7 +94,7 @@ def depthtest_plot_rhohist_forpaper(z0vals=np.array([.3,.5,.6,.7,.8])):
         plt.plot(zgrid,wgrid,color=colstr,linestyle='-',linewidth=2)
     eqstr=r'$\frac{dn}{dz}\propto \,z^2 e^{-\left(z/z_0\right)^{1.5}}$'
     textbox=ax.text(.73, .7, eqstr,fontsize=20,verticalalignment='top',ha='left')#, transform=ax.transAxes, fontsize=15,verticalalignment='top', ha='right',multialignment      = 'left',bbox={'facecolor':'none','edgecolor':'none'))
-    outname=plotdir+plotname+'.png'
+    outname=plotdir+plotname+'.pdf'
     print 'saving',outname
     plt.savefig(outname)
     plt.close()
@@ -202,7 +203,7 @@ def bintest_plot_rhohist_forpaper(divstr=['6','222','111111']):
 
     textbox=ax.text(1.75, .25, eqstr,fontsize=24,verticalalignment='top',ha='left')#, transform=ax.transAxes, fontsize=15,verticalalignment='top', ha='right',multialignment      = 'left',bbox={'facecolor':'none','edgecolor':'none'))
     
-    outname=plotdir+plotname+'.png'
+    outname=plotdir+plotname+'.pdf'
     print 'saving',outname
     plt.savefig(outname)
     plt.close()
@@ -225,11 +226,11 @@ def depthtest_TTscatter_forpaper(r=0, z0vals=np.array([0.3,0.5,0.6,0.7,0.8]),sav
     glmdat=get_glm(cldat,Nreal=0,runtag=cldat.rundat.tag)
     almdat=get_dummy_recalmdat(glmdat,reclist,outruntag=glmdat.runtag)
     for i in xrange(Nrec):
-        truemapf=glmdat.get_mapfile_fortags(r,reclist[i].zerotagstr)
+        truemapf=glmdat.get_mapfile_fortags(r,reclist[i].zerotagstr).replace('-lmin01','')#for maps generated pre lmintest implementation
         truemap=hp.read_map(truemapf,verbose=False)
         iswmapfiles.append(truemapf)
         iswmaps.append(truemap)
-        recmapf=almdat.get_mapfile(r,i,'fits')
+        recmapf=almdat.get_mapfile(r,i,'fits').replace('-lmin01','')
         recmap=hp.read_map(recmapf,verbose=False)
         recmapfiles.append(recmapf)
         recmaps.append(recmap)
@@ -245,16 +246,16 @@ def depthtest_TTscatter_forpaper(r=0, z0vals=np.array([0.3,0.5,0.6,0.7,0.8]),sav
                 plotmax=0.7*np.max(np.fabs(lssm))
                 lssfbase=lssf[lssf.rfind('/')+1:lssf.rfind('.fits')]
                 hp.mollview(lssm,title=lssfbase,unit=r' $\delta\rho/\rho$',max=plotmax,min=-1*plotmax,cmap=mono_cm)
-                plt.savefig(plotdir+'mapplot_'+lssfbase+'.png')
+                plt.savefig(plotdir+'mapplot_'+lssfbase+'.pdf')
             maxtemp=np.max(truemap)
             maxtemp=max(maxtemp,np.max(recmap))
             plotmax=0.7*maxtemp
             truefbase=truemapf[truemapf.rfind('/')+1:truemapf.rfind('.fits')]
             hp.mollview(truemap,title=truefbase,unit='K',max=plotmax,min=-1*plotmax)
-            plt.savefig(plotdir+'mapplot_'+truefbase+'.png')
+            plt.savefig(plotdir+'mapplot_'+truefbase+'.pdf')
             recfbase=recmapf[recmapf.rfind('/')+1:recmapf.rfind('.fits')]
             hp.mollview(recmap,title=recfbase,unit='K',max=plotmax,min=-1*plotmax)
-            plt.savefig(plotdir+'mapplot_'+recfbase+'.png')
+            plt.savefig(plotdir+'mapplot_'+recfbase+'.pdf')
 
             
     #compute rho (could also read from file but this seams simplest)
@@ -263,17 +264,84 @@ def depthtest_TTscatter_forpaper(r=0, z0vals=np.array([0.3,0.5,0.6,0.7,0.8]),sav
 
     #set up plot
     plotname='TrecTisw_scatter_depthtest.r{0:05d}'.format(r)
-    plot_Tin_Trec(iswmapfiles,recmapfiles,reclabels,plotdir,plotname,colors)
+    plot_Tin_Trec(iswmapfiles,recmapfiles,reclabels,plotdir,plotname,colors,filesuffix='pdf')
     
+#--------------------------------
+# plot histogram of rho or s, switch between variables given by varname
+def MDtest_plot_rhohist_forpaper():
+    varname='rho'
+    plotdir='output/plots_forpaper/'
+    Ndesbins=[2,3]
+    lmin=3
+    lmax=80
+    rhofiletag=''
+    nvss=True
+    rhogrid=MDtest_read_rho_wfiles(varname,Ndesbins,lmin,lmax,rhofiletag,nvss=nvss)
 
+    Nreal=rhogrid.shape[1]
+    rhopred=MDtest_get_expected_rho(varname,Ndesbins,lmin,lmax,nvss=nvss)
+    plotname ='MDtest_{1:s}hist_r{0:05d}_forpaper'.format(Nreal,varname)
+    reclabels=['NVSS','DES 2 bin','DES 3 bin']
+    
+    varstr=r'\rho'
+    xtitle=r'$\rho=\langle T_{{\rm true}}T_{{\rm rec}}\rangle_{{\rm pix}}/\sigma_{{T}}^{{\rm true}}\sigma_{{T}}^{{\rm rec}}$'
+    predvals=rhopred
+    Nbins=100
+    Nrecs=rhogrid.shape[0]
+    maxval=np.max(rhogrid)
+    minval=np.min(rhogrid)
+    vallim=(minval,maxval)
+    #rholim=(0.,maxrho)
+    #colors=['#1b9e77','#d95f02','#e7298a','#7570b3','#66a61e','#e6ab02']
+    colors=['#ff7f00','#377eb8','#e7298a']#'#d95f02''#1b9e77'
+    #colors=['#e7298a','#e6ab02','#66a61e']
+    plt.figure(0)
+    plt.subplots_adjust(left=0.15, bottom=.17, right=.95, top=.95, wspace=0, hspace=0)
+    #plt.title(plotname)
+    plt.xlabel(xtitle,fontsize=26)
+    plt.xlim((.0,1.))
+    plt.ylabel('Realizations',fontsize=26)
+    plt.tick_params(axis='y', which='both', labelsize=16)
+    plt.tick_params(axis='x', which='both', labelsize=16)
+    MDrhovals=[0.47,0.77,0.84]
+    for i in xrange(Nrecs):
+        mean=np.mean(rhogrid[i,:])
+        sigma=np.std(rhogrid[i,:])
+        colstr=colors[i%len(colors)]
+        if len(predvals):
+            predval=predvals[i]
+            plt.axvline(predval,linestyle='-',color=colstr)
+            label=r'{0:s}: $\langle {1:s}\rangle={2:0.3f}$'.format(reclabels[i],varstr,predval)
+        plt.axvline(mean,linestyle='--',color=colstr)
+        nvals,evals,patches=plt.hist(rhogrid[i,:],bins=Nbins,range=vallim,histtype='stepfilled',label=label)
+        plt.setp(patches,'facecolor',colstr,'alpha',0.6)
+        ax=plt.axes()
+
+    for i in xrange(Nrecs):
+        colstr=colors[i%len(colors)]
+        ax.arrow(MDrhovals[i],1200,0,-50,color=colstr,head_width=.02,head_length=30,zorder=100)
+
+    plt.plot(np.array([]),np.array([]),linestyle='--',color='black',label='mean from simulation')
+    plt.plot(np.array([]),np.array([]),linestyle='-',color='black',label='mean from theory')
+    plt.legend(loc='center left',frameon=True,fontsize=16)
+
+
+  
+    outname=plotdir+plotname+'.pdf'
+    print 'saving',outname
+    plt.savefig(outname)
+    plt.close()
 
 #################################################################
 if __name__=="__main__":
     #depthtest_plot_rhohist_forpaper(z0vals=np.array([.3,.5, .6,.7,.8]))
     #depthtest_plot_dndz_forpaper()
     #bintest_plot_rhohist_forpaper()
-    #bintest_plot_zwindowfuncs(plotdir='output/plots_forpaper/')
+    bintest_plot_zwindowfuncs(plotdir='output/plots_forpaper/')
     
     #depthtest_TTscatter_forpaper()
-    bintest_rhoexp_comparesigs(sigzlist=[0.001,0.03,0.05,.1],markerlist=['d','d','d','d'],plotdir='output/plots_forpaper/',datsigs=[0.05],datdivs=['111111','222','6'])
+    #bintest_rhoexp_comparesigs(sigzlist=[0.001,0.03,0.05,.1],markerlist=['d','d','d','d'],plotdir='output/plots_forpaper/',datsigs=[0.05],datdivs=['111111','222','6'])
     #z0test_get_rhoexp(simz0=np.array([]),recz0=np.array([]),perrors=np.array([1,10,20,30,50]),fidz0=.7,doplot=True,varname='rho',plotdir='output/plots_forpaper/')
+    
+    #MDtest_plot_rhohist_forpaper()
+    #MDtest_plot_zwindowfuncs(desNbins=[2,3],plotdir='output/plots_forpaper/')
