@@ -33,7 +33,7 @@ from genMapsfromCor import * #functions which gen g_lm and maps from C_l
 #             needs to be present in cldat, but not necessarily glmdat
 ###########################################################################
 class RecData(object):
-    def __init__(self,includeglm=[],includecl=[],inmaptag='fromLSS',rectag='nonfid',minl_forrec=1,maxl_forrec=-1,NSIDE=32,zerotag='isw_bin0',maptagprefix='iswREC',nolmintag=False):
+    def __init__(self,includeglm=[],includecl=[],inmaptag='fromLSS',rectag='nonfid',minl_forrec=2,maxl_forrec=-1,NSIDE=32,zerotag='isw_bin0',maptagprefix='iswREC',nolmintag=False):
         self.Nmap=len(includeglm)
         self.inmaptag=inmaptag
         self.maptag=maptagprefix+'.'+inmaptag
@@ -1027,6 +1027,7 @@ def read_rhodat_wfile(filename):
     else:
         rlzns=np.array([dat[0]])
         rho=np.array([dat[1]])
+    print 'rho.shape in readfunc:',rho.shape
     return rho
 
 def read_relldat_wfile(filename):

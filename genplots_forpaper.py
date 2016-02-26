@@ -22,6 +22,7 @@ def depthtest_plot_rhohist_forpaper(z0vals=np.array([.3,.5,.6,.7,.8])):
     varname='rho'
     plotdir='output/plots_forpaper/'
     rhogrid=depthtest_read_rho_wfiles(z0vals,varname)
+    print 'rhogrid.shape',rhogrid.shape
     Nreal=rhogrid.shape[1]
     rhopred=depthtest_get_expected_rho(z0vals,varname)
     plotname ='depthtest_{1:s}hist_r{0:05d}_forpaper'.format(Nreal,varname)
@@ -29,6 +30,7 @@ def depthtest_plot_rhohist_forpaper(z0vals=np.array([.3,.5,.6,.7,.8])):
     
     #plot_rhohist(rhogrid,reclabels,testname,plotdir,plotname,rhopred)
     varstr=r'\rho'
+
     Nreal=rhogrid.shape[1]
     title=''#r'{0:s}: correlation coef. $\rho$ for {1:g} rlzns'.format(testname,Nreal)
     xtitle=r'$\rho=\langle T_{{\rm true}}T_{{\rm rec}}\rangle_{{\rm pix}}/\sigma_{{T}}^{{\rm true}}\sigma_{{T}}^{{\rm rec}}$'
@@ -36,7 +38,6 @@ def depthtest_plot_rhohist_forpaper(z0vals=np.array([.3,.5,.6,.7,.8])):
     predvals=rhopred
     Nbins=100
     Nrecs=rhogrid.shape[0]
-    Nreal=rhogrid.shape[1]
     maxval=np.max(rhogrid)
     minval=np.min(rhogrid)
     vallim=(minval,maxval)
@@ -98,7 +99,60 @@ def depthtest_plot_rhohist_forpaper(z0vals=np.array([.3,.5,.6,.7,.8])):
     print 'saving',outname
     plt.savefig(outname)
     plt.close()
+#--------------------------------
+# plot histogram of rho or s, switch between variables given by varname
+def depthtest_plot_shist_forpaper(z0vals=np.array([.3,.5,.6,.7,.8])):
+    varname='s'
+    plotdir='output/plots_forpaper/'
+    rhogrid=depthtest_read_rho_wfiles(z0vals,varname)
+    Nreal=rhogrid.shape[1]
+    rhopred=depthtest_get_expected_rho(z0vals,varname)
+    plotname ='depthtest_{1:s}hist_r{0:05d}_forpaper'.format(Nreal,varname)
+    reclabels=['$z_0={0:0.1f}$'.format(z0) for z0 in z0vals]
+    
+    #plot_rhohist(rhogrid,reclabels,testname,plotdir,plotname,rhopred)
+    varstr=r's'
+    Nreal=rhogrid.shape[1]
+    title=''#r'{0:s}: correlation coef. $\rho$ for {1:g} rlzns'.format(testname,Nreal)
+    xtitle=r'$s=\langle (T_{{\rm true}}-T_{{\rm rec}})^2\rangle_{{\rm pix}}^{{1/2}}/\sigma_{{T}}^{{\rm true}}$'
+    #plothist(varstr,rhogrid,reclabels,title,xtitle,plotdir,plotname,rhopred)
+    predvals=rhopred
+    Nbins=100
+    Nrecs=rhogrid.shape[0]
+    Nreal=rhogrid.shape[1]
+    maxval=np.max(rhogrid)
+    minval=np.min(rhogrid)
+    vallim=(minval,maxval)
+    colors=['#e41a1c','#ff7f00','#984ea3','#377eb8','#4daf4a']
+    plt.figure()#figsize=(7,7))
+    plt.subplots_adjust(left=0.15, bottom=.2, right=.95, top=.95, wspace=0, hspace=0)
+    plt.xlabel(xtitle,fontsize=26)
+    plt.ylabel('Realizations',fontsize=26)
+    #plt.ylim((0,1300))
+    #plt.xlim(-.2,1.)
+    plt.tick_params(axis='y', which='both', labelsize=16)
+    plt.tick_params(axis='x', which='both', labelsize=16)
+    for i in xrange(Nrecs):
+        mean=np.mean(rhogrid[i,:])
+        sigma=np.std(rhogrid[i,:])
+        colstr=colors[i%len(colors)]
+        if len(predvals):
+            predval=predvals[i]
+            plt.axvline(predval,linestyle='-',color=colstr)
+            label=r'{0:s}: $\langle {1:s}\rangle={2:0.3f}$'.format(reclabels[i],varstr,predval)
+        plt.axvline(mean,linestyle='--',color=colstr)
+        nvals,evals,patches=plt.hist(rhogrid[i,:],bins=Nbins,range=vallim,histtype='stepfilled',label=label)
+        plt.setp(patches,'facecolor',colstr,'alpha',0.6)
 
+    plt.plot(np.array([]),np.array([]),linestyle='--',color='black',label='mean from sim.')
+    plt.plot(np.array([]),np.array([]),linestyle='-',color='black',label='mean from theory')
+    plt.legend(loc='upper right',frameon=True,fontsize=14,ncol=1)
+
+
+    outname=plotdir+plotname+'.pdf'
+    print 'saving',outname
+    plt.savefig(outname)
+    plt.close()
 #--------------------------------
 # plot histogram of rho or s, switch between variables given by varname
 def bintest_plot_rhohist_forpaper(divstr=['6','222','111111']):
@@ -335,13 +389,14 @@ def MDtest_plot_rhohist_forpaper():
 #################################################################
 if __name__=="__main__":
     #depthtest_plot_rhohist_forpaper(z0vals=np.array([.3,.5, .6,.7,.8]))
+    #depthtest_plot_shist_forpaper(z0vals=np.array([.3,.5, .6,.7,.8]))
     #depthtest_plot_dndz_forpaper()
     #bintest_plot_rhohist_forpaper()
     #bintest_plot_zwindowfuncs(plotdir='output/plots_forpaper/')
 
-    for r in xrange(5):
-        depthtest_TTscatter_forpaper(r)
-    #bintest_rhoexp_comparesigs(sigzlist=[0.001,0.03,0.05,.1],markerlist=['d','d','d','d'],plotdir='output/plots_forpaper/',datsigs=[0.05],datdivs=['111111','222','6'])
+    #for r in xrange(5):
+        #depthtest_TTscatter_forpaper(r)
+    bintest_rhoexp_comparesigs(sigzlist=[0.001,0.05,.1],markerlist=['v','d','^','d'],plotdir='output/plots_forpaper/',datsigs=[0.05],datdivs=['111111','222','6'],overwrite=0)
     #z0test_get_rhoexp(simz0=np.array([]),recz0=np.array([]),perrors=np.array([1,10,20,30,50]),fidz0=.7,doplot=True,varname='rho',plotdir='output/plots_forpaper/')
     
     #MDtest_plot_rhohist_forpaper()

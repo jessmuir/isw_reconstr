@@ -95,14 +95,14 @@ def depthtest_get_glm_and_rec(Nreal=1,z0vals=np.array([.3,.6,.7,.8]),minreal=0,j
 #get arrays of rho saved in .rho.dat files or .s.dat
 def depthtest_read_rho_wfiles(z0vals=np.array([.3,.6,.7,.8]),varname='rho'):
     mapdir='output/depthtest/map_output/'
-    files=['iswREC.eucz{0:02d}.fid.fullsky-lmin01.depthtest.{1:s}.dat'.format(int(10*z0),varname) for z0 in z0vals]
+    files=['iswREC.eucz{0:02d}.fid.fullsky-lmin02.depthtest.{1:s}.dat'.format(int(10*z0),varname) for z0 in z0vals]
     rhogrid=np.array([read_rhodat_wfile(mapdir+f) for f in files])
     return rhogrid
 
 #get arrays of rho saved in .rell.dat files
 def depthtest_read_rell_wfiles(z0vals=np.array([.3,.6,.7,.8]),varname='rell'):
     mapdir='output/depthtest/map_output/'
-    files=['iswREC.eucz{0:02d}.fid.fullsky-lmin01.depthtest.{1:s}.dat'.format(int(10*z0),varname) for z0 in z0vals]
+    files=['iswREC.eucz{0:02d}.fid.fullsky-lmin02.depthtest.{1:s}.dat'.format(int(10*z0),varname) for z0 in z0vals]
     rellgrid=np.array([read_relldat_wfile(mapdir+f) for f in files])
     return rellgrid #[reconstruction,realization,ell]
 
@@ -559,10 +559,10 @@ def bintest_get_rhoexp(finestN=6,z0=0.7,sigz=0.05,overwrite=False,doplot=True,ge
     return divstr,rhoarray
 
 #if we've computed Cl stuff for multiple values of sigz0, compare them
-def bintest_rhoexp_comparesigs(finestN=6,z0=0.7,sigzlist=[0.03,0.05],checkautoonly=False,varname='rho',plotdir='output/eucbintest/plots/',markerlist=[],colorlist=[],datsigs=[],datdivs=[]):
+def bintest_rhoexp_comparesigs(finestN=6,z0=0.7,sigzlist=[0.03,0.05],checkautoonly=False,varname='rho',plotdir='output/eucbintest/plots/',markerlist=[],colorlist=[],datsigs=[],datdivs=[],overwrite=False):
     rholist=[]
     for s in sigzlist:
-        divstr,rho=bintest_get_rhoexp(finestN,z0,s,overwrite=False,doplot=False,varname=varname)
+        divstr,rho=bintest_get_rhoexp(finestN,z0,s,overwrite=overwrite,doplot=False,varname=varname)
         rholist.append(rho)
     legtitle='$\\sigma_{z0}$'
     labellist=['${0:0.3f}$'.format(s) for s in sigzlist]
@@ -661,7 +661,7 @@ def bintest_get_glm_and_rec(Nreal=1,divlist=['6','222','111111'],minreal=0,justg
 def bintest_read_rho_wfiles(divlist=['6','222','111111'],sigz=0.05,varname='rho'):
     #print 'in READFILES, divlist=',divlist
     mapdir='output/eucbintest/map_output/'
-    files=['iswREC.euc6bins{0:03d}div{1:s}.fid.fullsky-lmin01.eucbintest6s{0:03d}all.{2:s}.dat'.format(int(1000*sigz),d,varname) for d in divlist]
+    files=['iswREC.euc6bins{0:03d}div{1:s}.fid.fullsky-lmin02.eucbintest6s{0:03d}all.{2:s}.dat'.format(int(1000*sigz),d,varname) for d in divlist]
     #print files
     rhogrid=np.array([read_rhodat_wfile(mapdir+f) for f in files])
     return rhogrid
@@ -669,7 +669,7 @@ def bintest_read_rho_wfiles(divlist=['6','222','111111'],sigz=0.05,varname='rho'
 #get arrays of rho saved in .rell.dat files
 def bintest_read_rell_wfiles(divlist=['6','222','111111'],sigz=0.05,varname='rell'):
     mapdir='output/eucbintest/map_output/'
-    files=['iswREC.euc6bins{0:03d}div{1:s}.fid.fullsky-lmin01.eucbintest6s{0:03d}all.{2:s}.dat'.format(int(1000*sigz),d,varname) for d in divlist]
+    files=['iswREC.euc6bins{0:03d}div{1:s}.fid.fullsky-lmin02.eucbintest6s{0:03d}all.{2:s}.dat'.format(int(1000*sigz),d,varname) for d in divlist]
     rellgrid=np.array([read_relldat_wfile(mapdir+f) for f in files])
     return rellgrid
 
@@ -794,7 +794,7 @@ def bintest_rhoexpplot(allzedges,labels,rhoarraylist,labellist=[],outname='',leg
 
     if labellist:
         if DODATA:
-            ax2.set_xlim((.78,.99))
+            ax2.set_xlim((.89,1.))
             plt.legend(bbox_to_anchor=(1,.8),fontsize=16,title=legtitle)
         else:
             plt.legend(loc=legloc,fontsize=16,title=legtitle)
@@ -3211,7 +3211,7 @@ def angmomtest_Lvsrho_plot(plotdat='change',Lfile='Lmax_true_Lmax_rec.dat',plotd
     
 def angmomtest_LvsLtrue_plot(plotdat='change',Lfile='Lmax_true_Lmax_rec.dat',plotdir='output/angmom_study/',dofit=True,note=r'$\ell=2,3$',fileprefix='',shuffleLrec=False):
     z0fid=0.7
-    rhofile='iswREC.eucz07.fid.fullsky-lmin01.depthtest.rho.dat'
+    rhofile='iswREC.eucz07.fid.fullsky-lmin02.depthtest.rho.dat'
     if fileprefix:
         randstr=''
         if shuffleLrec: randstr='shuffled'
@@ -3308,7 +3308,7 @@ def angmomtest_rhovsrho_plot(plotdir='output/angmom_study/',dofit=True,note=r'$\
         lminstr="-lmin{0:02d}".format(lmin)
         if lmax>0:
             lmaxstr="-lmax{0:02d}".format(lmax)
-    nofilterfile='iswREC.eucz07.fid.fullsky-lmin01.depthtest.rho.dat'
+    nofilterfile='iswREC.eucz07.fid.fullsky-lmin02.depthtest.rho.dat'
     filterfile='iswREC.eucz07.fid.fullsky'+lminstr+lmaxstr+'.depthtest.rho.dat'
     if fileprefix:
         randstr=''
@@ -3379,7 +3379,7 @@ def angmomtest_rhovsrho_plot(plotdir='output/angmom_study/',dofit=True,note=r'$\
     
 def angmomtest_checkrho_plot(plotdir='output/angmom_study/',dofit=True,fileprefix='',note='',shuffle=False):
     z0fid=0.7
-    rhofile='iswREC.eucz07.fid.fullsky-lmin01.depthtest.rho.dat'
+    rhofile='iswREC.eucz07.fid.fullsky-lmin02.depthtest.rho.dat'
     draganrhofile='fromdragan_l5_rho_10000.dat'
     randstr=''
     if shuffle:
@@ -3469,9 +3469,9 @@ if __name__=="__main__":
         Nreal=10000
         depthtest_get_glm_and_rec(Nreal=Nreal,z0vals=depthtestz0,justgetrho=nomaps,minreal=0,dorho=1,dos=True,dochisq=False,dorell=0,dochisqell=False)
     if 0: #plot info about depthtest maps
-        depthtest_TTscatter(0,depthtestz0,savepngmaps=False)
+        #depthtest_TTscatter(0,depthtestz0,savepngmaps=False)
         #depthtest_TTscatter(0,np.array([.3,.6,.8]),colors=['#1b9e77','#7570b3','#66a61e'],savepngmaps=False)
-        depthtest_plot_zwindowfuncs(depthtestz0)
+        #depthtest_plot_zwindowfuncs(depthtestz0)
         for N in 1000*np.arange(1,11):
             depthtest_plot_rhohist(depthtestz0,varname='rho',firstNreal=N)
         depthtest_plot_rhohist(depthtestz0,varname='rho')
@@ -3501,7 +3501,7 @@ if __name__=="__main__":
     if 0: #bin test with many realizations, generate maps
         nomaps=False
         bintest_get_glm_and_rec(Nreal=10000,divlist=['6','222','111111'],minreal=0,justgetrho=nomaps,dorell=0)
-    if 0: #bin test with many realizations, make plots
+    if 1: #bin test with many realizations, make plots
         for N in 1000*np.arange(1,11):
             bintest_plot_rhohist(getrhopred=True,varname='rho',firstNreal=N)
         bintest_plot_rhohist(getrhopred=True,varname='rho')
@@ -3638,7 +3638,7 @@ if __name__=="__main__":
     #lmin tests
     if 0: #generate rho data from many realizations
         Nreal=1
-        inlminlist=np.array([2,3,4,5])
+        inlminlist=np.array([1,2,3,4,5])
         #inlminlist=np.array([10])
         inlmaxlist=np.array([-1])#3,5,10,20,-1])
         lminlist,lmaxlist=lmintest_get_lminmaxcombos(inlminlist,inlmaxlist)
@@ -3652,14 +3652,14 @@ if __name__=="__main__":
     #lmin caltests
     if 0:
         shortvarlist=[1.e-7,1.e-6,1.e-5,1.e-4,1.e-3,1.e-2]
-        shortreclminlist=np.array([1,3,5])#1,3,10])
+        shortreclminlist=np.array([2,3,5])#1,3,10])
         if 0: #do recs for many realizations
             Nreal=10000
             caltest_iswrec(Nreal,shortvarlist,scaletovar=1.e-3,recminelllist=shortreclminlist,domaps=True)#working here
 
         #shortvarlist=[1.e-6,1.e-5,1.e-4,1.e-3]
         varlist=list(caltest_get_logspaced_varlist(minvar=1.e-8,maxvar=.1,Nperlog=10))
-        reclminlist=np.array([1,2,3,5])
+        reclminlist=np.array([2,3,5])
         
         caltest_compare_lmin(varlist,varname='rho',dodataplot=True,recminelllist=reclminlist,shortrecminelllist=shortreclminlist,shortvarlist=shortvarlist,justdat=True)
         
