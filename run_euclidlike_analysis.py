@@ -1606,7 +1606,7 @@ def caltest_rhoexpplot_wratio(varlist,rhoarraylist,labellist=[],outname='',legti
 #---------------------------------------------------------------
 # plot comparison bewteen Cl cal and Cl gal or Cl gal-ISW to understand
 # why the transition in rho happens where it is
-def caltest_Clcomp(varlist=[1.e-7,1.e-6,1.e-5,1.e-4],shape='g',callmin=0,callmax=30,width=10.):
+def caltest_Clcomp(varlist=[1.e-7,1.e-6,1.e-5,1.e-4],shape='g',callmin=0,callmax=30,width=10.,plotdir='output/caltest_plots/'):
     Nvar=len(varlist)
     #get Clcal and Cl
     fidbins=caltest_get_fidbins()
@@ -1679,7 +1679,7 @@ def caltest_Clcomp(varlist=[1.e-7,1.e-6,1.e-5,1.e-4],shape='g',callmin=0,callmax
     #cal_patch = mpatches.Patch( color='red',label='cal. error')
     plt.legend(handles=[line1,line2,line3])
 
-    plotdir='output/caltest_plots/'
+
     plotname='caltest_cl_compare'
     outname=plotdir+plotname+'.pdf'
     print 'saving',outname
@@ -1938,7 +1938,7 @@ def z0test_get_recgrid(simz0=np.array([]),recz0=np.array([]),perrors=np.array([1
 # if either are passed as an empty array, replace it with all vals indicated
 #    by the perrors, fidz0 parameters
 # will use perrors and fidz0 to get Cl data, so they should match in either case
-def z0test_get_rhoexp(simz0=np.array([]),recz0=np.array([]),perrors=np.array([1,10,20,50]),fidz0=.7,overwrite=False,saverho=True,doplot=False,varname='rho',filetag='',plotdir='output/zdisttest/plots/'):
+def z0test_get_rhoexp(simz0=np.array([]),recz0=np.array([]),perrors=np.array([1,10,20,50]),fidz0=.7,overwrite=False,saverho=True,doplot=False,varname='rho',filetag='',plotdir='output/zdisttest/plots/',fitbias=True):
     if not simz0.size:
         simz0=z0test_getz0vals(perrors,fidz0)
     if not recz0.size:
@@ -1973,7 +1973,7 @@ def z0test_get_rhoexp(simz0=np.array([]),recz0=np.array([]),perrors=np.array([1,
     #print '***cldat.bintaglist',cldat.bintaglist
     for ns in xrange(Nsim):
         for nr in xrange(Nrec):
-            rhoarray[ns,nr]=compute_rho_fromcl(cldat,recgrid[ns][nr],reccldat=cldat,varname=varname)
+            rhoarray[ns,nr]=compute_rho_fromcl(cldat,recgrid[ns][nr],reccldat=cldat,varname=varname,fitbias=fitbias)
 
     if saverho:
         #write to file, 
@@ -1992,11 +1992,20 @@ def z0test_rhoexpplot(simz0,recz0,rhogrid,varname='rho',outtag='',outname='',leg
     zdisttest_rhoexpplot(rhogrid,simx=simz0,recx=recz0,varname='z0',statname=varname,outtag=outtag,outname=outname,plotdir=plotdir)
 
 #simz0 fixed at fidz0, varying recz0.
-def z0test_onesim_plot(fidz0=0.7,perrors=np.array([1,10,20,50]),varname='rho',colorlist=[],plotdir='output/zdisttest/plots/',outtag='onesim',outname=''):
+    #if dohatch==True, parts of plot with linear scaling will be filled with hatched shading
+    #if fitbias=False, doesn't fit for b0
+    # if biascomp, sets fitbias=True, will plot greyed out line for no bias fitting version
+    #        for comparison
+def z0test_onesim_plot(fidz0=0.7,perrors=np.array([1,10,20,50]),varname='rho',colorlist=[],plotdir='output/zdisttest/plots/',outtag='onesim',outname='',dohatch=False,fitbias=True,biascomp=True):
     logplot=True
     simz0=np.array([fidz0])
     recz0=z0test_getz0vals(perrors,fidz0)
-    rhogrid=z0test_get_rhoexp(simz0=simz0,recz0=recz0,overwrite=False,saverho=True,doplot=False,varname=varname,filetag=outtag) #should be 1xNrec
+    if not fitbias:
+        outtag=outtag+'_nob0fit'
+    rhogrid=z0test_get_rhoexp(simz0=simz0,recz0=recz0,overwrite=False,saverho=True,doplot=False,varname=varname,filetag=outtag,fitbias=fitbias) #should be 1xNrec
+    if biascomp:
+        nofitrhogrid=z0test_get_rhoexp(simz0=simz0,recz0=recz0,overwrite=False,saverho=True,doplot=False,varname=varname,filetag=outtag+'_nob0fit',fitbias=False)
+        outtag=outtag+'_biascomp'
     
     Nsim=simz0.size
     Nrec=recz0.size
@@ -2016,67 +2025,49 @@ def z0test_onesim_plot(fidz0=0.7,perrors=np.array([1,10,20,50]),varname='rho',co
         item.set_fontsize(18)
     ax1.set_xlabel(r'$z_0$ used in ISW reconstruction')
     if varname=='rho':
-        ax1.set_ylabel(r'$\left[\langle \rho \rangle -\langle \rho \rangle_{{\rm match}} \right]/\langle \rho \rangle_{{\rm match}}$')
-        if logplot:
-            ax1.set_ylim((-4.e-3,5.e-8))
-            aloc=(.2,.7)
-            linthreshy=1.e-7
-        else:
-            aloc=(.6,.5)
-            ax1.set_ylim((-1.3e-3,1.e-4))
-
-        bestval=np.max(rhogrid)
-    elif varname=='s':
-        ax1.set_ylabel(r'$\left[\langle s \rangle - \langle s \rangle_{{\rm match}}\right] /\langle s \rangle_{{\rm match}}$')
-        if logplot:
-            aloc=(.25,.6)
-            linthreshy=1.e-5
-        else:
-            aloc=(.6,.9)
-            ax1.set_ylim((-1.e-2,.3))
-        bestval=np.min(rhogrid)
-
-    if varname=='rho':
         varstr=r'\rho'
-        ax1.plot(recz0,rhogrid[0,:]/bestval-1,marker='d')
+        if dohatch:
+            aloc=(.23,.65)
+        else:
+            aloc=(.25,.75)
+        linthreshy=1.e-7
+        ax1.set_ylim((-4.e-3,linthreshy))
+        bestval=np.max(rhogrid)
+        arrowystart= .75*linthreshy
+        arrowdy=-.2*linthreshy
+        arrowheadlen=.25*linthreshy
     elif varname=='s':
         varstr='s'
-        ax1.plot(recz0,rhogrid[0,:]/bestval -1. ,marker='d')
+        if dohatch:
+            aloc=(.23,.55)
+        else:
+            aloc=(.25,.4)
+        linthreshy=1.e-5
+        ax1.set_ylim((-1*linthreshy,10.))
+        bestval=np.min(rhogrid)
+        arrowystart= -.75*linthreshy
+        arrowdy=.2*linthreshy
+        arrowheadlen=.25*linthreshy
+    ax1.set_ylabel(r'$\left[\langle {0:s} \rangle -\langle {0:s} \rangle_{{\rm match}} \right]/\langle {0:s} \rangle_{{\rm match}}$'.format(varstr))
+    
+    if biascomp:
+        ax1.plot(recz0,nofitrhogrid[0,:]/bestval-1,marker='d',color='#bdbdbd')
+        if varname=='s': #skipping b0 fitting has no impact on rho
+            plt.annotate(r'no $b_0$ fitting',color='#bdbdbd',xy=(.85,.95),horizontalalignment='right',verticalalignment='top',fontsize=14,xycoords='axes fraction')
+    ax1.plot(recz0,rhogrid[0,:]/bestval-1,marker='o')
+
     plt.annotate(r'True (sim.) $z_0={0:0.1f}$'.format(fidz0)+'\n'+r'$\langle {1:s}\rangle_{{\rm match}}={2:0.3f}$'.format(fidz0,varstr,bestval),xy=aloc,horizontalalignment='center',verticalalignment='top',fontsize=18,xycoords='axes fraction')
     xmin,xmax=ax1.get_xlim()
     xwide=xmax-xmin
-    ax2=ax1.twiny() #top border with percent error units
-    ax2.set_xticks([(z-xmin)/xwide for z in recz0]) #put them in right places
-    perrorlabels=[]
-    count=1
-    for z in recz0:
-        if z<fidz0:
-            if perrors[-1*count]==1:
-                pstr=''
-            else:
-                pstr='-{0:d}%'.format(perrors[-1*count])                
-            count+=1
-        elif z==fidz0:
-            pstr=r'$\pm$1%'#r'$z_0^{\rm sim}$'
-            count=0
-        elif z>fidz0:
-            if perrors[count]==1:
-                pstr=''
-            else:
-                pstr='+{0:d}%'.format(perrors[count])
-            count+=1
-        perrorlabels.append(pstr)
-    ax2.set_xticklabels(perrorlabels)
+
+    #put arrow above or below fiducial point
+    ax1.arrow(fidz0,arrowystart,0,arrowdy,color='black',head_width=.015,head_length=arrowheadlen)
+    plt.annotate(r'match',xy=(fidz0+.02,arrowystart-arrowdy),horizontalalignment='left',verticalalignment='bottom',fontsize=14)
     
-    if logplot:
-        #ax1.yaxis.grid(True)
-        ax1.set_yscale('symlog',linthreshy=linthreshy)
+    ax1.set_yscale('symlog',linthreshy=linthreshy)
+    if dohatch:
         x=np.arange(xmin,xmax,.01)
         ax1.fill_between(x,-linthreshy,linthreshy,color='none',edgecolor='grey',hatch='/',linewidth=0)
-    else:
-        ax1.yaxis.get_major_formatter().set_powerlimits((0,1))
-        ax1.set_xlim((.24,1.1))
-    
     if outtag:
         outtag='_'+outtag
     if not outname:
@@ -2146,36 +2137,62 @@ def z0test_rhoexpplot_lines(simz0,recz0,rhogrid,varname='rho',outtag='',outname=
     plt.close()
 
 #--------------------------
-def z0test_Clcomp(perrors=np.array([1,10,20,30,50]),fidz0=.7):
+def z0test_Clcomp(perrors=np.array([1,10,20,30,50]),fidz0=.7,plotdir='output/zdisttest/plots/',plotISWgalratio=True):
     z0vals=z0test_getz0vals(perrors,fidz0)#for labels
     iswind=0
     bins=z0test_get_binmaps(perrors,fidz0)#includes ISW at 0, others in same order as z0
     cldat=z0test_get_Cl(perrors=perrors,fid=fidz0)
     l=np.arange(cldat.Nell)
     #set up color range
-    cm=plt.get_cmap('Spectral_r')
-    cNorm=colors.LogNorm()#max and min numbers colors need to span
-    scalarMap=cmx.ScalarMappable(norm=cNorm,cmap=cm)
-    z0cols=scalarMap.to_rgba(z0vals)
-    clscaling=2*l+1.#l*(l+1.)/(2*np.pi)
+    # cm=plt.get_cmap('Spectral_r')
+    # cNorm=colors.LogNorm()#max and min numbers colors need to span
+    # scalarMap=cmx.ScalarMappable(norm=cNorm,cmap=cm)
+    # z0cols=scalarMap.to_rgba(z0vals)
+    z0cols=['#d7191c',
+            '#fdae61',
+            '#636363',##ffffbf',
+            '#abd9e9',
+            '#2c7bb6']
     
-    #to get colorbar key, need ot set up a throw-away map
-    dummyz=[[0,0],[0,0]]
-    dummylevels=z0vals
-    dummyplot=plt.contourf(dummyz,dummylevels,cmap=cm,norm=colors.LogNorm())
-    plt.clf()
-    fig=plt.gcf()
+    clscaling=1#2*l+1.#l*(l+1.)/(2*np.pi)
+    
+    # #to get colorbar key, need ot set up a throw-away map
+    # dummyz=[[0,0],[0,0]]
+    # dummylevels=[.3]+list(z0vals)+[1.5]
+    # dummyplot=plt.contourf(dummyz,dummylevels,cmap=cm,norm=colors.LogNorm())
+    # plt.clf()
+    # fig=plt.gcf()
     
     #set up actual plot
     fig=plt.figure(0)
+    fig.subplots_adjust(bottom=.15)
+    fig.subplots_adjust(left=.15)
     ax=plt.subplot()
-    plt.title(r'Comparing $C_{{\ell}}$ of galaxies, ISW')
+    for item in ([ax.xaxis.label, ax.yaxis.label] +
+                  ax.get_yticklabels()+ax.get_xticklabels()):
+        item.set_fontsize(20)
+
+    #plt.title(r'Comparing $C_{{\ell}}$ of galaxies, ISW')
     #plt.ylabel(r'$\ell(\ell+1)C_{{\ell}}/2\pi$')
-    plt.ylabel(r'$(2\ell+1)C_{{\ell}}$')
+    plt.ylabel(r'$C_{{\ell}}$')
     plt.xlabel(r'Multipole $\ell$')
-    plt.xlim((0,30))
-    plt.ylim((1.e-11,1.))
+    plt.xlim((1,30))
+    if plotISWgalratio:
+        plt.ylim((1.e-11,1.))
+    else:
+        plt.ylim((1.e-10,1.e-5))
     plt.yscale('log')
+
+    #dummy lines for legend
+    line1,=plt.plot(np.array([]),np.array([]),color='black',linestyle='-',label='gal-gal',linewidth=2)
+    line2,=plt.plot(np.array([]),np.array([]),color='black',linestyle='--',label='ISW-gal',linewidth=2)
+    if plotISWgalratio:
+        line3,=plt.plot(l,np.fabs(cldat.cl[xiswind,:]/cldat.cl[autoind,:])*clscaling,color='black',linestyle=':',label='ISW-gal/gal-gal')
+        linehandles=[line1,line2,line3]
+        #plt.legend(handles=linehandles,loc='upper right')
+    else:
+        linehandles=[line1,line2]
+        #plt.legend(handles=linehandles,loc='center right')
     for i in xrange(z0vals.size):
         bmap=bins[i+1]
         if bmap.isISW:
@@ -2183,26 +2200,23 @@ def z0test_Clcomp(perrors=np.array([1,10,20,30,50]),fidz0=.7):
         else:
             autoind=cldat.crossinds[i+1,i+1]
             xiswind=cldat.crossinds[i+1,0]
-            plt.plot(l,np.fabs(cldat.cl[autoind,:])*clscaling,color=z0cols[i],linestyle='-')
-            plt.plot(l,np.fabs(cldat.cl[xiswind,:])*clscaling,color=z0cols[i],linestyle='--')
-            plt.plot(l,np.fabs(cldat.cl[xiswind,:]/cldat.cl[autoind,:])*clscaling,color=z0cols[i],linestyle=':')
-    #dummy lines for legend
-    line1,=plt.plot(np.array([]),np.array([]),color='black',linestyle='-',label='gal-gal')
-    line2,=plt.plot(np.array([]),np.array([]),color='black',linestyle='--',label='ISW-gal')
-    line3,=plt.plot(l,np.fabs(cldat.cl[xiswind,:]/cldat.cl[autoind,:])*clscaling,color='black',linestyle=':',label='ISW-gal/gal-gal')
+            plt.plot(l,np.fabs(cldat.cl[autoind,:])*clscaling,color=z0cols[i],linestyle='-',label=r'$z_0={0:0.2f}$'.format(z0vals[i]),linewidth=2)
+            plt.plot(l,np.fabs(cldat.cl[xiswind,:])*clscaling,color=z0cols[i],linestyle='--',linewidth=2)
+            if plotISWgalratio:
+                plt.plot(l,np.fabs(cldat.cl[xiswind,:]/cldat.cl[autoind,:])*clscaling,color=z0cols[i],linestyle=':')
 
+    plt.legend(loc='center right',fontsize=16,ncol=2)
     #set up colorbar
-    logminvar=int(np.log10(min(z0vals)))
-    logmaxvar=int(np.log10(max(z0vals)))+1
-    Nlog=logmaxvar-logminvar
-    z0ticks=z0vals#[.1*10**(logminvar+n) for n in xrange(Nlog)]
-    #cbaxes=fig.add_axes([.8,.1,.03,.8])#controls location of colorbar
-    colbar=fig.colorbar(dummyplot,ticks=z0ticks)
-    colbar.ax.set_yticklabels(['{0:0.3f}'.format(z0) for z0 in z0vals])
-    colbar.set_label(r'$z_0$')
+    # logminvar=int(np.log10(min(z0vals)))
+    # logmaxvar=int(np.log10(max(z0vals)))+1
+    # Nlog=logmaxvar-logminvar
+    # z0ticks=z0vals#[.1*10**(logminvar+n) for n in xrange(Nlog)]
+    # #cbaxes=fig.add_axes([.8,.1,.03,.8])#controls location of colorbar
+    # colbar=fig.colorbar(dummyplot,ticks=[.3]+list(z0ticks)+[1.5])
+    # colbar.ax.set_yticklabels(['']+['{0:0.3f}'.format(z0) for z0 in z0vals]+[''])
+    # colbar.set_label(r'$z_0$')
 
-    plt.legend(handles=[line1,line2,line3],loc='lower right')
-    plotdir='output/zdisttest/plots/'
+
     plotname='z0test_cl_compare'
     outname=plotdir+plotname+'.pdf'
     print 'saving',outname
@@ -3501,7 +3515,7 @@ if __name__=="__main__":
     if 0: #bin test with many realizations, generate maps
         nomaps=False
         bintest_get_glm_and_rec(Nreal=10000,divlist=['6','222','111111'],minreal=0,justgetrho=nomaps,dorell=0)
-    if 1: #bin test with many realizations, make plots
+    if 0: #bin test with many realizations, make plots
         for N in 1000*np.arange(1,11):
             bintest_plot_rhohist(getrhopred=True,varname='rho',firstNreal=N)
         bintest_plot_rhohist(getrhopred=True,varname='rho')
@@ -3549,7 +3563,8 @@ if __name__=="__main__":
         simz0=np.array([.35,.56,.63,.693,.7,.707,.7700,.84,1.05])
         perrors=[1,10,20,50]
         #z0test_get_rhoexp(overwrite=True,doplot=True,varname='rho',perrors=perrors)
-        z0test_get_rhoexp(overwrite=True,doplot=True,varname='s',perrors=perrors)
+        #z0test_get_rhoexp(overwrite=True,doplot=True,varname='s',perrors=perrors)
+        
         #z0test_get_rhoexp(overwrite=True,doplot=True,varname='chisq',simz0=simz0)
         #recb2=np.array([0.,.5,1.,10.])
         simb2=np.array([0.,.01,.1,.5,1.,2.,5.,10.])
@@ -3571,9 +3586,12 @@ if __name__=="__main__":
         #catz_Clcomp()
 
 
-    if 0: #zdist tests with less info
-        # z0test_onesim_plot(varname='rho')
-        # z0test_onesim_plot(varname='s')
+    if 1: #zdist tests with less info
+        z0test_onesim_plot(varname='rho',biascomp=True)
+        z0test_onesim_plot(varname='s',biascomp=True)
+        #z0test_onesim_plot(varname='rho',fitbias=0)
+        #z0test_onesim_plot(varname='s',fitbias=0)
+        
         #bztest_onesim_plot(varname='rho')
         #bztest_onesim_plot(varname='s')
         #bztest_onerec_plot(varname='rho')
@@ -3587,12 +3605,12 @@ if __name__=="__main__":
         elif Nbins==3:
             badfracs=np.array([0.,1.e-3,1.e-2,.1,.2])#3 bin
             badfracs1sim=badfracs
-        catztest_onerec_plot(varname='rho',Nbins=Nbins,simf=badfracs)
-        catztest_onerec_plot(varname='s',Nbins=Nbins,simf=badfracs)
-        catztest_onesim_plot(varname='rho',Nbins=Nbins,recf=badfracs1sim,fidf=.01)
-        catztest_onesim_plot(varname='s',Nbins=Nbins,recf=badfracs1sim,fidf=.01)
-        catz_Clcomp()
-        catz_windowtest(badfracs,Nbins=Nbins)
+        #catztest_onerec_plot(varname='rho',Nbins=Nbins,simf=badfracs)
+        #catztest_onerec_plot(varname='s',Nbins=Nbins,simf=badfracs)
+        #catztest_onesim_plot(varname='rho',Nbins=Nbins,recf=badfracs1sim,fidf=.01)
+        #catztest_onesim_plot(varname='s',Nbins=Nbins,recf=badfracs1sim,fidf=.01)
+        #catz_Clcomp()
+        #catz_windowtest(badfracs,Nbins=Nbins)
         #z0test_Clcomp()
         #bztest_Clcomp()
     #angular momentum tests
@@ -3655,7 +3673,7 @@ if __name__=="__main__":
         shortreclminlist=np.array([2,3,5])#1,3,10])
         if 0: #do recs for many realizations
             Nreal=10000
-            caltest_iswrec(Nreal,shortvarlist,scaletovar=1.e-3,recminelllist=shortreclminlist,domaps=True)#working here
+            caltest_iswrec(Nreal,shortvarlist,scaletovar=1.e-3,recminelllist=shortreclminlist,domaps=True)
 
         #shortvarlist=[1.e-6,1.e-5,1.e-4,1.e-3]
         varlist=list(caltest_get_logspaced_varlist(minvar=1.e-8,maxvar=.1,Nperlog=10))

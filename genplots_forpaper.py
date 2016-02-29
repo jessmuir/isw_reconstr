@@ -391,13 +391,30 @@ if __name__=="__main__":
     #depthtest_plot_rhohist_forpaper(z0vals=np.array([.3,.5, .6,.7,.8]))
     #depthtest_plot_shist_forpaper(z0vals=np.array([.3,.5, .6,.7,.8]))
     #depthtest_plot_dndz_forpaper()
+    #for r in xrange(10,15):
+    #    depthtest_TTscatter_forpaper(r)
+
     #bintest_plot_rhohist_forpaper()
     #bintest_plot_zwindowfuncs(plotdir='output/plots_forpaper/')
+    #bintest_rhoexp_comparesigs(sigzlist=[0.001,0.05,.1],markerlist=['v','d','^','d'],plotdir='output/plots_forpaper/',datsigs=[0.05],datdivs=['111111','222','6'],overwrite=0)
 
-    #for r in xrange(5):
-        #depthtest_TTscatter_forpaper(r)
-    bintest_rhoexp_comparesigs(sigzlist=[0.001,0.05,.1],markerlist=['v','d','^','d'],plotdir='output/plots_forpaper/',datsigs=[0.05],datdivs=['111111','222','6'],overwrite=0)
-    #z0test_get_rhoexp(simz0=np.array([]),recz0=np.array([]),perrors=np.array([1,10,20,30,50]),fidz0=.7,doplot=True,varname='rho',plotdir='output/plots_forpaper/')
+
+    #lmintest_plot_rhoexp(lminlist=np.arange(1,20),varname='rho',dodata=True,datlmin=np.array([1,2,3,4,5]),plotdir='output/plots_forpaper/')
+
+    #z0test_onesim_plot(varname='rho',dohatch=False,plotdir='output/plots_forpaper/')
+    #z0test_onesim_plot(varname='s',dohatch=False,plotdir='output/plots_forpaper/')
+    z0test_Clcomp(perrors=np.array([10,50]),plotdir='output/plots_forpaper/',plotISWgalratio=False)
+    #bztest_onesim_plot(varname='rho') #actually twosim
+    #bztest_onesim_plot(varname='s')
+
+        
+    shortvarlist=[1.e-7,1.e-6,1.e-5,1.e-4,1.e-3,1.e-2]
+    shortreclminlist=np.array([2,3,5])#1,3,10])
+    varlist=list(caltest_get_logspaced_varlist(minvar=1.e-8,maxvar=.1,Nperlog=10))    
+    #caltest_Clcomp(varlist,plotdir='output/plots_forpaper/')
+    #caltest_compare_clcal_shapes(varlist,shapelist=['g'],varname='rho',shortvarlist=shortvarlist,plotdir='output/plots_forpaper/')
+    #caltest_compare_lmin(varlist,varname='rho',dodataplot=True,recminelllist=reclminlist,shortrecminelllist=shortreclminlist,shortvarlist=shortvarlist,justdat=True,plotdir='output/plots_forpaper/')
+    
     
     #MDtest_plot_rhohist_forpaper()
     #MDtest_plot_zwindowfuncs(desNbins=[2,3],plotdir='output/plots_forpaper/')

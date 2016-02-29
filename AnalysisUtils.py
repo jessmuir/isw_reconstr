@@ -1045,7 +1045,7 @@ def read_relldat_wfile(filename):
 #  if reccldat is passed as a ClData object, these Cl's are used in estimator
 #       Also, currently assumes recdat can be used for both cldat and recldat
 #                 etc.
-def compute_rho_fromcl(cldat,recdat,reccldat=0,varname='rho'):
+def compute_rho_fromcl(cldat,recdat,reccldat=0,varname='rho',fitbias=True):
     #print 'recdat.includeglm',recdat.includeglm
     #print 'recdat.includecl',recdat.includecl
     #Dl is a matrix of Cls, with isw at zero index
@@ -1053,7 +1053,7 @@ def compute_rho_fromcl(cldat,recdat,reccldat=0,varname='rho'):
     if not reccldat:
         DIFFREC=False
     else:
-        #print 'DIFREC=True'
+        #print 'DIFFREC=True'
         DIFFREC=True #are the Cl's for rec and sim different?
 
     lmin=recdat.lmin
@@ -1079,10 +1079,11 @@ def compute_rho_fromcl(cldat,recdat,reccldat=0,varname='rho'):
         recDl,recdtags=get_Dl_matrix(reccldat,recdat.includecl,recdat.zerotagstr)
         #fit for b0 for each LSS map by compareing Dl Cl to recDl
         b0=np.ones(NLSS)
-        for i in xrange(NLSS):
-            #only fit to lvalues we want to use
-            b0[i]=fitcl_forb0_onereal(Dl[lmin:lmax+1,i+1,i+1],recDl[lmin:lmax+1,i+1,i+1])
-            #print dtags[i+1],recdtags[i+1],'bias:',b0[i]
+        if fitbias:
+            for i in xrange(NLSS):
+                #only fit to lvalues we want to use
+                b0[i]=fitcl_forb0_onereal(Dl[lmin:lmax+1,i+1,i+1],recDl[lmin:lmax+1,i+1,i+1])
+                #print dtags[i+1],recdtags[i+1],'bias:',b0[i]
             
         recDl=scale_Dl_byb0(recDl,b0)
         recDinv=invert_Dl(recDl)
