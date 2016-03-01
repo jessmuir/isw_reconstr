@@ -1051,7 +1051,7 @@ def caltest_get_clcallist(varlist=[1.e-1,1.e-2,1.e-3,1.e-4],lmax=30,lmin=0,shape
 # generate reference maps with variance of say, 1.e-2
 # rescale approrpiately when doing recs
 # If Nreal==0, does no map making, just returns dummyglm containing mapnames
-def caltest_apply_caliberrors(varlist,Nreal=0,shape='g',width=10.,lmin=0,lmax=30,overwritecalibmap=False,scaletovar=False):
+def caltest_apply_caliberrors(varlist,Nreal=0,shape='g',width=10.,lmin=0,lmax=30,overwritecalibmap=False,scaletovar=False,redofits=True):
     print 'IN caltest_apply_caliberrors with NREAL=',Nreal
     #print 'varlist',varlist
     refvar,refind=caltest_get_scaleinfo(varlist,scaletovar)
@@ -1064,7 +1064,7 @@ def caltest_apply_caliberrors(varlist,Nreal=0,shape='g',width=10.,lmin=0,lmax=30
 
     #set up calibration error maps
     calinfolist=[(lssbin,refvar,lmax,shape,width,lmin)] #only for max var
-    if Nreal:
+    if Nreal and overwritecalibmap:
         print 'Generating calibraiton error maps.'
     dothesemods=get_fixedvar_errors_formaps(glmdat,calinfolist,overwrite=overwritecalibmap,Nreal=Nreal) #generates calibration error maps, returns [(maptag,modtag,masktag)]list
 
@@ -1075,7 +1075,7 @@ def caltest_apply_caliberrors(varlist,Nreal=0,shape='g',width=10.,lmin=0,lmax=30
         print 'scaling=',scaling
         newcaltag=getmodtag_fixedvar(v,shape,lmin,lmax)
         print 'Applying calibration errors, newcaltag',newcaltag
-        outglmdatlist.append(apply_caliberror_to_manymaps(glmdat,dothesemods,Nreal=Nreal,calmap_scaling=scaling,newmodtags=[newcaltag])) #returns dummyglmdat
+        outglmdatlist.append(apply_caliberror_to_manymaps(glmdat,dothesemods,Nreal=Nreal,calmap_scaling=scaling,newmodtags=[newcaltag],overwritefits=redofits)) #returns dummyglmdat
 
     outglmdat=glmdat.copy(Nreal=0)
     for n in xrange(len(outglmdatlist)):
@@ -1127,9 +1127,9 @@ def caltest_get_reclist(varlist,shape='g',width=10.,lmin=0,lmax=30,recminelllist
 #having already generated maps for reconstructions with calib errors,
 # do isw reconstructions from the maps, computing rho and s stats
 # set domaps to False if you just want to recalculate states like rho,s 
-def caltest_iswrec(Nreal,varlist,shape='g',width=10.,callmin=0,callmax=30,overwritecalibmap=False,scaletovar=False,recminelllist=np.array([1]),domaps=True):
+def caltest_iswrec(Nreal,varlist,shape='g',width=10.,callmin=0,callmax=30,overwritecalibmap=False,scaletovar=False,recminelllist=np.array([2]),domaps=True):
     fidcl=caltest_get_clfid()
-    dummyglm=caltest_apply_caliberrors(varlist,0,shape,width,callmin,callmax,overwritecalibmap,scaletovar)#includes fidicual case
+    dummyglm=caltest_apply_caliberrors(varlist,0,shape,width,callmin,callmax,overwritecalibmap,scaletovar,redofits=False)#includes fidicual case
     reclist=caltest_get_reclist(varlist,shape,width,callmin,callmax,recminelllist=recminelllist)
     doiswrec_formaps(dummyglm,fidcl,Nreal,reclist=reclist,domaps=domaps)
 
@@ -1149,7 +1149,7 @@ def caltest_get_logspaced_varlist(minvar=1.e-9,maxvar=.1,Nperlog=10):
 #assuming many realizations of maps have been run, read in the rho data
 # and return an array which can be used to add those points to a plot
 #for compatibility with pre-lmintest data, if recminelllist.size==1, no lmin tag
-def caltest_getrhodat_fromfiles(varlist,shape='g',width=10.,lmin=0,lmax=30,recminelllist=np.array([1]),varname='rho'):
+def caltest_getrhodat_fromfiles(varlist,shape='g',width=10.,lmin=0,lmax=30,recminelllist=np.array([2]),varname='rho'):
     NOLMINTAG=False#recminelllist.size==1
     Nvar=len(varlist)
     #read in rho values
@@ -1174,7 +1174,7 @@ def caltest_getrhodat_fromfiles(varlist,shape='g',width=10.,lmin=0,lmax=30,recmi
 # will return 1d list of tuples, in order first of shape, then lminlist
 #   note that caltest_compare_clcal_shapes functions assumes just one
 #     or the other of shape and reclmin are varied
-def caltest_getdataplot_forshapecompare(varname='rho',varlist=[],shapelist=['g'],widthlist=[10.],lminlist=[0],lmaxlist=[30],labellist=[''],cleanplot=False,recminelllist=np.array([1]),colorlist=['#e41a1c'],getlabels=False):
+def caltest_getdataplot_forshapecompare(varname='rho',varlist=[],shapelist=['g'],widthlist=[10.],lminlist=[0],lmaxlist=[30],labellist=[''],cleanplot=False,recminelllist=np.array([2]),colorlist=['#e41a1c'],getlabels=False):
     print "Reading in rho data"
     #just hard coding these in, since they depend on what realizations
     # I've run, so I don't expect a ton of variation here
@@ -1268,7 +1268,7 @@ def caltest_compare_clcal_shapes(varlist,shapelist=['g','l2'],varname='rho',lmax
     caltest_rhoexpplot(varlist,rhoexplist,labels,outtag=outtag,varname=varname,datplot=dataplot,cleanplot=cleanplot,colorlist=colorlist,plotdir=plotdir)
 
 #one shape, several lmin
-def caltest_compare_lmin(varlist,shapecal='g',varname='rho',lmaxcal=30,lmincal=0,widthcal=10.,dodataplot=True,shortvarlist=[],outtag='',cleanplot=False,recminelllist=np.array([1]),shortrecminelllist=np.array([]),plotdir='output/caltest_plots/',justdat=False):
+def caltest_compare_lmin(varlist,shapecal='g',varname='rho',lmaxcal=30,lmincal=0,widthcal=10.,dodataplot=True,shortvarlist=[],outtag='',cleanplot=False,recminelllist=np.array([2]),shortrecminelllist=np.array([]),plotdir='output/caltest_plots/',justdat=False):
     Nlmin=len(recminelllist)   
     if not outtag: outtag='lmincompare'
     #colorlist=['black','#54278f','#756bb1','#9e9ac8','#bcbddc','#dadaeb']#sequential
@@ -1997,7 +1997,6 @@ def z0test_rhoexpplot(simz0,recz0,rhogrid,varname='rho',outtag='',outname='',leg
     # if biascomp, sets fitbias=True, will plot greyed out line for no bias fitting version
     #        for comparison
 def z0test_onesim_plot(fidz0=0.7,perrors=np.array([1,10,20,50]),varname='rho',colorlist=[],plotdir='output/zdisttest/plots/',outtag='onesim',outname='',dohatch=False,fitbias=True,biascomp=True):
-    logplot=True
     simz0=np.array([fidz0])
     recz0=z0test_getz0vals(perrors,fidz0)
     if not fitbias:
@@ -2036,6 +2035,7 @@ def z0test_onesim_plot(fidz0=0.7,perrors=np.array([1,10,20,50]),varname='rho',co
         arrowystart= .75*linthreshy
         arrowdy=-.2*linthreshy
         arrowheadlen=.25*linthreshy
+        arrowlabely=arrowystart+arrowdy-arrowheadlen
     elif varname=='s':
         varstr='s'
         if dohatch:
@@ -2048,24 +2048,25 @@ def z0test_onesim_plot(fidz0=0.7,perrors=np.array([1,10,20,50]),varname='rho',co
         arrowystart= -.75*linthreshy
         arrowdy=.2*linthreshy
         arrowheadlen=.25*linthreshy
+        arrowlabely=arrowystart
     ax1.set_ylabel(r'$\left[\langle {0:s} \rangle -\langle {0:s} \rangle_{{\rm match}} \right]/\langle {0:s} \rangle_{{\rm match}}$'.format(varstr))
     
     if biascomp:
-        ax1.plot(recz0,nofitrhogrid[0,:]/bestval-1,marker='d',color='#bdbdbd')
+        ax1.plot(recz0,nofitrhogrid[0,:]/bestval-1,marker='d',color='#969696')
         if varname=='s': #skipping b0 fitting has no impact on rho
-            plt.annotate(r'no $b_0$ fitting',color='#bdbdbd',xy=(.85,.95),horizontalalignment='right',verticalalignment='top',fontsize=14,xycoords='axes fraction')
+            plt.annotate(r'no bias fitting',color='#969696',xy=(.85,.95),horizontalalignment='right',verticalalignment='top',fontsize=12,xycoords='axes fraction')
     ax1.plot(recz0,rhogrid[0,:]/bestval-1,marker='o')
 
     plt.annotate(r'True (sim.) $z_0={0:0.1f}$'.format(fidz0)+'\n'+r'$\langle {1:s}\rangle_{{\rm match}}={2:0.3f}$'.format(fidz0,varstr,bestval),xy=aloc,horizontalalignment='center',verticalalignment='top',fontsize=18,xycoords='axes fraction')
-    xmin,xmax=ax1.get_xlim()
-    xwide=xmax-xmin
+    
 
     #put arrow above or below fiducial point
     ax1.arrow(fidz0,arrowystart,0,arrowdy,color='black',head_width=.015,head_length=arrowheadlen)
-    plt.annotate(r'match',xy=(fidz0+.02,arrowystart-arrowdy),horizontalalignment='left',verticalalignment='bottom',fontsize=14)
+    plt.annotate(r'match',xy=(fidz0+.02,arrowlabely),horizontalalignment='left',verticalalignment='bottom',fontsize=12)
     
     ax1.set_yscale('symlog',linthreshy=linthreshy)
     if dohatch:
+        xmin,xmax=ax1.get_xlim()
         x=np.arange(xmin,xmax,.01)
         ax1.fill_between(x,-linthreshy,linthreshy,color='none',edgecolor='grey',hatch='/',linewidth=0)
     if outtag:
@@ -2274,7 +2275,7 @@ def bztest_get_recgrid(simb2=np.array([0.,.01,.1,.5]),recb2=np.array([0.,.01,.1,
 
 # will output rhodat in len(simb2)xlen(recb2) array
 # if simb2 and recb2 are passed as arrays, use those as the b2 vals
-def bztest_get_rhoexp(simb2=np.array([0.,.01,.1,.5]),recb2=np.array([0.,.01,.1,.5,1.,2.,5.,10.]),overwrite=False,saverho=True,doplot=False,varname='rho',filetag=''):
+def bztest_get_rhoexp(simb2=np.array([0.,.01,.1,.5]),recb2=np.array([0.,.01,.1,.5,1.,2.,5.,10.]),overwrite=False,saverho=True,doplot=False,varname='rho',filetag='',fitbias=True):
     if saverho:
         outdir='output/zdisttest/plots/'
         if filetag:
@@ -2304,7 +2305,7 @@ def bztest_get_rhoexp(simb2=np.array([0.,.01,.1,.5]),recb2=np.array([0.,.01,.1,.
     rhoarray=np.zeros((Nsim,Nrec))
     for ns in xrange(Nsim):
         for nr in xrange(Nrec):
-            rhoarray[ns,nr]=compute_rho_fromcl(simcldat,recgrid[ns][nr],reccldat=reccldat,varname=varname)
+            rhoarray[ns,nr]=compute_rho_fromcl(simcldat,recgrid[ns][nr],reccldat=reccldat,varname=varname,fitbias=fitbias)
 
     #print rhoarray
     if saverho:
@@ -2324,9 +2325,14 @@ def bztest_rhoexpplot(simb2,recb2,rhogrid,varname='rho',outtag='',outname='',plo
 
     
 #simb2 fixed at fidb2, varying recb2.
-def bztest_onesim_plot(fidb2=0.5,recb2=np.array([0.,.01,.1,.5,1.,2.,5.,10.]),varname='rho',plotdir='output/zdisttest/plots/',outtag='onesim',outname=''):
+def bztest_onesim_plot(fidb2=0.5,recb2=np.array([0.,.01,.1,.5,1.,2.,5.,10.]),varname='rho',plotdir='output/zdisttest/plots/',outtag='onesim',outname='',dohatch=False,fitbias=True,biascomp=True):
     simb2=np.array([fidb2])
-    rhogrid=bztest_get_rhoexp(simb2=simb2,recb2=recb2,overwrite=False,saverho=True,doplot=False,varname=varname,filetag=outtag) #should be 1xNrec
+    if not fitbias:
+        outtag=outtag+'_nob0fit'
+    rhogrid=bztest_get_rhoexp(simb2=simb2,recb2=recb2,overwrite=False,saverho=True,doplot=False,varname=varname,filetag=outtag,fitbias=fitbias) #should be 1xNrec
+    if biascomp:
+        nofitrhogrid=bztest_get_rhoexp(simb2=simb2,recb2=recb2,overwrite=False,saverho=True,doplot=False,varname=varname,filetag=outtag+'_nob0fit',fitbias=False)
+        outtag=outtag+'_biascomp'
     
     Nsim=simb2.size
     Nrec=recb2.size
@@ -2339,7 +2345,7 @@ def bztest_onesim_plot(fidb2=0.5,recb2=np.array([0.,.01,.1,.5,1.,2.,5.,10.]),var
     fig.subplots_adjust(bottom=.2)
     fig.subplots_adjust(left=.2)
     ax1=plt.subplot(1,1,1)
-    #ax1.yaxis.grid(True)
+
     ax1.axhline(0,color='grey',linestyle=':')
     ax1.yaxis.get_major_formatter().set_powerlimits((0,1))
     for item in ([ax1.title, ax1.xaxis.label, ax1.yaxis.label] +
@@ -2348,34 +2354,59 @@ def bztest_onesim_plot(fidb2=0.5,recb2=np.array([0.,.01,.1,.5,1.,2.,5.,10.]),var
 
     ax1.set_xlabel(r"$b_2$ used in ISW reconstruction")
     if varname=='rho':
-        ax1.set_ylabel(r'$\left[ \langle \rho \rangle-\langle \rho \rangle_{{\rm match}} \right]/\langle \rho \rangle_{{\rm match}}$')
-        #ax1.set_yscale('log')
-        ax1.set_ylim((-7.e-5,1.e-5))
         bestval=np.max(rhogrid)
-    elif varname=='s':
-        ax1.set_ylabel(r'$\left[\langle s \rangle - \langle s \rangle_{{\rm match}}\right] /\langle s \rangle_{{\rm match}}$')
-        #ax1.set_yscale('log')
-        ax1.set_ylim((-2.e-3,.025))
-        bestval=np.min(rhogrid)
-
-    if varname=='rho':
         varstr=r'\rho'
-        ax1.plot(recb2,rhogrid[0,:]/bestval-1 ,marker='d')
-        aloc=(.7,.5)
+        if dohatch:
+            aloc=(.25,.7)
+        else:
+            aloc=(.25,.7)
+        linthreshy=1.e-6
+        ax1.set_ylim((-1.e-3,linthreshy))
+        bestval=np.max(rhogrid)
+        arrowystart= .75*linthreshy
+        arrowdy=-.2*linthreshy
+        arrowheadlen=.25*linthreshy
+        arrowlabely=arrowystart+arrowdy-arrowheadlen
     elif varname=='s':
+        bestval=np.min(rhogrid)
         varstr='s'
-        aloc=(.7,.9)
-        ax1.plot(recb2,rhogrid[0,:]/bestval -1. ,marker='d')
+        if dohatch:
+            aloc=(.25,.4)
+        else:
+            aloc=(.25,.4)
+        linthreshy=1.e-4
+        ax1.set_ylim((-1*linthreshy,10.))
+        bestval=np.min(rhogrid)
+        arrowystart= -.75*linthreshy
+        arrowdy=.2*linthreshy
+        arrowheadlen=.25*linthreshy
+        arrowlabely=arrowystart
+    ax1.set_ylabel(r'$\left[\langle {0:s} \rangle -\langle {0:s} \rangle_{{\rm match}} \right]/\langle {0:s} \rangle_{{\rm match}}$'.format(varstr))
+
+    if biascomp:
+        ax1.plot(recb2,nofitrhogrid[0,:]/bestval-1,marker='d',color='#969696')
+        if varname=='s': #skipping b0 fitting has no impact on rho
+            plt.annotate(r'no bias fitting',color='#969696',xy=(.87,.97),horizontalalignment='right',verticalalignment='top',fontsize=12,xycoords='axes fraction')
+    ax1.plot(recb2,rhogrid[0,:]/bestval-1,marker='o')
+
     plt.annotate(r'True (sim.) $b_2={0:0.1f}$'.format(fidb2)+'\n'+r'$\langle {0:s}\rangle_{{\rm match}}={1:0.3f}$'.format(varstr,bestval),xy=aloc,horizontalalignment='center',verticalalignment='top',fontsize=18,xycoords='axes fraction')
 
+    #put arrow above or below fiducial point
+    ax1.arrow(fidb2,arrowystart,0,arrowdy,color='black',head_width=.07,head_length=arrowheadlen)
+    plt.annotate(r'match',xy=(fidb2+.1,arrowlabely),horizontalalignment='left',verticalalignment='bottom',fontsize=12)
 
+    ax1.set_yscale('symlog',linthreshy=linthreshy)
     linthreshx=.01
     ax1.set_xscale('symlog',linthreshx=linthreshx)
     ax1.set_xlim((-.001,13))
-    #hash fills in where there is a linear scale
-    ymin,ymax=ax1.get_ylim()
-    y=np.arange(-linthreshx,linthreshx,.1*linthreshx)
-    ax1.fill_between(y,ymin,ymax,color='none',edgecolor='grey',hatch='/',linewidth=0)
+
+    if dohatch:    #hash fills in where there is a linear scale
+        ymin,ymax=ax1.get_ylim()
+        y=np.arange(-linthreshx,linthreshx,.1*linthreshx)
+        ax1.fill_between(y,ymin,ymax,color='none',edgecolor='grey',hatch='/',linewidth=0)
+        xmin,xmax=ax1.get_xlim()
+        x=np.arange(xmin,xmax,.01)
+        ax1.fill_between(x,-linthreshy,linthreshy,color='none',edgecolor='grey',hatch='/',linewidth=0)
     
     if outtag:
         outtag='_'+outtag
@@ -2430,6 +2461,10 @@ def bztest_onerec_plot(fidrecb2=0.,simb2=np.array([0.,.01,.1,.5,1.,2.,5.,10.]),v
         ax1.plot(simb2,rhogrid[:,0]/matchval -1. ,marker='d')
         annoteloc=(.55,.9)
     plt.annotate(r'$b_2={0:0.0f}$ used ISW rec.'.format(fidrecb2)+'\n'+r'$\langle {0:s}\rangle_{{\rm match}}={1:0.3f}$'.format(varstr,matchval),xy=annoteloc,horizontalalignment='center',verticalalignment='top',fontsize=18,xycoords='axes fraction')
+
+    #put arrow above or below fiducial point
+    ax1.arrow(fidz0,arrowystart,0,arrowdy,color='black',head_width=.015,head_length=arrowheadlen)
+    plt.annotate(r'match',xy=(fidz0+.02,arrowlabely),horizontalalignment='left',verticalalignment='bottom',fontsize=12)
 
     linthreshx=.01
     ax1.set_xscale('symlog',linthreshx=linthreshx)
@@ -2611,7 +2646,7 @@ def catz_windowtest(badfracs,Nbins=3): #check that my modeling of catastrophic p
         plt.savefig(outname)
         plt.close()
 #--------------------------------------------------------------------     
-def catz_get_rhoexp(simfracs=np.array([]),recfracs=np.array([]),badfracs=np.array([]),Nbins=3,z0=.7,sigz=.05,overwrite=False,saverho=True,doplot=False,varname='rho',filetag='',plotdir='output/zdisttest/plots/'):
+def catz_get_rhoexp(simfracs=np.array([]),recfracs=np.array([]),badfracs=np.array([]),Nbins=3,z0=.7,sigz=.05,overwrite=False,saverho=True,doplot=False,varname='rho',filetag='',plotdir='output/zdisttest/plots/',fitbias=True):
     print '******in get rhoexp, Nbins=',Nbins
     if not simfracs.size:
         simfracs=badfracs
@@ -2648,7 +2683,7 @@ def catz_get_rhoexp(simfracs=np.array([]),recfracs=np.array([]),badfracs=np.arra
     for ns in xrange(Nsim):
         for nr in xrange(Nrec):
             #print 'simfrac ',simfracs[ns],'; recfrac ',recfracs[nr]
-            rhoarray[ns,nr]=compute_rho_fromcl(cldat,recgrid[ns][nr],reccldat=cldat,varname=varname)
+            rhoarray[ns,nr]=compute_rho_fromcl(cldat,recgrid[ns][nr],reccldat=cldat,varname=varname,fitbias=fitbias)
 
     if saverho:
         #write to file, 
@@ -2733,10 +2768,13 @@ def catztest_onerec_plot(fidrecf=0.,simf=np.array([0.,5.e-4,1.e-3,2.e-3,.01,.02,
     plt.savefig(plotdir+outname)
     plt.close()
 
-def catztest_onesim_plot(fidf=0.02,recf=np.array([0.,5.e-4,1.e-3,2.e-3,.01,.02,.1,.2]),varname='rho',plotdir='output/zdisttest/plots/',outtag='onesim',outname='',Nbins=1):
-    dolog=True
-    simf=np.array([fidf])
-    rhogrid=catz_get_rhoexp(simfracs=simf,recfracs=recf,overwrite=True,saverho=True,doplot=False,varname=varname,filetag=outtag,Nbins=Nbins) #should be NsimxNrec
+def catztest_onesim_plot(fidf=0.02,recf=np.array([0.,5.e-4,1.e-3,2.e-3,.01,.02,.1,.2]),varname='rho',plotdir='output/zdisttest/plots/',outtag='onesim',outname='',Nbins=1,secondfidf=-1,dohatch=True,biascomp=True): #working here
+    #if secondfidf>0, will plot a second line
+    if secondfidf>0:
+        simf=np.array([fidf,secondfidf])
+    else:
+        simf=np.array([fidf])
+    rhogrid=catz_get_rhoexp(simfracs=simf,recfracs=recf,overwrite=True,saverho=True,doplot=False,varname=varname,filetag=outtag,Nbins=Nbins,fitbias=True) #should be NsimxNrec
     #print rhogrid
     Nsim=simf.size
     Nrec=recf.size
@@ -2749,50 +2787,61 @@ def catztest_onesim_plot(fidf=0.02,recf=np.array([0.,5.e-4,1.e-3,2.e-3,.01,.02,.
     fig.subplots_adjust(bottom=.2)
     fig.subplots_adjust(left=.2)
     ax1=plt.subplot(1,1,1)
-
+    for item in ([ax1.title, ax1.xaxis.label, ax1.yaxis.label] +
+                 ax1.get_xticklabels() + ax1.get_yticklabels()):
+        item.set_fontsize(18)
     xmax=.5
     linthreshx=1.e-3
     xmin=-.1*linthreshx
     ax1.set_xscale('symlog',linthreshx=linthreshx)
-    ax1.set_xlim((xmin,xmax))  
+    ax1.set_xlim((xmin,xmax))
+    ax1.set_xlabel(r"$f_{\rm cat}$ used in ISW rec.")
     #ax1.yaxis.grid(True)
     ax1.yaxis.get_major_formatter().set_powerlimits((0,1))
-    if dolog:
-        if varname=='rho':
-            linthreshy=1.e-4
-        elif varname=='s':
-            linthreshy=1.e-3
-        ax1.set_yscale('symlog',linthreshy=linthreshy)
-        x=np.arange(xmin,xmax,.01)
-        ax1.fill_between(x,-linthreshy,linthreshy,color='none',edgecolor='grey',hatch='/',linewidth=0)
-    ax1.axhline(0,color='grey',linestyle=':')
-    
-    
-    for item in ([ax1.title, ax1.xaxis.label, ax1.yaxis.label] +
-                 ax1.get_xticklabels() + ax1.get_yticklabels()):
-        item.set_fontsize(18)
 
-    ax1.set_xlabel(r"$f_{\rm cat}$ used in ISW rec.")
-        
     wherematch=np.argwhere(recf==fidf)[0][0]
     matchval=rhogrid[0,wherematch]
-    ax1.plot(recf,rhogrid[0,:]/matchval -1,marker='d')
     if varname=='rho':
-        ax1.set_ylabel(r'$\left[\langle \rho \rangle-\langle \rho \rangle_{{\rm match}}\right]/\langle \rho \rangle_{{\rm match}}$')
+        linthreshy=1.e-4
         varstr=r'\rho'
-        annoteloc=(.55,.3)
+        if dohatch:
+            annoteloc=(.55,.3)
+        else:
+            annoteloc=(.55,.3)
         ax1.set_ylim((-1,.1*linthreshy))
+        arrowystart= .75*linthreshy
+        arrowdy=-.2*linthreshy
+        arrowheadlen=.25*linthreshy
+        arrowlabely=arrowystart+arrowdy-arrowheadlen
     elif varname=='s':
-        ax1.set_ylabel(r'$\left[\langle s \rangle - \langle s \rangle_{{\rm match}}\right] /\langle s \rangle_{{\rm match}}$')
-        #ax1.set_yscale('log')
+        linthreshy=1.e-3
         varstr='s'
-        annoteloc=(.55,.9)
+        if dohatch:
+            annoteloc=(.55,.9)
+        else:
+            annoteloc=(.55,.9)
         ax1.set_ylim((-.1*linthreshy,1.))
-
-    #hash fills in where there is a linear scale
-    ymin,ymax=ax1.get_ylim()
-    y=np.arange(-linthreshx,linthreshx,.01*linthreshx)
-    ax1.fill_between(y,ymin,ymax,color='none',edgecolor='grey',hatch='/',linewidth=0)
+        arrowystart= -.75*linthreshy
+        arrowdy=.2*linthreshy
+        arrowheadlen=.25*linthreshy
+    ax1.set_yscale('symlog',linthreshy=linthreshy)
+    ax1.set_ylabel(r'$\left[\langle {0:s} \rangle -\langle {0:s} \rangle_{{\rm match}} \right]/\langle {0:s} \rangle_{{\rm match}}$'.format(varstr))
+    if dohatch: #hatched shading where axis has linear scaling
+        x=np.arange(xmin,xmax,.01)
+        ax1.fill_between(x,-linthreshy,linthreshy,color='none',edgecolor='grey',hatch='/',linewidth=0)
+        ax1.axhline(0,color='grey',linestyle=':')
+        ymin,ymax=ax1.get_ylim()
+        y=np.arange(-linthreshx,linthreshx,.01*linthreshx)
+        ax1.fill_between(y,ymin,ymax,color='none',edgecolor='grey',hatch='/',linewidth=0)
+    if biascomp:
+        nofitrhogrid=catz_get_rhoexp(simfracs=simf,recfracs=recf,overwrite=False,saverho=True,doplot=False,varname=varname,filetag=outtag+'_nob0fit',fitbias=False)
+        outtag=outtag+'_biascomp'
+        ax1.plot(recf,nofitrhogrid[0,:]/matchval-1,marker='d',color='#969696')
+        if varname=='s': #skipping b0 fitting has no impact on rho
+            plt.annotate(r'no bias fitting',color='#969696',xy=(.85,.95),horizontalalignment='right',verticalalignment='top',fontsize=12,xycoords='axes fraction')
+    ax1.plot(recf,rhogrid[0,:]/matchval -1,marker='d')
+    
+    
     
     plt.annotate(r'True (sim.) $f_{{\rm cat}}={0:0.2f}$'.format(fidf)+'\n'+r'$\langle {0:s}\rangle_{{\rm match}}={1:0.3f}$'.format(varstr,matchval),xy=annoteloc,horizontalalignment='center',verticalalignment='top',fontsize=18,xycoords='axes fraction')
     
@@ -3525,7 +3574,7 @@ if __name__=="__main__":
 
     #shortvarlist=[1.e-6,1.e-5,1.e-4,1.e-3] #for testing datapoints
     #
-    if 0: #cal test, rho expectation value calcs
+    if 0: #cal test, rho expectation value calcs, again mostly merged with lmin/caltest
         shortvarlist=[1.e-7,1.e-6,1.e-5,1.e-4,1.e-3,1.e-2]
         #shortvarlist=[1.e-6,1.e-5,1.e-4,1.e-3]
         varlist=list(caltest_get_logspaced_varlist(minvar=1.e-8,maxvar=.1,Nperlog=10))    
@@ -3540,17 +3589,15 @@ if __name__=="__main__":
         varlist=list(caltest_get_logspaced_varlist(minvar=1.e-8,maxvar=.1,Nperlog=10))    
         caltest_Clcomp(varlist)
         
-    if 0: #caltest, rho for many realizations
+    if 0: #caltest, rho for many realizations; most of this has been merged into cal/lmintest
         shortvarlist=[1.e-7,1.e-6,1.e-5,1.e-4,1.e-3,1.e-2]
         nomaps=False
         #caltest_get_scaleinfo(shortvarlist,scaletovar=False)
-        Nreal=10000
-        #caltest_apply_caliberrors(Nreal=Nreal,varlist=shortvarlist,overwritecalibmap=False,scaletovar=1.e-3,shape='g',width=10.,lmin=0,lmax=30)
-        #caltest_apply_caliberrors(Nreal=Nreal,varlist=shortvarlist,overwritecalibmap=False,scaletovar=1.e-3,shape='l2',lmin=1,lmax=30) #working here, run l2 datapoints
+        Nreal=10#000
+        caltest_apply_caliberrors(Nreal=Nreal,varlist=shortvarlist,overwritecalibmap=False,scaletovar=1.e-3,shape='g',width=10.,lmin=0,lmax=30)
         
         #domaps= do we redo reconstructions?
-        caltest_iswrec(Nreal=Nreal,varlist=shortvarlist,shape='g',width=10.,callmin=0,callmax=30,scaletovar=1.e-3,domaps=False)
-        #caltest_iswrec(Nreal=Nreal,varlist=shortvarlist,shape='l2',callmin=1,callmax=30,scaletovar=1.e-3,domaps=False) #working here; run this
+        caltest_iswrec(Nreal=Nreal,varlist=shortvarlist,shape='g',width=10.,callmin=0,callmax=30,scaletovar=1.e-3,domaps=True)
 
     
     if 0: #scatter plots for calib test
@@ -3587,8 +3634,8 @@ if __name__=="__main__":
 
 
     if 1: #zdist tests with less info
-        z0test_onesim_plot(varname='rho',biascomp=True)
-        z0test_onesim_plot(varname='s',biascomp=True)
+        #z0test_onesim_plot(varname='rho',biascomp=True)
+        #z0test_onesim_plot(varname='s',biascomp=True)
         #z0test_onesim_plot(varname='rho',fitbias=0)
         #z0test_onesim_plot(varname='s',fitbias=0)
         
@@ -3607,8 +3654,8 @@ if __name__=="__main__":
             badfracs1sim=badfracs
         #catztest_onerec_plot(varname='rho',Nbins=Nbins,simf=badfracs)
         #catztest_onerec_plot(varname='s',Nbins=Nbins,simf=badfracs)
-        #catztest_onesim_plot(varname='rho',Nbins=Nbins,recf=badfracs1sim,fidf=.01)
-        #catztest_onesim_plot(varname='s',Nbins=Nbins,recf=badfracs1sim,fidf=.01)
+        catztest_onesim_plot(varname='rho',Nbins=Nbins,recf=badfracs1sim,fidf=.01)
+        catztest_onesim_plot(varname='s',Nbins=Nbins,recf=badfracs1sim,fidf=.01)
         #catz_Clcomp()
         #catz_windowtest(badfracs,Nbins=Nbins)
         #z0test_Clcomp()
@@ -3671,11 +3718,12 @@ if __name__=="__main__":
     if 0:
         shortvarlist=[1.e-7,1.e-6,1.e-5,1.e-4,1.e-3,1.e-2]
         shortreclminlist=np.array([2,3,5])#1,3,10])
-        if 0: #do recs for many realizations
+        if 1: #do recs for many realizations
             Nreal=10000
+            caltest_apply_caliberrors(Nreal=Nreal,varlist=shortvarlist,overwritecalibmap=False,scaletovar=1.e-3,shape='g',width=10.,lmin=0,lmax=30)
             caltest_iswrec(Nreal,shortvarlist,scaletovar=1.e-3,recminelllist=shortreclminlist,domaps=True)
 
-        #shortvarlist=[1.e-6,1.e-5,1.e-4,1.e-3]
+        shortvarlist=[1.e-6,1.e-5,1.e-4,1.e-3]
         varlist=list(caltest_get_logspaced_varlist(minvar=1.e-8,maxvar=.1,Nperlog=10))
         reclminlist=np.array([2,3,5])
         

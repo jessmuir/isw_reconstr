@@ -1274,8 +1274,8 @@ def apply_caliberror_toglm(inglmdat,mapmodcombos=[],savemaps=False,saveplots=Fal
 #  Returns: outglmdat - new dummy glmData object, with mapmodcombos included
 #------------------------------------------------------------------------
 def apply_caliberror_to_manymaps(inglmdat,mapmodcombos=[],saveplots=False,rlzns=np.array([]),Nreal=0,calmap_scaling=1.,newmodtags=[],overwritefits=False):
-    #print mapmodcombos,len(mapmodcombos)
-    #print newmodtags,len(newmodtags)
+    print mapmodcombos,len(mapmodcombos)
+    print newmodtags,len(newmodtags)
     #print 'in apply calerror_toglm, glm shape:',inglmdat.glm.shape
     #for each mapmodcombo, check whether it is already in glmdat
     newmaptags=[]

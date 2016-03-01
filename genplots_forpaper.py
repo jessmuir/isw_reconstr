@@ -403,9 +403,9 @@ if __name__=="__main__":
 
     #z0test_onesim_plot(varname='rho',dohatch=False,plotdir='output/plots_forpaper/')
     #z0test_onesim_plot(varname='s',dohatch=False,plotdir='output/plots_forpaper/')
-    z0test_Clcomp(perrors=np.array([10,50]),plotdir='output/plots_forpaper/',plotISWgalratio=False)
-    #bztest_onesim_plot(varname='rho') #actually twosim
-    #bztest_onesim_plot(varname='s')
+    #z0test_Clcomp(perrors=np.array([10,50]),plotdir='output/plots_forpaper/',plotISWgalratio=False)
+    bztest_onesim_plot(varname='rho',dohatch=False,plotdir='output/plots_forpaper/') 
+    bztest_onesim_plot(varname='s',dohatch=False,plotdir='output/plots_forpaper/')
 
         
     shortvarlist=[1.e-7,1.e-6,1.e-5,1.e-4,1.e-3,1.e-2]
