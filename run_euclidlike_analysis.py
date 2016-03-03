@@ -1517,8 +1517,9 @@ def caltest_rhoexpplot_wratio(varlist,rhoarraylist,labellist=[],outname='',legti
     plt.sca(ax1)
     ax1.grid(True)
     ax1.set_xscale('log')
-    ax1.axhline(0,color='grey',linestyle='-')
-    ax1.axhline(1,color='grey',linestyle='-')
+    if varname=='rho':
+        ax1.axhline(0,color='grey',linestyle='-')
+        ax1.axhline(1,color='grey',linestyle='-')
     ax2.axhline(0,color='grey',linestyle='-')
     ax2.axhline(-1,color='grey',linestyle='-')
     plt.setp(ax1.get_xticklabels(), visible=False)
@@ -1529,6 +1530,9 @@ def caltest_rhoexpplot_wratio(varlist,rhoarraylist,labellist=[],outname='',legti
         ax1.set_ylabel(r'$\langle \rho \rangle$')
         ax2.set_ylabel(r'$\langle \rho \rangle /\langle \rho_{{c=0}} \rangle -1$')
     elif varname=='s':
+        ax1.set_yscale('symlog',linthreshy=.1)
+        ax2.set_yscale('symlog',linthreshy=.01)
+        ax2.set_ylim(-1,1.e4)
         ax1.set_ylabel(r'$\langle s \rangle$')
         ax2.set_ylabel(r'$\langle s \rangle /\langle s_{{c=0}} \rangle - 1$')
     elif varname=='chisq':
@@ -1590,8 +1594,10 @@ def caltest_rhoexpplot_wratio(varlist,rhoarraylist,labellist=[],outname='',legti
         plt.ylim((ymin,ymax))
 
     #reduce number of ticklabels for ratio plot
-    ax2.set_yticks([-1.5+i*.25 for i in xrange(8)])
-    
+    if varname=='rho':
+        ax2.set_yticks([-1.5+i*.25 for i in xrange(8)])
+    elif varname=='s':
+        ax2.set_yticks([-1,-.01,0 ,.01,1.,100,10000])
     plt.sca(ax1)
     if varname=='rho':
         plt.legend(fontsize=18,title=legtitle,loc='lower left',numpoints=1)
@@ -2015,9 +2021,10 @@ def z0test_onesim_plot(fidz0=0.7,perrors=np.array([1,10,20,50]),varname='rho',co
 
     fig=plt.figure(figsize=(8,4))
     fig.subplots_adjust(bottom=.2)
-    fig.subplots_adjust(left=.2)
+    fig.subplots_adjust(left=.15)
+    fig.subplots_adjust(right=.95)
     ax1=plt.subplot(1,1,1)
-    
+
     ax1.axhline(0,color='grey',linestyle=':')
     for item in ([ax1.title, ax1.xaxis.label, ax1.yaxis.label] +
                  ax1.get_xticklabels() + ax1.get_yticklabels()):
@@ -2032,10 +2039,12 @@ def z0test_onesim_plot(fidz0=0.7,perrors=np.array([1,10,20,50]),varname='rho',co
         linthreshy=1.e-7
         ax1.set_ylim((-4.e-3,linthreshy))
         bestval=np.max(rhogrid)
-        arrowystart= .75*linthreshy
-        arrowdy=-.2*linthreshy
-        arrowheadlen=.25*linthreshy
-        arrowlabely=arrowystart+arrowdy-arrowheadlen
+        arrowystart= .55*linthreshy
+        arrowstr=r'$\downarrow$'
+        # arrowystart= .75*linthreshy
+        # arrowdy=-.2*linthreshy
+        # arrowheadlen=.25*linthreshy
+        # arrowlabely=arrowystart+arrowdy-arrowheadlen
     elif varname=='s':
         varstr='s'
         if dohatch:
@@ -2045,24 +2054,28 @@ def z0test_onesim_plot(fidz0=0.7,perrors=np.array([1,10,20,50]),varname='rho',co
         linthreshy=1.e-5
         ax1.set_ylim((-1*linthreshy,10.))
         bestval=np.min(rhogrid)
-        arrowystart= -.75*linthreshy
-        arrowdy=.2*linthreshy
-        arrowheadlen=.25*linthreshy
-        arrowlabely=arrowystart
+        arrowystart= -.55*linthreshy
+        arrowstr=r'$\uparrow$'
+        # arrowystart= -.75*linthreshy
+        # arrowdy=.2*linthreshy
+        # arrowheadlen=.25*linthreshy
+        # arrowlabely=arrowystart
     ax1.set_ylabel(r'$\left[\langle {0:s} \rangle -\langle {0:s} \rangle_{{\rm match}} \right]/\langle {0:s} \rangle_{{\rm match}}$'.format(varstr))
     
     if biascomp:
         ax1.plot(recz0,nofitrhogrid[0,:]/bestval-1,marker='d',color='#969696')
         if varname=='s': #skipping b0 fitting has no impact on rho
             plt.annotate(r'no bias fitting',color='#969696',xy=(.85,.95),horizontalalignment='right',verticalalignment='top',fontsize=12,xycoords='axes fraction')
-    ax1.plot(recz0,rhogrid[0,:]/bestval-1,marker='o')
+    ax1.plot(recz0,rhogrid[0,:]/bestval-1,marker='o',color='#2c7bb6')
 
     plt.annotate(r'True (sim.) $z_0={0:0.1f}$'.format(fidz0)+'\n'+r'$\langle {1:s}\rangle_{{\rm match}}={2:0.3f}$'.format(fidz0,varstr,bestval),xy=aloc,horizontalalignment='center',verticalalignment='top',fontsize=18,xycoords='axes fraction')
     
 
     #put arrow above or below fiducial point
-    ax1.arrow(fidz0,arrowystart,0,arrowdy,color='black',head_width=.015,head_length=arrowheadlen)
-    plt.annotate(r'match',xy=(fidz0+.02,arrowlabely),horizontalalignment='left',verticalalignment='bottom',fontsize=12)
+    #ax1.arrow(fidz0,arrowystart,0,arrowdy,color='black',head_width=.015,head_length=arrowheadlen)
+    plt.plot(fidz0,arrowystart,color='black',marker=arrowstr,markersize=16)
+    #plt.annotate(r'match',xy=(fidz0+.02,arrowlabely),horizontalalignment='left',verticalalignment='bottom',fontsize=12)
+    plt.annotate(r'match',xy=(fidz0+.02,arrowystart),horizontalalignment='left',verticalalignment='center',fontsize=12)
     
     ax1.set_yscale('symlog',linthreshy=linthreshy)
     if dohatch:
@@ -2343,7 +2356,8 @@ def bztest_onesim_plot(fidb2=0.5,recb2=np.array([0.,.01,.1,.5,1.,2.,5.,10.]),var
 
     fig=plt.figure(figsize=(8,4))
     fig.subplots_adjust(bottom=.2)
-    fig.subplots_adjust(left=.2)
+    fig.subplots_adjust(left=.15)
+    fig.subplots_adjust(right=.95)
     ax1=plt.subplot(1,1,1)
 
     ax1.axhline(0,color='grey',linestyle=':')
@@ -2363,10 +2377,11 @@ def bztest_onesim_plot(fidb2=0.5,recb2=np.array([0.,.01,.1,.5,1.,2.,5.,10.]),var
         linthreshy=1.e-6
         ax1.set_ylim((-1.e-3,linthreshy))
         bestval=np.max(rhogrid)
-        arrowystart= .75*linthreshy
-        arrowdy=-.2*linthreshy
-        arrowheadlen=.25*linthreshy
-        arrowlabely=arrowystart+arrowdy-arrowheadlen
+        arrowystart= .5*linthreshy
+        arrowstr=r'$\downarrow$'
+        # arrowdy=-.2*linthreshy
+        # arrowheadlen=.25*linthreshy
+        # arrowlabely=arrowystart+arrowdy-arrowheadlen
     elif varname=='s':
         bestval=np.min(rhogrid)
         varstr='s'
@@ -2377,24 +2392,27 @@ def bztest_onesim_plot(fidb2=0.5,recb2=np.array([0.,.01,.1,.5,1.,2.,5.,10.]),var
         linthreshy=1.e-4
         ax1.set_ylim((-1*linthreshy,10.))
         bestval=np.min(rhogrid)
-        arrowystart= -.75*linthreshy
-        arrowdy=.2*linthreshy
-        arrowheadlen=.25*linthreshy
-        arrowlabely=arrowystart
+        arrowystart= -.5*linthreshy
+        arrowstr=r'$\uparrow$'
+        # arrowdy=.2*linthreshy
+        # arrowheadlen=.25*linthreshy
+        # arrowlabely=arrowystart
     ax1.set_ylabel(r'$\left[\langle {0:s} \rangle -\langle {0:s} \rangle_{{\rm match}} \right]/\langle {0:s} \rangle_{{\rm match}}$'.format(varstr))
 
     if biascomp:
         ax1.plot(recb2,nofitrhogrid[0,:]/bestval-1,marker='d',color='#969696')
         if varname=='s': #skipping b0 fitting has no impact on rho
-            plt.annotate(r'no bias fitting',color='#969696',xy=(.87,.97),horizontalalignment='right',verticalalignment='top',fontsize=12,xycoords='axes fraction')
-    ax1.plot(recb2,rhogrid[0,:]/bestval-1,marker='o')
+            plt.annotate(r'no bias fitting',color='#969696',xy=(.95,.97),horizontalalignment='right',verticalalignment='top',fontsize=12,xycoords='axes fraction')
+    ax1.plot(recb2,rhogrid[0,:]/bestval-1,marker='o',color='#2c7bb6')
 
     plt.annotate(r'True (sim.) $b_2={0:0.1f}$'.format(fidb2)+'\n'+r'$\langle {0:s}\rangle_{{\rm match}}={1:0.3f}$'.format(varstr,bestval),xy=aloc,horizontalalignment='center',verticalalignment='top',fontsize=18,xycoords='axes fraction')
 
     #put arrow above or below fiducial point
-    ax1.arrow(fidb2,arrowystart,0,arrowdy,color='black',head_width=.07,head_length=arrowheadlen)
-    plt.annotate(r'match',xy=(fidb2+.1,arrowlabely),horizontalalignment='left',verticalalignment='bottom',fontsize=12)
-
+    #ax1.arrow(fidb2,arrowystart,0,arrowdy,color='black',head_width=.07,head_length=arrowheadlen)
+    #plt.annotate(r'match',xy=(fidb2+.1,arrowlabely),horizontalalignment='left',verticalalignment='bottom',fontsize=12)
+    plt.plot(fidb2,arrowystart,color='black',marker=arrowstr,markersize=16)
+    plt.annotate(r'match',xy=(fidb2+.2,arrowystart),horizontalalignment='left',verticalalignment='center',fontsize=12)
+    
     ax1.set_yscale('symlog',linthreshy=linthreshy)
     linthreshx=.01
     ax1.set_xscale('symlog',linthreshx=linthreshx)
@@ -2647,7 +2665,7 @@ def catz_windowtest(badfracs,Nbins=3): #check that my modeling of catastrophic p
         plt.close()
 #--------------------------------------------------------------------     
 def catz_get_rhoexp(simfracs=np.array([]),recfracs=np.array([]),badfracs=np.array([]),Nbins=3,z0=.7,sigz=.05,overwrite=False,saverho=True,doplot=False,varname='rho',filetag='',plotdir='output/zdisttest/plots/',fitbias=True):
-    print '******in get rhoexp, Nbins=',Nbins
+    #print '******in get rhoexp, Nbins=',Nbins
     if not simfracs.size:
         simfracs=badfracs
     if not recfracs.size:
@@ -2688,9 +2706,9 @@ def catz_get_rhoexp(simfracs=np.array([]),recfracs=np.array([]),badfracs=np.arra
     if saverho:
         #write to file, 
         f=open(outdir+datfile,'w')
-        f.write('{0:9.6f} '.format(0.)+''.join(['{0:9.2e} '.format(fr) for fr in recfracs])+'\n')
+        f.write('{0:15.6f} '.format(0.)+''.join(['{0:15.2e} '.format(fr) for fr in recfracs])+'\n')
         for ns in xrange(Nsim):
-            f.write('{0:9.2e} '.format(simfracs[ns])+''.join(['{0:9.6f} '.format(rhoarray[ns,nr]) for nr in xrange(Nrec)])+'\n')
+            f.write('{0:15.2e} '.format(simfracs[ns])+''.join(['{0:15.12f} '.format(rhoarray[ns,nr]) for nr in xrange(Nrec)])+'\n')
         f.close()
     if doplot:
         catz_rhoexpplot(simfracs,recfracs,rhoarray,varname,plotdir=plotdir,Nbins=Nbins) 
@@ -2768,16 +2786,20 @@ def catztest_onerec_plot(fidrecf=0.,simf=np.array([0.,5.e-4,1.e-3,2.e-3,.01,.02,
     plt.savefig(plotdir+outname)
     plt.close()
 
-def catztest_onesim_plot(fidf=0.02,recf=np.array([0.,5.e-4,1.e-3,2.e-3,.01,.02,.1,.2]),varname='rho',plotdir='output/zdisttest/plots/',outtag='onesim',outname='',Nbins=1,secondfidf=-1,dohatch=True,biascomp=True): #working here
+def catztest_onesim_plot(fidf=0.02,recf=np.array([0.,5.e-4,1.e-3,2.e-3,.01,.02,.1,.2]),varname='rho',plotdir='output/zdisttest/plots/',outtag='onesim',outname='',Nbins=1,secondfidf=-1,dohatch=False,biascomp=True): #working here
     #if secondfidf>0, will plot a second line
+    colors=['#a6611a','#2c7bb6']
     if secondfidf>0:
         simf=np.array([fidf,secondfidf])
+        
     else:
         simf=np.array([fidf])
-    rhogrid=catz_get_rhoexp(simfracs=simf,recfracs=recf,overwrite=True,saverho=True,doplot=False,varname=varname,filetag=outtag,Nbins=Nbins,fitbias=True) #should be NsimxNrec
-    #print rhogrid
     Nsim=simf.size
     Nrec=recf.size
+    wherematch=[np.argwhere(recf==sf)[0][0] for sf in simf] #Nsim len list
+        
+    rhogrid=catz_get_rhoexp(simfracs=simf,recfracs=recf,overwrite=True,saverho=True,doplot=False,varname=varname,filetag=outtag,Nbins=Nbins,fitbias=True) #should be NsimxNrec
+    matchval=[rhogrid[i,wherematch[i]] for i in xrange(Nsim)]#Nsim len list
     if outtag:
         outtag='_'+outtag
     if not outname:
@@ -2785,7 +2807,9 @@ def catztest_onesim_plot(fidf=0.02,recf=np.array([0.,5.e-4,1.e-3,2.e-3,.01,.02,.
 
     fig=plt.figure(figsize=(8,4))
     fig.subplots_adjust(bottom=.2)
-    fig.subplots_adjust(left=.2)
+    fig.subplots_adjust(left=.15)
+    fig.subplots_adjust(right=.95)
+    
     ax1=plt.subplot(1,1,1)
     for item in ([ax1.title, ax1.xaxis.label, ax1.yaxis.label] +
                  ax1.get_xticklabels() + ax1.get_yticklabels()):
@@ -2795,37 +2819,33 @@ def catztest_onesim_plot(fidf=0.02,recf=np.array([0.,5.e-4,1.e-3,2.e-3,.01,.02,.
     xmin=-.1*linthreshx
     ax1.set_xscale('symlog',linthreshx=linthreshx)
     ax1.set_xlim((xmin,xmax))
-    ax1.set_xlabel(r"$f_{\rm cat}$ used in ISW rec.")
+    ax1.set_xlabel(r"$x$ used in ISW rec.")
     #ax1.yaxis.grid(True)
     ax1.yaxis.get_major_formatter().set_powerlimits((0,1))
-
-    wherematch=np.argwhere(recf==fidf)[0][0]
-    matchval=rhogrid[0,wherematch]
+    ax1.axhline(0,color='grey',linestyle=':')
     if varname=='rho':
-        linthreshy=1.e-4
+        linthreshy=1.e-6
         varstr=r'\rho'
         if dohatch:
-            annoteloc=(.55,.3)
+            annoteloc=[(.55,.3)]
         else:
-            annoteloc=(.55,.3)
-        ax1.set_ylim((-1,.1*linthreshy))
-        arrowystart= .75*linthreshy
-        arrowdy=-.2*linthreshy
-        arrowheadlen=.25*linthreshy
-        arrowlabely=arrowystart+arrowdy-arrowheadlen
+            annoteloc=[(.25,.83),(.3,.45)]
+        ax1.set_ylim((-1,linthreshy))
+        arrowystart= .55*linthreshy
+        arrowstr=r'$\downarrow$'
     elif varname=='s':
-        linthreshy=1.e-3
+        linthreshy=1.e-4
         varstr='s'
         if dohatch:
-            annoteloc=(.55,.9)
+            annoteloc=[(.55,.9)]
         else:
-            annoteloc=(.55,.9)
-        ax1.set_ylim((-.1*linthreshy,1.))
-        arrowystart= -.75*linthreshy
-        arrowdy=.2*linthreshy
-        arrowheadlen=.25*linthreshy
+            annoteloc=[(.25,.6),(.3,.95)]
+        ax1.set_ylim((-1*linthreshy,100.))
+        arrowystart= -.55*linthreshy
+        arrowstr=r'$\uparrow$'
     ax1.set_yscale('symlog',linthreshy=linthreshy)
     ax1.set_ylabel(r'$\left[\langle {0:s} \rangle -\langle {0:s} \rangle_{{\rm match}} \right]/\langle {0:s} \rangle_{{\rm match}}$'.format(varstr))
+    
     if dohatch: #hatched shading where axis has linear scaling
         x=np.arange(xmin,xmax,.01)
         ax1.fill_between(x,-linthreshy,linthreshy,color='none',edgecolor='grey',hatch='/',linewidth=0)
@@ -2834,16 +2854,20 @@ def catztest_onesim_plot(fidf=0.02,recf=np.array([0.,5.e-4,1.e-3,2.e-3,.01,.02,.
         y=np.arange(-linthreshx,linthreshx,.01*linthreshx)
         ax1.fill_between(y,ymin,ymax,color='none',edgecolor='grey',hatch='/',linewidth=0)
     if biascomp:
-        nofitrhogrid=catz_get_rhoexp(simfracs=simf,recfracs=recf,overwrite=False,saverho=True,doplot=False,varname=varname,filetag=outtag+'_nob0fit',fitbias=False)
+        nofitrhogrid=catz_get_rhoexp(simfracs=simf,recfracs=recf,overwrite=False,saverho=True,doplot=False,varname=varname,filetag=outtag[1:]+'_nob0fit',fitbias=False,Nbins=Nbins)
         outtag=outtag+'_biascomp'
-        ax1.plot(recf,nofitrhogrid[0,:]/matchval-1,marker='d',color='#969696')
+        for i in xrange(Nsim):
+            ax1.plot(recf,nofitrhogrid[i,:]/matchval[i]-1,marker='d',color='#969696')
         if varname=='s': #skipping b0 fitting has no impact on rho
-            plt.annotate(r'no bias fitting',color='#969696',xy=(.85,.95),horizontalalignment='right',verticalalignment='top',fontsize=12,xycoords='axes fraction')
-    ax1.plot(recf,rhogrid[0,:]/matchval -1,marker='d')
-    
-    
-    
-    plt.annotate(r'True (sim.) $f_{{\rm cat}}={0:0.2f}$'.format(fidf)+'\n'+r'$\langle {0:s}\rangle_{{\rm match}}={1:0.3f}$'.format(varstr,matchval),xy=annoteloc,horizontalalignment='center',verticalalignment='top',fontsize=18,xycoords='axes fraction')
+            plt.annotate(r'no bias fitting',color='#969696',xy=(.35,.3),horizontalalignment='right',verticalalignment='top',fontsize=12,xycoords='axes fraction')
+    #plot data
+    for i in xrange(Nsim):
+        ax1.plot(recf,rhogrid[i,:]/matchval[i] -1,marker='o',color=colors[i])
+        #put arrow above or below fiducial point
+        plt.plot(simf[i],arrowystart,color='black',marker=arrowstr,markersize=16)
+        plt.annotate(r'match',xy=(simf[i]*1.3,arrowystart),horizontalalignment='left',verticalalignment='center',fontsize=12)
+        
+        plt.annotate(r'True (sim.) $x={0:0.2f}$'.format(simf[i])+'\n'+r'$\langle {0:s}\rangle_{{\rm match}}={1:0.3f}$'.format(varstr,matchval[i]),xy=annoteloc[i],horizontalalignment='center',verticalalignment='top',fontsize=18,xycoords='axes fraction',color=colors[i])
     
     print 'Saving plot to ',plotdir+outname
     plt.savefig(plotdir+outname)
@@ -3654,8 +3678,8 @@ if __name__=="__main__":
             badfracs1sim=badfracs
         #catztest_onerec_plot(varname='rho',Nbins=Nbins,simf=badfracs)
         #catztest_onerec_plot(varname='s',Nbins=Nbins,simf=badfracs)
-        catztest_onesim_plot(varname='rho',Nbins=Nbins,recf=badfracs1sim,fidf=.01)
-        catztest_onesim_plot(varname='s',Nbins=Nbins,recf=badfracs1sim,fidf=.01)
+        catztest_onesim_plot(varname='rho',Nbins=Nbins,recf=badfracs1sim,fidf=.01,secondfidf=.1)
+        catztest_onesim_plot(varname='s',Nbins=Nbins,recf=badfracs1sim,fidf=.01,secondfidf=.1)
         #catz_Clcomp()
         #catz_windowtest(badfracs,Nbins=Nbins)
         #z0test_Clcomp()
@@ -3718,14 +3742,14 @@ if __name__=="__main__":
     if 0:
         shortvarlist=[1.e-7,1.e-6,1.e-5,1.e-4,1.e-3,1.e-2]
         shortreclminlist=np.array([2,3,5])#1,3,10])
-        if 1: #do recs for many realizations
+        if 0: #do recs for many realizations
             Nreal=10000
             caltest_apply_caliberrors(Nreal=Nreal,varlist=shortvarlist,overwritecalibmap=False,scaletovar=1.e-3,shape='g',width=10.,lmin=0,lmax=30)
             caltest_iswrec(Nreal,shortvarlist,scaletovar=1.e-3,recminelllist=shortreclminlist,domaps=True)
 
-        shortvarlist=[1.e-6,1.e-5,1.e-4,1.e-3]
         varlist=list(caltest_get_logspaced_varlist(minvar=1.e-8,maxvar=.1,Nperlog=10))
         reclminlist=np.array([2,3,5])
         
         caltest_compare_lmin(varlist,varname='rho',dodataplot=True,recminelllist=reclminlist,shortrecminelllist=shortreclminlist,shortvarlist=shortvarlist,justdat=True)
+        caltest_compare_lmin(varlist,varname='s',dodataplot=True,recminelllist=reclminlist,shortrecminelllist=shortreclminlist,shortvarlist=shortvarlist,justdat=True)
         

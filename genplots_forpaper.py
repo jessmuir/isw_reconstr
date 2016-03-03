@@ -404,9 +404,11 @@ if __name__=="__main__":
     #z0test_onesim_plot(varname='rho',dohatch=False,plotdir='output/plots_forpaper/')
     #z0test_onesim_plot(varname='s',dohatch=False,plotdir='output/plots_forpaper/')
     #z0test_Clcomp(perrors=np.array([10,50]),plotdir='output/plots_forpaper/',plotISWgalratio=False)
-    bztest_onesim_plot(varname='rho',dohatch=False,plotdir='output/plots_forpaper/') 
-    bztest_onesim_plot(varname='s',dohatch=False,plotdir='output/plots_forpaper/')
-
+    #bztest_onesim_plot(varname='rho',dohatch=False,plotdir='output/plots_forpaper/') 
+    #bztest_onesim_plot(varname='s',dohatch=False,plotdir='output/plots_forpaper/')
+    badfracs=np.array([0.,1.e-3,5.e-3,1.e-2,2.e-2,5.e-2,.1,.2])
+    catztest_onesim_plot(varname='rho',Nbins=1,recf=badfracs,fidf=.01,secondfidf=.1,dohatch=False,plotdir='output/plots_forpaper/')
+    catztest_onesim_plot(varname='s',Nbins=1,recf=badfracs,fidf=.01,secondfidf=.1,dohatch=False,plotdir='output/plots_forpaper/')
         
     shortvarlist=[1.e-7,1.e-6,1.e-5,1.e-4,1.e-3,1.e-2]
     shortreclminlist=np.array([2,3,5])#1,3,10])
