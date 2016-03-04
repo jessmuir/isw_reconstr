@@ -2151,17 +2151,12 @@ def z0test_rhoexpplot_lines(simz0,recz0,rhogrid,varname='rho',outtag='',outname=
     plt.close()
 
 #--------------------------
-def z0test_Clcomp(perrors=np.array([1,10,20,30,50]),fidz0=.7,plotdir='output/zdisttest/plots/',plotISWgalratio=True):
+def z0test_Clcomp(perrors=np.array([1,10,20,30,50]),fidz0=.7,plotdir='output/zdisttest/plots/',plotISWgalratio=True,refval=0.7):
     z0vals=z0test_getz0vals(perrors,fidz0)#for labels
     iswind=0
     bins=z0test_get_binmaps(perrors,fidz0)#includes ISW at 0, others in same order as z0
     cldat=z0test_get_Cl(perrors=perrors,fid=fidz0)
     l=np.arange(cldat.Nell)
-    #set up color range
-    # cm=plt.get_cmap('Spectral_r')
-    # cNorm=colors.LogNorm()#max and min numbers colors need to span
-    # scalarMap=cmx.ScalarMappable(norm=cNorm,cmap=cm)
-    # z0cols=scalarMap.to_rgba(z0vals)
     z0cols=['#d7191c',
             '#fdae61',
             '#636363',##ffffbf',
@@ -2170,13 +2165,6 @@ def z0test_Clcomp(perrors=np.array([1,10,20,30,50]),fidz0=.7,plotdir='output/zdi
     
     clscaling=1#2*l+1.#l*(l+1.)/(2*np.pi)
     
-    # #to get colorbar key, need ot set up a throw-away map
-    # dummyz=[[0,0],[0,0]]
-    # dummylevels=[.3]+list(z0vals)+[1.5]
-    # dummyplot=plt.contourf(dummyz,dummylevels,cmap=cm,norm=colors.LogNorm())
-    # plt.clf()
-    # fig=plt.gcf()
-    
     #set up actual plot
     fig=plt.figure(0)
     fig.subplots_adjust(bottom=.15)
@@ -2184,7 +2172,7 @@ def z0test_Clcomp(perrors=np.array([1,10,20,30,50]),fidz0=.7,plotdir='output/zdi
     ax=plt.subplot()
     for item in ([ax.xaxis.label, ax.yaxis.label] +
                   ax.get_yticklabels()+ax.get_xticklabels()):
-        item.set_fontsize(20)
+        item.set_fontsize(22)
 
     #plt.title(r'Comparing $C_{{\ell}}$ of galaxies, ISW')
     #plt.ylabel(r'$\ell(\ell+1)C_{{\ell}}/2\pi$')
@@ -2202,11 +2190,6 @@ def z0test_Clcomp(perrors=np.array([1,10,20,30,50]),fidz0=.7,plotdir='output/zdi
     line2,=plt.plot(np.array([]),np.array([]),color='black',linestyle='--',label='ISW-gal',linewidth=2)
     if plotISWgalratio:
         line3,=plt.plot(l,np.fabs(cldat.cl[xiswind,:]/cldat.cl[autoind,:])*clscaling,color='black',linestyle=':',label='ISW-gal/gal-gal')
-        linehandles=[line1,line2,line3]
-        #plt.legend(handles=linehandles,loc='upper right')
-    else:
-        linehandles=[line1,line2]
-        #plt.legend(handles=linehandles,loc='center right')
     for i in xrange(z0vals.size):
         bmap=bins[i+1]
         if bmap.isISW:
@@ -2220,18 +2203,36 @@ def z0test_Clcomp(perrors=np.array([1,10,20,30,50]),fidz0=.7,plotdir='output/zdi
                 plt.plot(l,np.fabs(cldat.cl[xiswind,:]/cldat.cl[autoind,:])*clscaling,color=z0cols[i],linestyle=':')
 
     plt.legend(loc='center right',fontsize=16,ncol=2)
-    #set up colorbar
-    # logminvar=int(np.log10(min(z0vals)))
-    # logmaxvar=int(np.log10(max(z0vals)))+1
-    # Nlog=logmaxvar-logminvar
-    # z0ticks=z0vals#[.1*10**(logminvar+n) for n in xrange(Nlog)]
-    # #cbaxes=fig.add_axes([.8,.1,.03,.8])#controls location of colorbar
-    # colbar=fig.colorbar(dummyplot,ticks=[.3]+list(z0ticks)+[1.5])
-    # colbar.ax.set_yticklabels(['']+['{0:0.3f}'.format(z0) for z0 in z0vals]+[''])
-    # colbar.set_label(r'$z_0$')
-
 
     plotname='z0test_cl_compare'
+    outname=plotdir+plotname+'.pdf'
+    print 'saving',outname
+    plt.savefig(outname)
+    plt.close()
+
+    #make ratio plot
+    fig=plt.figure(1)
+    fig.subplots_adjust(bottom=.15)
+    fig.subplots_adjust(left=.15)
+    ax=plt.subplot()
+    for item in ([ax.xaxis.label, ax.yaxis.label] +
+                  ax.get_yticklabels()+ax.get_xticklabels()):
+        item.set_fontsize(22)
+    plt.ylabel(r'$C_{{\ell}}(z_0)/C_{{\ell}}(z_0={0:0.1f})$'.format(refval))
+    plt.xlabel(r'Multipole $\ell$')
+    plt.xlim((1,30))
+    plt.ylim((0,8))
+    refind=np.argwhere(z0vals==refval)[0][0]#where in z0vals is refval?
+    refautoind=cldat.crossinds[refind+1,refind+1]
+    for i in xrange(z0vals.size):
+        bmap=bins[i+1]
+        if bmap.isISW:
+            continue
+        else:
+            autoind=cldat.crossinds[i+1,i+1]
+            plt.plot(l,np.fabs(cldat.cl[autoind,:]/cldat.cl[refautoind,:]),color=z0cols[i%len(z0cols)],linestyle='-',label='$z_0={0:0.2f}$'.format(z0vals[i]),linewidth=2)
+    plt.legend(loc='center right',fontsize=16,ncol=2)
+    plotname=plotname+'_ratio'
     outname=plotdir+plotname+'.pdf'
     print 'saving',outname
     plt.savefig(outname)
@@ -2500,71 +2501,85 @@ def bztest_onerec_plot(fidrecb2=0.,simb2=np.array([0.,.01,.1,.5,1.,2.,5.,10.]),v
     plt.savefig(plotdir+outname)
     plt.close()    
 #--------------------------
-def bztest_Clcomp(b2vals=np.array([0.,.01,.1,.5,1.,2.,5.,10.])):
+def bztest_Clcomp(b2vals=np.array([0.,.01,.1,.5,1.,2.,5.,10.]),plotdir='output/zdisttest/plots/',plotISWgalratio=True,refval=0.5):
     iswind=0
     bins=bztest_get_binmaps(b2vals)#includes ISW at 0, others in same order as z0
     cldat=bztest_get_Cl(b2vals=b2vals)
     l=np.arange(cldat.Nell)
+    b2cols=['#d7191c',
+            '#fdae61',
+            '#636363',##ffffbf',
+            '#abd9e9',
+            '#2c7bb6']
     
+    clscaling=1#2*l+1 #l*(l+1.)/(2*np.pi)
     
-    #to get colorbar key, need ot set up a throw-away map
-    dummyz=[[0,0],[0,0]]
-    dummylevels=[]
-    for b in b2vals:
-        if b: dummylevels.append(b)
-    dummylevels=np.array(dummylevels)
-    #set up color range
-    cm=plt.get_cmap('Spectral_r')
-    cNorm=colors.LogNorm()#max and min numbers colors need to span
-    scalarMap=cmx.ScalarMappable(norm=cNorm,cmap=cm)
-    b2cols=scalarMap.to_rgba(dummylevels)
-    clscaling=2*l+1 #l*(l+1.)/(2*np.pi)
-    #print dummylevels
-    dummyplot=plt.contourf(dummyz,dummylevels,cmap=cm,norm=colors.LogNorm())
-    plt.clf()
-    fig=plt.gcf()
-    
-    #set up actual plot
     fig=plt.figure(0)
+    fig.subplots_adjust(bottom=.15)
+    fig.subplots_adjust(left=.15)
     ax=plt.subplot()
-    plt.title(r'Comparing $C_{{\ell}}$ of galaxies, ISW')
-    #plt.ylabel(r'$\ell(\ell+1)C_{{\ell}}/2\pi$')
-    plt.ylabel(r'$(2\ell+1)C_{{\ell}}$')
+    for item in ([ax.xaxis.label, ax.yaxis.label] +
+                  ax.get_yticklabels()+ax.get_xticklabels()):
+        item.set_fontsize(22)
+    
+    #plt.title(r'Comparing $C_{{\ell}}$ of galaxies, ISW')
+    plt.ylabel(r'$C_{{\ell}}$')
+    #plt.ylabel(r'$(2\ell+1)C_{{\ell}}$')
     plt.xlabel(r'Multipole $\ell$')
-    plt.xlim((0,30))
-    plt.ylim((1.e-11,1.))
+    plt.xlim((1,30))
+    if plotISWgalratio:
+        plt.ylim((1.e-11,1.))
+    else:
+        plt.ylim((1.e-10,5.e-5))
     plt.yscale('log')
+
+    #dummy lines for legend
+    line1,=plt.plot(np.array([]),np.array([]),color='black',linestyle='-',label='gal-gal',linewidth=2)
+    line2,=plt.plot(np.array([]),np.array([]),color='black',linestyle='--',label='ISW-gal',linewidth=2)
+    if plotISWgalratio:
+        line3,=plt.plot(np.array([]),np.array([]),color='black',linestyle=':',label='ISW-gal/gal-gal',linewidth=2)
     for i in xrange(b2vals.size):
         bmap=bins[i+1]
         if bmap.isISW:
             continue
-        elif b2vals[i]==0.:
-            autoind=cldat.crossinds[i+1,i+1]
-            xiswind=cldat.crossinds[i+1,0]
-            plt.plot(l,np.fabs(cldat.cl[autoind,:])*clscaling,color='grey',linestyle='-')
-            plt.plot(l,np.fabs(cldat.cl[xiswind,:])*clscaling,color='grey',linestyle='--')
-            plt.plot(l,np.fabs(cldat.cl[xiswind,:]/cldat.cl[autoind,:])*clscaling,color='grey',linestyle=':')
         else:
             autoind=cldat.crossinds[i+1,i+1]
             xiswind=cldat.crossinds[i+1,0]
-            plt.plot(l,np.fabs(cldat.cl[autoind,:])*clscaling,color=b2cols[i-1],linestyle='-')
-            plt.plot(l,np.fabs(cldat.cl[xiswind,:])*clscaling,color=b2cols[i-1],linestyle='--')
-            plt.plot(l,np.fabs(cldat.cl[xiswind,:]/cldat.cl[autoind,:])*clscaling,color=b2cols[i-1],linestyle=':')
-    #dummy lines for legend
-    line1,=plt.plot(np.array([]),np.array([]),color='black',linestyle='-',label='gal-gal')
-    line2,=plt.plot(np.array([]),np.array([]),color='black',linestyle='--',label='ISW-gal')
-    line3,=plt.plot(np.array([]),np.array([]),color='black',linestyle=':',label='ISW-gal/gal-gal')
-
-    #set up colorbar
-    b2ticks=dummylevels#[.1*10**(logminvar+n) for n in xrange(Nlog)]
-    #cbaxes=fig.add_axes([.8,.1,.03,.8])#controls location of colorbar
-    colbar=fig.colorbar(dummyplot,ticks=b2ticks)
-    colbar.ax.set_yticklabels(['{0:0.3f}'.format(b2) for b2 in b2ticks])
-    colbar.set_label(r'$b_2$')
-
-    plt.legend(handles=[line1,line2,line3],loc='lower right')
-    plotdir='output/zdisttest/plots/'
+            plt.plot(l,np.fabs(cldat.cl[autoind,:])*clscaling,color=b2cols[i%len(b2cols)],linestyle='-',label='$b_2={0:0.2f}$'.format(b2vals[i]),linewidth=2)
+            plt.plot(l,np.fabs(cldat.cl[xiswind,:])*clscaling,color=b2cols[i%len(b2cols)],linestyle='--',linewidth=2)
+            if plotISWgalratio:
+                plt.plot(l,np.fabs(cldat.cl[xiswind,:]/cldat.cl[autoind,:])*clscaling,color=b2cols[i%len(b2cols)],linestyle=':',linewidth=2)
+    
+    plt.legend(loc='center right',fontsize=16,ncol=2)
     plotname='bztest_cl_compare'
+    outname=plotdir+plotname+'.pdf'
+    print 'saving',outname
+    plt.savefig(outname)
+    plt.close()
+
+    #make ratio plot
+    fig=plt.figure(1)
+    fig.subplots_adjust(bottom=.15)
+    fig.subplots_adjust(left=.15)
+    ax=plt.subplot()
+    for item in ([ax.xaxis.label, ax.yaxis.label] +
+                  ax.get_yticklabels()+ax.get_xticklabels()):
+        item.set_fontsize(22)
+    plt.ylabel(r'$C_{{\ell}}(b_2)/C_{{\ell}}(b_2={0:0.1f})$ '.format(refval))
+    plt.xlabel(r'Multipole $\ell$')
+    plt.xlim((1,30))
+    #plt.ylim((0,10))
+    refind=np.argwhere(b2vals==refval)[0][0]#where in b2vals is refval?
+    refautoind=cldat.crossinds[refind+1,refind+1]
+    for i in xrange(b2vals.size):
+        bmap=bins[i+1]
+        if bmap.isISW:
+            continue
+        else:
+            autoind=cldat.crossinds[i+1,i+1]
+            plt.plot(l,np.fabs(cldat.cl[autoind,:]/cldat.cl[refautoind,:]),color=b2cols[i%len(b2cols)],linestyle='-',label='$b_2={0:0.1f}$'.format(b2vals[i]),linewidth=2)
+    plt.legend(loc='center right',fontsize=16,ncol=2)
+    plotname=plotname+'_ratio'
     outname=plotdir+plotname+'.pdf'
     print 'saving',outname
     plt.savefig(outname)
@@ -2873,41 +2888,49 @@ def catztest_onesim_plot(fidf=0.02,recf=np.array([0.,5.e-4,1.e-3,2.e-3,.01,.02,.
     plt.savefig(plotdir+outname)
     plt.close()   
 #--------------------------------------------------------------------     
-def catz_Clcomp(badfracs=np.array([0.,5.e-4,1.e-3,2.e-3,1.e-2,2.e-2,.1,.2]),Nbins=1):
+def catz_Clcomp(badfracs=np.array([0.,1.e-3,5.e-3,1.e-2,2.e-2,5.e-2,.1,.2]),Nbins=1,plotdir='output/zdisttest/plots/',plotISWgalratio=True,refval=0.01):
     iswind=0
-    firstiszero=badfracs[0]==0. #assumes 0 nowhere else
     bins=catz_get_binmaps(badfracs,Nbins)#includes ISW at 0, others in same order as z0
     cldat=catz_get_Cl(badfracs,Nbins)
     l=np.arange(cldat.Nell)
-    #set up color range
-    cm=plt.get_cmap('Spectral_r')
-    cNorm=colors.LogNorm()#max and min numbers colors need to span
-    scalarMap=cmx.ScalarMappable(norm=cNorm,cmap=cm)
-    fcols=scalarMap.to_rgba(badfracs[firstiszero:])
-    if firstiszero:
-        newfcols=['black']
-        for c in fcols:
-            newfcols.append(c)
-        fcols=newfcols
-    clscaling=2*l+1.#l*(l+1.)/(2*np.pi)
-    
-    #to get colorbar key, need ot set up a throw-away map
-    dummyz=[[0,0],[0,0]]
-    dummylevels=badfracs
-    dummyplot=plt.contourf(dummyz,dummylevels,cmap=cm,norm=colors.LogNorm())
-    plt.clf()
-    fig=plt.gcf()
+    clscaling=1#2*l+1.#l*(l+1.)/(2*np.pi)
+    # fcols=['#d53e4f',
+    #        '#fc8d59',
+    #        '#fee08b',
+    #        '#e6f598',
+    #        '#99d594',
+    #        '#3288bd']
+    fcols=['#d7191c',
+            '#fdae61',
+            '#636363',##ffffbf',
+            '#abd9e9',
+            '#2c7bb6']
     
     #set up actual plot
     fig=plt.figure(0)
+    fig.subplots_adjust(bottom=.15)
+    fig.subplots_adjust(left=.15)
     ax=plt.subplot()
-    plt.title(r'Comparing $C_{{\ell}}$ of galaxies, ISW')
+    for item in ([ax.xaxis.label, ax.yaxis.label] +
+                  ax.get_yticklabels()+ax.get_xticklabels()):
+        item.set_fontsize(22)
+    #plt.title(r'Comparing $C_{{\ell}}$ of galaxies, ISW')
     #plt.ylabel(r'$\ell(\ell+1)C_{{\ell}}/2\pi$')
-    plt.ylabel(r'$(2\ell+1)C_{{\ell}}$')
+    #plt.ylabel(r'$(2\ell+1)C_{{\ell}}$')
+    plt.ylabel(r'$C_{{\ell}}$')
     plt.xlabel(r'Multipole $\ell$')
-    plt.xlim((0,30))
-    plt.ylim((1.e-11,1.))
+    plt.xlim((1,30))
+    if plotISWgalratio:
+        plt.ylim((1.e-11,1.))
+    else:
+        plt.ylim((1.e-10,5.e-6))
     plt.yscale('log')
+    
+    #dummy lines for legend
+    line1,=plt.plot(np.array([]),np.array([]),color='black',linestyle='-',label='gal-gal',linewidth=2)
+    line2,=plt.plot(np.array([]),np.array([]),color='black',linestyle='--',label='ISW-gal',linewidth=2)
+    if plotISWgalratio:
+        line3,=plt.plot(l,np.fabs(cldat.cl[xiswind,:]/cldat.cl[autoind,:])*clscaling,color='black',linestyle=':',label='ISW-gal/gal-gal',linewidth=2)
     for i in xrange(badfracs.size):
         bmap=bins[i+1]
         if bmap.isISW:
@@ -2915,33 +2938,45 @@ def catz_Clcomp(badfracs=np.array([0.,5.e-4,1.e-3,2.e-3,1.e-2,2.e-2,.1,.2]),Nbin
         else:
             autoind=cldat.crossinds[i+1,i+1]
             xiswind=cldat.crossinds[i+1,0]
-            plt.plot(l,np.fabs(cldat.cl[autoind,:])*clscaling,color=fcols[i],linestyle='-')
-            plt.plot(l,np.fabs(cldat.cl[xiswind,:])*clscaling,color=fcols[i],linestyle='--')
-            plt.plot(l,np.fabs(cldat.cl[xiswind,:]/cldat.cl[autoind,:])*clscaling,color=fcols[i],linestyle=':')
-    #dummy lines for legend
-    line1,=plt.plot(np.array([]),np.array([]),color='black',linestyle='-',label='gal-gal')
-    line2,=plt.plot(np.array([]),np.array([]),color='black',linestyle='--',label='ISW-gal')
-    line3,=plt.plot(l,np.fabs(cldat.cl[xiswind,:]/cldat.cl[autoind,:])*clscaling,color='black',linestyle=':',label='ISW-gal/gal-gal')
+            plt.plot(l,np.fabs(cldat.cl[autoind,:])*clscaling,color=fcols[i%len(fcols)],linestyle='-',label='$x={0:0.2f}$'.format(badfracs[i]),linewidth=2)
+            plt.plot(l,np.fabs(cldat.cl[xiswind,:])*clscaling,color=fcols[i%len(fcols)],linestyle='--',linewidth=2)
+            if plotISWgalratio:
+                plt.plot(l,np.fabs(cldat.cl[xiswind,:]/cldat.cl[autoind,:])*clscaling,color=fcols[i%badfracs.size],linestyle=':',linewidth=2)
 
-    #set up colorbar
-    logminvar=int(np.log10(min(badfracs[firstiszero:])))
-    logmaxvar=int(np.log10(max(badfracs[firstiszero:])))+1
-    print 'LOGMINMAX',logminvar,logmaxvar
-    Nlog=logmaxvar-logminvar
-    fticks=badfracs[firstiszero:]#[.1*10**(logminvar+n) for n in xrange(Nlog)]
-    #cbaxes=fig.add_axes([.8,.1,.03,.8])#controls location of colorbar
-    colbar=fig.colorbar(dummyplot,ticks=fticks)
-    colbar.ax.set_yticklabels(['{0:0.0e}'.format(f) for f in badfracs[firstiszero:]])
-    colbar.set_label(r'$f_{\rm cat}$')
-
-    plt.legend(handles=[line1,line2,line3],loc='lower right')
-    plotdir='output/zdisttest/plots/'
+    plt.legend(loc='center right',fontsize=16,ncol=2)
     plotname='catztest_cl_compare'
     outname=plotdir+plotname+'.pdf'
     print 'saving',outname
     plt.savefig(outname)
     plt.close()
-    
+
+    #make ratio plot
+    fig=plt.figure(1)
+    fig.subplots_adjust(bottom=.15)
+    fig.subplots_adjust(left=.15)
+    ax=plt.subplot()
+    for item in ([ax.xaxis.label, ax.yaxis.label] +
+                  ax.get_yticklabels()+ax.get_xticklabels()):
+        item.set_fontsize(22)
+    plt.ylabel(r'$C_{{\ell}}(x)/C_{{\ell}}(x={0:0.2f})$'.format(refval))
+    plt.xlabel(r'Multipole $\ell$')
+    plt.xlim((1,30))
+    #plt.ylim((0,20))
+    refind=np.argwhere(badfracs==refval)[0][0]#where in badfracs is refval?
+    refautoind=cldat.crossinds[refind+1,refind+1]
+    for i in xrange(badfracs.size):
+        bmap=bins[i+1]
+        if bmap.isISW:
+            continue
+        else:
+            autoind=cldat.crossinds[i+1,i+1]
+            plt.plot(l,np.fabs(cldat.cl[autoind,:]/cldat.cl[refautoind,:]),color=fcols[i%len(fcols)],linestyle='-',label='$x={0:0.2f}$'.format(badfracs[i]),linewidth=2)
+    plt.legend(loc='center right',fontsize=16,ncol=2)
+    plotname=plotname+'_ratio'
+    outname=plotdir+plotname+'.pdf'
+    print 'saving',outname
+    plt.savefig(outname)
+    plt.close()
 
 #================================================================
 # lmintest - vary lmin used for reconstruction to study fsky effects
