@@ -263,6 +263,110 @@ def bintest_plot_rhohist_forpaper(divstr=['6','222','111111']):
     plt.close()
 
 #==========================================
+# plots rho exp and data points for one shape and lmin
+#combine stuff from caltest_compare_clcal_shapes with rhoexpplot
+def caltest_basic_expplot_forpaper(varname='rho',plotdir='output/plots_forpaper/'):
+    outname='caltest_'+varname+'_exp_basic.pdf'
+    colorlist=['#e41a1c','#377eb8','#4daf4a','#984ea3','#ff7f00']#qualitative
+    reclmin=2
+    #info about calibration errors
+    shape='g'
+    width=10.
+    lmincal=0#min ell for calib error
+    lmaxcal=30#max ell for caliberror
+
+    #what points to plot
+    varlist=list(caltest_get_logspaced_varlist(minvar=1.e-8,maxvar=.1,Nperlog=10))
+    shortvarlist=[1.e-7,1.e-6,1.e-5,1.e-4,1.e-3,1.e-2]#for data points 
+
+    #get data
+    rhoexplist=[]#will be 1D; [variance ] 
+    rhoexplist=caltest_get_rhoexp(varlist,lmax=lmaxcal,lmin=lmincal,shape=shape,width=width,overwrite=False,doplot=False,saverho=True,varname=varname,reclmin=reclmin)
+    #shapestr=r'$C_{{\ell}}^{{\rm cal}}\propto e^{{-(\ell/{0:.0f})^2}}$'.format(width,lmincal,lmaxcal)
+    linelabel='Theory (add. only)'
+    datplot=caltest_getdataplot_forshapecompare(varname,shortvarlist,[shape],[width],[lmincal],[lmaxcal],recminelllist=np.array([reclmin]),colorlist=colorlist,labellist=['Results from sim.'])
+
+    #do plotting!
+    #assuming last entry in varlist, rhoarray is fiducial (var=0)
+    fig=plt.figure(figsize=(7,4))
+    fig.subplots_adjust(bottom=.2)
+    fig.subplots_adjust(left=.175)
+    fig.subplots_adjust(right=.95)
+    ax1 = plt.subplot() 
+    for item in ([ax1.xaxis.label, ax1.yaxis.label] + ax1.get_xticklabels()
+                  + ax1.get_yticklabels()):
+        item.set_fontsize(18)
+    for item in ([ax1.yaxis.label]):
+        item.set_fontsize(22)
+    plt.sca(ax1)
+    ax1.grid(True)
+    ax1.set_xscale('log')
+    ax1.set_xlim((10**-7.5,10**-1.5))
+    ax1.set_xlabel(r'Variance of calib. error field ${\rm var}[c(\hat{{n}})]$')
+    ax1.axhline(0,color='grey',linestyle='-')
+    if varname=='rho':
+        ax1.set_ylim(-.3,1.3)
+        ax1.axhline(1,color='grey',linestyle='-')
+        ax1.set_ylabel(r'$\langle \rho \rangle$')
+    elif varname=='s':
+        ax1.set_ylabel(r'$\langle s \rangle$')
+        ax1.set_ylim(.1,1.e4)
+        ax1.set_yscale('log')
+
+    #fill in regions for current/future values
+    nowmin=1.e-4
+    nowmax=1.e-3
+    nowcenter=10**(.5*(np.log10(nowmin)+np.log10(nowmax)))
+    nowlabel='current'
+    nowcol='#377eb8'
+    futuremin=1.e-6
+    futuremax=1.e-5
+    futurecenter=10**(.5*(np.log10(futuremin)+np.log10(futuremax)))
+    futurelabel='future'
+    futurecol='#4daf4a'
+    ymin,ymax=ax1.get_ylim()
+    #plt.fill_between(varlist[:-1],ymin,ymax, facecolor=nowcol,edgecolor='none',linewidth=2, alpha=0.3)
+    ax1.axvspan(nowmin,nowmax,alpha=0.1,color=nowcol)
+    plt.annotate(nowlabel,xy=(nowcenter,ymin),horizontalalignment='center',verticalalignment='bottom',fontsize=16,color=nowcol)
+    ax1.axvspan(futuremin,futuremax,alpha=0.1,color=futurecol)
+    plt.annotate(futurelabel,xy=(futurecenter,ymin),horizontalalignment='center',verticalalignment='bottom',fontsize=16,color=futurecol)
+        
+    #theory line
+    ax1.plot(varlist[:-1],rhoexplist[:-1],label=linelabel,color=colorlist[0])
+
+    #data points should just have one entry, but copying whole mess anyway
+    for i in xrange(len(datplot)):
+        datvar=datplot[i][0]#array
+        datrho=datplot[i][1]#array
+        datlabel=datplot[i][2] #string
+        datNreal=0
+        datcol=datplot[i][3]
+        datsig=datplot[i][4]         
+        datrefmean=datplot[i][5]
+        if len(datplot[i])>5:
+            datNreal=datplot[i][6]
+        if not datcol:
+            datcol=colorlist[0]
+        ax1.errorbar(datvar,datrho,yerr=datsig/datrefmean,label=datlabel,color=datcol,linestyle='None',marker='o')    
+            
+    plt.sca(ax1)
+    if varname=='rho':
+        plt.legend(fontsize=16,loc='upper right',numpoints=1)
+    elif varname=='s':
+        plt.legend(fontsize=16,loc='upper left',numpoints=1)
+
+    print 'Saving plot to ',plotdir+outname
+    plt.savefig(plotdir+outname)
+    plt.close()
+    
+#--------------------------------------
+def caltest_lmin_plot_forpaper(varname='rho',plotdir='output/plots_forpaper/'):
+    shortvarlist=[1.e-7,1.e-6,1.e-5,1.e-4,1.e-3,1.e-2]
+    varlist=list(caltest_get_logspaced_varlist(minvar=1.e-8,maxvar=.1,Nperlog=10))
+    reclminlist=np.array([2,3,5])
+    caltest_compare_lmin(varlist,varname='rho',dodataplot=True,recminelllist=reclminlist,shortrecminelllist=reclminlist,shortvarlist=shortvarlist,justdat=True,plotdir=plotdir)
+
+#==========================================
 #do Tisw-Trec scatter plot for a given realization r
 def depthtest_TTscatter_forpaper(r=0, z0vals=np.array([0.3,0.5,0.6,0.7,0.8]),savepngmaps=False):
     plotdir='output/plots_forpaper/'
@@ -409,15 +513,16 @@ if __name__=="__main__":
     #catztest_onesim_plot(varname='rho',Nbins=1,recf=badfracs,fidf=.01,secondfidf=.1,dohatch=False,plotdir='output/plots_forpaper/')
     #catztest_onesim_plot(varname='s',Nbins=1,recf=badfracs,fidf=.01,secondfidf=.1,dohatch=False,plotdir='output/plots_forpaper/')
 
-    z0test_Clcomp(perrors=np.array([10,50]),plotdir='output/plots_forpaper/',plotISWgalratio=False)
-    bztest_Clcomp(b2vals=np.array([0.,.1,.5,1.]),plotdir='output/plots_forpaper/',plotISWgalratio=False)
-    catz_Clcomp(badfracs=np.array([0.,1.e-2,5.e-2,.1,.2]),plotdir='output/plots_forpaper/',plotISWgalratio=False)
+    #z0test_Clcomp(perrors=np.array([10,50]),plotdir='output/plots_forpaper/',plotISWgalratio=False)
+    #bztest_Clcomp(b2vals=np.array([0.,.1,.5,1.]),plotdir='output/plots_forpaper/',plotISWgalratio=False)
+    #catz_Clcomp(badfracs=np.array([0.,1.e-2,5.e-2,.1,.2]),plotdir='output/plots_forpaper/',plotISWgalratio=False)
         
-    shortvarlist=[1.e-7,1.e-6,1.e-5,1.e-4,1.e-3,1.e-2]
-    shortreclminlist=np.array([2,3,5])#1,3,10])
-    varlist=list(caltest_get_logspaced_varlist(minvar=1.e-8,maxvar=.1,Nperlog=10))    
+    #caltest_basic_expplot_forpaper('rho')
+    #caltest_basic_expplot_forpaper('s')
+    caltest_lmin_plot_forpaper('rho')
+    
     #caltest_Clcomp(varlist,plotdir='output/plots_forpaper/')
-    #caltest_compare_clcal_shapes(varlist,shapelist=['g'],varname='rho',shortvarlist=shortvarlist,plotdir='output/plots_forpaper/')
+
     #caltest_compare_lmin(varlist,varname='rho',dodataplot=True,recminelllist=reclminlist,shortrecminelllist=shortreclminlist,shortvarlist=shortvarlist,justdat=True,plotdir='output/plots_forpaper/')
     
     

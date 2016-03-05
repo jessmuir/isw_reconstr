@@ -1111,17 +1111,13 @@ def caltest_get_reclist(varlist,shape='g',width=10.,lmin=0,lmax=30,recminelllist
     #put fidicual in
     includecl=[lssbin]
     inmaptype=lsstype
-    if recminelllist.size==1: #should eventually remove this, but old data has no tag
-        NOLMINTAG=False#True
-    else:
-        NOLMINTAG=False
     for recminell in recminelllist:
-        reclist.append(RecData(includecl,includecl,inmaptype,'unmod',recminell,nolmintag=NOLMINTAG))
+        reclist.append(RecData(includecl,includecl,inmaptype,'unmod',recminell))
     for m in dothesemods:
         includeglm=[m]
         rectag=m[1]#modtag
         for recminell in recminelllist:
-            reclist.append(RecData(includeglm,includecl,inmaptype,rectag,recminell,nolmintag=NOLMINTAG))
+            reclist.append(RecData(includeglm,includecl,inmaptype,rectag,recminell))
     return reclist #includes fiducial case as first entry
 
 #having already generated maps for reconstructions with calib errors,
@@ -1150,7 +1146,6 @@ def caltest_get_logspaced_varlist(minvar=1.e-9,maxvar=.1,Nperlog=10):
 # and return an array which can be used to add those points to a plot
 #for compatibility with pre-lmintest data, if recminelllist.size==1, no lmin tag
 def caltest_getrhodat_fromfiles(varlist,shape='g',width=10.,lmin=0,lmax=30,recminelllist=np.array([2]),varname='rho'):
-    NOLMINTAG=False#recminelllist.size==1
     Nvar=len(varlist)
     #read in rho values
     modnames=[getmodtag_fixedvar(v,shape,lmin,lmax,width) for v in varlist]
@@ -1158,10 +1153,7 @@ def caltest_getrhodat_fromfiles(varlist,shape='g',width=10.,lmin=0,lmax=30,recmi
     outrho=[]
     counter=0
     for recminell in recminelllist:
-        if NOLMINTAG:
-            reclminstr=''
-        else:
-            reclminstr="-lmin{0:02d}".format(recminell)
+        reclminstr="-lmin{0:02d}".format(recminell)
         files=['iswREC.eucz07.{0:s}.fullsky{2:s}.depthtest.{1:s}.dat'.format(modname,varname,reclminstr) for modname in modnames]
         #append fiducial case (no cal error) for that lmin
         files.append('iswREC.eucz07.unmod.fullsky{1:s}.depthtest.{0:s}.dat'.format(varname,reclminstr))
@@ -1202,7 +1194,7 @@ def caltest_getdataplot_forshapecompare(varname='rho',varlist=[],shapelist=['g']
         #print rhogrid.shape
         Nreal=rhogrid.shape[2]
         Nlmin=rhogrid.shape[0]
-        if not labellist[i] and len(recminelllist)==1:
+        if getlabels and (not labellist[i] and len(recminelllist)==1):
             if cleanplot:
                 label='Simulation'
             else:
@@ -1229,7 +1221,7 @@ def caltest_getdataplot_forshapecompare(varname='rho',varlist=[],shapelist=['g']
     return plotdatalist
 
 #if cleanplot, no title, sparser legend.
-def caltest_compare_clcal_shapes(varlist,shapelist=['g','l2'],varname='rho',lmaxlist=[],lminlist=[],widthlist=[],dodataplot=True,shortvarlist=[],outtag='',cleanplot=False,reclmin=1,plotdir='output/caltest_plots/'):
+def caltest_compare_clcal_shapes(varlist,shapelist=['g','l2'],varname='rho',lmaxlist=[],lminlist=[],widthlist=[],dodataplot=True,shortvarlist=[],outtag='',cleanplot=False,reclmin=2,plotdir='output/caltest_plots/',justdat=False):
     Nshapes=len(shapelist)
     if not outtag: outtag='shapecompare'
     colorlist=['#e41a1c','#377eb8','#4daf4a','#984ea3','#ff7f00']#qualitative
@@ -1247,21 +1239,21 @@ def caltest_compare_clcal_shapes(varlist,shapelist=['g','l2'],varname='rho',lmax
         widthlist=[10.]*Nshapes
     rhoexplist=[] #will be 2D; [shape,variance ] 
     labels=[]
-    for s in xrange(Nshapes):
-        nolmintag=False
-        rhoexplist.append(caltest_get_rhoexp(varlist,lmax=lmaxlist[s],lmin=lminlist[s],shape=shapelist[s],width=widthlist[s],overwrite=False,doplot=False,saverho=True,varname=varname,reclmin=reclmin,nolmintag=nolmintag)) #nolmintag for compatibility with pre-lmintest data
+    if not justdat:
+        for s in xrange(Nshapes):
+            rhoexplist.append(caltest_get_rhoexp(varlist,lmax=lmaxlist[s],lmin=lminlist[s],shape=shapelist[s],width=widthlist[s],overwrite=False,doplot=False,saverho=True,varname=varname,reclmin=reclmin)) 
             
-        if shapelist[s]=='g':
-            shapestr=r'$C_{{\ell}}^{{\rm cal}}\propto e^{{-(\ell/{0:.0f})^2}}$'.format(widthlist[s],lminlist[s],lmaxlist[s])
-            #shapestr=r'$C_{{\ell}}^{{\rm cal}}\propto e^{{-(\ell/{0:.0f})^2}}$ for ${1:d}\leq \ell \leq {2:d}$'.format(widthlist[s],lminlist[s],lmaxlist[s])
-            #shapestr='g{2:d}_{0:d}l{1:d}'.format(lminlist[s],lmaxlist[s],int(widthlist[s]))
-        elif shapelist[s]=='l2':
-            shapestr=r'$C_{{\ell}}^{{\rm cal}}\propto \ell^{{-2}}$'.format(lminlist[s],lmaxlist[s])
-            #shapestr=r'$C_{{\ell}}^{{\rm cal}}\propto \ell^{{-2}}$ for ${0:d}\leq \ell \leq {1:d}$'.format(lminlist[s],lmaxlist[s])
-            #shapestr='l2_{0:d}l{1:d}'.format(lminlist[s],lmaxlist[s])
-        labels.append(shapestr)
+            if shapelist[s]=='g':
+                shapestr=r'$C_{{\ell}}^{{\rm cal}}\propto e^{{-(\ell/{0:.0f})^2}}$'.format(widthlist[s],lminlist[s],lmaxlist[s])
+                #shapestr=r'$C_{{\ell}}^{{\rm cal}}\propto e^{{-(\ell/{0:.0f})^2}}$ for ${1:d}\leq \ell \leq {2:d}$'.format(widthlist[s],lminlist[s],lmaxlist[s])
+                #shapestr='g{2:d}_{0:d}l{1:d}'.format(lminlist[s],lmaxlist[s],int(widthlist[s]))
+            elif shapelist[s]=='l2':
+                shapestr=r'$C_{{\ell}}^{{\rm cal}}\propto \ell^{{-2}}$'.format(lminlist[s],lmaxlist[s])
+                #shapestr=r'$C_{{\ell}}^{{\rm cal}}\propto \ell^{{-2}}$ for ${0:d}\leq \ell \leq {1:d}$'.format(lminlist[s],lmaxlist[s])
+                #shapestr='l2_{0:d}l{1:d}'.format(lminlist[s],lmaxlist[s])
+            labels.append(shapestr)
     if dodataplot:
-        dataplot=caltest_getdataplot_forshapecompare(varname,shortvarlist,shapelist,widthlist,lminlist,lmaxlist,cleanplot=cleanplot,recminelllist=np.array([reclmin]),colorlist=colorlist,getlabels=False) #don't get labels
+        dataplot=caltest_getdataplot_forshapecompare(varname,shortvarlist,shapelist,widthlist,lminlist,lmaxlist,cleanplot=cleanplot,recminelllist=np.array([reclmin]),colorlist=colorlist,getlabels=justdat) #don't get labels
     else:
         dataplot=[]
 
@@ -1414,8 +1406,8 @@ def caltest_rhoexpplot(varlist,rhoarraylist,labellist=[],outname='',legtitle='',
 
     fig=plt.figure(figsize=(8,4))
     fig.subplots_adjust(bottom=.2)
-    fig.subplots_adjust(left=.2)
-    fig.subplots_adjust(hspace=.3)
+    fig.subplots_adjust(left=.15)
+    fig.subplots_adjust(right=.95)
     ax1 = plt.subplot() #top part has rho
     
     for item in ([ax1.xaxis.label, ax1.yaxis.label] + ax1.get_xticklabels()
@@ -1432,16 +1424,19 @@ def caltest_rhoexpplot(varlist,rhoarraylist,labellist=[],outname='',legtitle='',
     ax1.set_xlabel(r'Variance of calib. error field ${\rm var}[c(\hat{{n}})]$')
     ax1.axhline(0,color='grey',linestyle='-')
     if varname=='rho':
-        ax1.set_ylim(-.4,1.)
+        ax1.set_ylim(-.3,1.2)
         ax1.set_ylabel(r'$\langle \rho \rangle$')
     elif varname=='s':
         ax1.set_ylabel(r'$\langle s \rangle$')
+        ax1.set_ylim(.1,1.e4)
+        #ax1.set_yscale('symlog',linthreshy=.1)
+        ax1.set_yscale('log')
     elif varname=='chisq':
         ax1.set_ylabel(r'$\langle \chi^2 \rangle$')
 
     for i in xrange(len(rhoarraylist)):
         print len(varlist[:-1]),rhoarraylist[i][:-1].shape
-        ax1.semilogx(varlist[:-1],rhoarraylist[i][:-1],label=labellist[i],color=colorlist[i%len(colorlist)])
+        ax1.plot(varlist[:-1],rhoarraylist[i][:-1],label=labellist[i],color=colorlist[i%len(colorlist)])
 
     for i in xrange(len(datplot)):
         datvar=datplot[i][0]#array
@@ -1497,18 +1492,21 @@ def caltest_rhoexpplot_wratio(varlist,rhoarraylist,labellist=[],outname='',legti
     if not outname:
         outname='caltest_'+varname+'_exp'+outtag+'.pdf'
 
-    fig=plt.figure(figsize=(7,7))
-    fig.subplots_adjust(bottom=.2)
-    fig.subplots_adjust(left=.2)
-    fig.subplots_adjust(hspace=.3)
+    fig=plt.figure(figsize=(7,6))
+    fig.subplots_adjust(bottom=.15)
+    fig.subplots_adjust(left=.175)
+    fig.subplots_adjust(right=.95)
+    fig.subplots_adjust(hspace=.2)
     ax1 = plt.subplot(3,1,(1,2)) #top part has rho
     ax2 = plt.subplot(3,1,3,sharex=ax1) #bottom has rho/rhofid
     
     for item in ([ax1.xaxis.label, ax1.yaxis.label,ax2.xaxis.label, ax2.yaxis.label] +
-                 ax2.get_xticklabels() + ax1.get_yticklabels()+ax2.get_yticklabels()):
-        item.set_fontsize(18)
-    for item in (ax1.get_yticklabels()+ax2.get_yticklabels()):
-        item.set_fontsize(16)
+                 ax2.get_xticklabels() + ax2.get_yticklabels()+ ax1.get_yticklabels()+ax2.get_yticklabels()):
+        item.set_fontsize(20)
+    for item in ([ax1.yaxis.label]):
+        item.set_fontsize(22)
+    #for item in (ax2.get_yticklabels()):
+    #    item.set_fontsize(14)
     if not labellist:
         labellist=['']
     if not colorlist:
@@ -1517,6 +1515,7 @@ def caltest_rhoexpplot_wratio(varlist,rhoarraylist,labellist=[],outname='',legti
     plt.sca(ax1)
     ax1.grid(True)
     ax1.set_xscale('log')
+    ax1.set_xlim((10**-7.5,10**-1.5))
     if varname=='rho':
         ax1.axhline(0,color='grey',linestyle='-')
         ax1.axhline(1,color='grey',linestyle='-')
@@ -1526,26 +1525,33 @@ def caltest_rhoexpplot_wratio(varlist,rhoarraylist,labellist=[],outname='',legti
     #ax1.ticklabel_format(axis='y',style='')
     ax2.grid(True)
     if varname=='rho':
-        ax1.set_ylim(-.4,1.)
-        ax1.set_ylabel(r'$\langle \rho \rangle$')
-        ax2.set_ylabel(r'$\langle \rho \rangle /\langle \rho_{{c=0}} \rangle -1$')
+        ax1.set_ylim(-.3,1.3)
+        varstr=r'\rho'
+        #ax1.set_ylabel(r'$\langle \rho \rangle$')
+        #ax2.set_ylabel(r'$\langle \rho \rangle /\langle \rho_{{c=0}} \rangle -1$')
     elif varname=='s':
-        ax1.set_yscale('symlog',linthreshy=.1)
         ax2.set_yscale('symlog',linthreshy=.01)
         ax2.set_ylim(-1,1.e4)
-        ax1.set_ylabel(r'$\langle s \rangle$')
-        ax2.set_ylabel(r'$\langle s \rangle /\langle s_{{c=0}} \rangle - 1$')
+        varstr='s'
+        #ax1.set_ylabel(r'$\langle s \rangle$')
+        #ax2.set_ylabel(r'$\langle s \rangle /\langle s_{{c=0}} \rangle - 1$')
     elif varname=='chisq':
-        ax1.set_ylabel(r'$\langle \chi^2 \rangle$')
-        ax2.set_ylabel(r'$\langle \chi^2 \rangle /\langle \chi^2_{{c=0}} \rangle - 1$')
+        varstr=r'\chi^2'
+        #ax1.set_ylabel(r'$\langle \chi^2 \rangle$')
+        #ax2.set_ylabel(r'$\langle \chi^2 \rangle /\langle \chi^2_{{c=0}} \rangle - 1$')
+    
     
     ax2.set_xlabel(r'Variance of calib. error field ${\rm var}[c(\hat{{n}})]$')
     if plotlines:
+        ax1.set_ylabel(r'$\langle {0:s} \rangle$'.format(varstr))
+        ax2.set_ylabel(r'$\langle {0:s} \rangle /\langle {0:s}_{{c=0}} \rangle -1$'.format(varstr))
         for i in xrange(len(rhoarraylist)):
             print len(varlist[:-1]),rhoarraylist[i][:-1].shape
             ax1.semilogx(varlist[:-1],rhoarraylist[i][:-1],label=labellist[i],color=colorlist[i%len(colorlist)])
             ax2.semilogx(varlist[:-1], rhoarraylist[i][:-1]/rhoarraylist[i][-1]-1.,label=labellist[i],color=colorlist[i%len(colorlist)])
-
+    else:
+        ax1.set_ylabel(r'${0:s}$'.format(varstr))
+        ax2.set_ylabel(r'${0:s}/{0:s}_{{[c=0]}} -1$'.format(varstr))
     Ndat=len(datplot) #offset points if Ndat>1
     logoffsetunit=0
     leftoffset=0
@@ -1595,16 +1601,17 @@ def caltest_rhoexpplot_wratio(varlist,rhoarraylist,labellist=[],outname='',legti
 
     #reduce number of ticklabels for ratio plot
     if varname=='rho':
-        ax2.set_yticks([-1.5+i*.25 for i in xrange(8)])
+        ax2.set_yticks([-1.5+i*.5 for i in xrange(4)])
+        ax2.set_ylim((-1.25,.25))
     elif varname=='s':
         ax2.set_yticks([-1,-.01,0 ,.01,1.,100,10000])
     plt.sca(ax1)
     if varname=='rho':
-        plt.legend(fontsize=18,title=legtitle,loc='lower left',numpoints=1)
+        plt.legend(fontsize=20,title=legtitle,loc='upper right',numpoints=1)
     elif varname=='s':
-        plt.legend(fontsize=18,title=legtitle,loc='upper left',numpoints=1)
+        plt.legend(fontsize=20,title=legtitle,loc='upper left',numpoints=1)
     elif varname=='chisq':
-        plt.legend(fontsize=18,title=legtitle,loc='upper left',numpoints=1)
+        plt.legend(fontsize=20,title=legtitle,loc='upper left',numpoints=1)
 
     print 'Saving plot to ',plotdir+outname
     plt.savefig(plotdir+outname)
@@ -3149,7 +3156,7 @@ def lmintest_get_rhodat(lminlist=np.arange(1,20),lmaxlist=-1):
 # datlmin and datlmax are for if data is run on different set of lmin/max
 #        but have the same form as is specific to this function
 
-def lmintest_plot_rhoexp(lminlist=np.arange(1,30),lmaxlist=-1,z0=.7,overwrite=False,saverho=True,varname='rho',filetag='',plotdir='output/lmintest_plots/',dodata=False,datlmin=np.array([]),datlmax=np.array([])):
+def lmintest_plot_rhoexp(lminlist=np.arange(1,30),lmaxlist=-1,z0=.7,overwrite=False,saverho=True,varname='rho',filetag='',plotdir='output/lmintest_plots/',dodata=False,datlmin=np.array([]),datlmax=np.array([]),dummylegpt=False):
 
     Nlmax=1
     if type(lmaxlist)!=np.ndarray:
@@ -3169,12 +3176,13 @@ def lmintest_plot_rhoexp(lminlist=np.arange(1,30),lmaxlist=-1,z0=.7,overwrite=Fa
     plt.figure(0)
     plt.subplots_adjust(bottom=.2)
     plt.subplots_adjust(left=.2)
+    plt.subplots_adjust(right=.95)
     ax=plt.subplot()
     for item in ([ax.title, ax.xaxis.label, ax.yaxis.label] +
                  ax.get_xticklabels() + ax.get_yticklabels()):
-        item.set_fontsize(20)
-    for item in ([ax.xaxis.label, ax.yaxis.label] ):
         item.set_fontsize(24)
+    for item in ([ax.xaxis.label, ax.yaxis.label] ):
+        item.set_fontsize(32)
     
     colors=['#e41a1c','#377eb8','#4daf4a','#984ea3','#ff7f00','#ffff33','#a65628','#f781bf']
     if varname=='rho':
@@ -3207,15 +3215,20 @@ def lmintest_plot_rhoexp(lminlist=np.arange(1,30),lmaxlist=-1,z0=.7,overwrite=Fa
             rhostd.append(rhostdi)
             Nreal.append(Nreali)
             #colors will match lines
-            plt.errorbar(datlmin,rhomeani,yerr=rhostdi,linestyle='None',marker='o',color=colors[i%len(colors)])
-        datlabel='Results from {0:d} sim.'.format(Nreal[0])#assumes all for same #
+            if dummylegpt:
+                label=''
+            else:
+                label='Results from sim.'
+            plt.errorbar(datlmin,rhomeani,yerr=rhostdi,linestyle='None',marker='o',color=colors[i%len(colors)],label=label)
+        datlabel='Results from sim.'
         #plot dummy point for legend
-        plt.errorbar([-1],[.9],yerr=[.01],linestyle='None',marker='o',color='black',label=datlabel)
+        if dummylegpt:
+            plt.errorbar([-1],[.9],yerr=[.01],linestyle='None',marker='o',color='black',label=datlabel)
 
     if varname=='rho':
-        plt.legend(fontsize=18,loc='lower right',numpoints=1)
+        plt.legend(fontsize=20,loc='lower right',numpoints=1)
     elif varname=='s':
-        plt.legend(fontsize=18,loc='lower left',numpoints=1)
+        plt.legend(fontsize=20,loc='lower left',numpoints=1)
 
     if filetag:
         outtag='_'+filetag
@@ -3642,7 +3655,8 @@ if __name__=="__main__":
         #caltest_compare_clcal_shapes(varlist,shapelist=['g','l2'],varname='rho',lmaxlist=[],lminlist=[],widthlist=[],dodataplot=True)
         #caltest_compare_clcal_shapes(varlist,shapelist=['g','l2'],varname='rho',shortvarlist=shortvarlist)
         caltest_compare_clcal_shapes(varlist,shapelist=['g'],varname='rho',shortvarlist=shortvarlist)
-        #caltest_compare_clcal_shapes(varlist,shapelist=['g','l2'],varname='s',shortvarlist=shortvarlist)
+        caltest_compare_clcal_shapes(varlist,shapelist=['g'],varname='s',shortvarlist=shortvarlist)
+
 
     if 0: #plotting cl for caltest
         varlist=list(caltest_get_logspaced_varlist(minvar=1.e-8,maxvar=.1,Nperlog=10))    
@@ -3692,7 +3706,7 @@ if __name__=="__main__":
         #catz_Clcomp()
 
 
-    if 1: #zdist tests with less info
+    if 0: #zdist tests with less info
         #z0test_onesim_plot(varname='rho',biascomp=True)
         #z0test_onesim_plot(varname='s',biascomp=True)
         #z0test_onesim_plot(varname='rho',fitbias=0)
