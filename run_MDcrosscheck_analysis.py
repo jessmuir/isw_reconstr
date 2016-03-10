@@ -86,7 +86,7 @@ def MDtest_get_Cl(justread=True,Ndesbins=[2,3],nvss=True):
     return cldat
 
 def MDtest_boostNVSSnoise(cldat):
-    newnbar=5.e5 #smaller than prev used 1.e9
+    newnbar=1.e8 #smaller than prev used 1.e9
     for i in xrange(cldat.Nmap):
         if 'nvss' in cldat.bintaglist[i]:
             nvssind=i
@@ -160,7 +160,7 @@ def MDtest_read_rho_wfiles(varname='rho',Ndesbins=[2,3],lmin=3,lmax=80,rhofileta
 def MDtest_get_expected_rho(varname='rho',Ndesbins=[2,3],lmin=3,lmax=80,nvss=True):
     Nrec=len(Ndesbins)+nvss
     cldat=MDtest_get_Cl(Ndesbins=Ndesbins,nvss=nvss)
-    #cldat=MDtest_boostNVSSnoise(cldat)
+    cldat=MDtest_boostNVSSnoise(cldat)
     reclist=MDtest_get_reclist(Ndesbins,lmin,lmax,nvss=nvss)
     rhopred=np.zeros(Nrec)
     for i in xrange(Nrec):
@@ -374,9 +374,9 @@ if __name__=="__main__":
         #rhofiletag='nob0fit'
         rhofiletag=''
         #MDtest_get_glm_and_rec(Nreal,justgetrho=False,dorho=1,Ndesbins=Ndesbins,lmin=lmin,lmax=lmax,rhofiletag=rhofiletag)
-        MDtest_get_glm(Nreal,Ndesbins=[2,3],nvss=1)
+        #MDtest_get_glm(Nreal,Ndesbins=[2,3],nvss=1)
 
-        MDtest_iswrec(Nreal,Ndesbins=[2,3],nvss=1,lmin=lmin,lmax=lmax,rhofiletag=rhofiletag,fitbias=True) #including more maps here doesn't mess up results
+        #MDtest_iswrec(Nreal,Ndesbins=[2,3],nvss=1,lmin=lmin,lmax=lmax,rhofiletag=rhofiletag,fitbias=True) #including more maps here doesn't mess up results
 
         MDtest_plot_rhohist('rho',Ndesbins=[2,3],nvss=1,lmin=lmin,lmax=lmax,firstNreal=Nreal,rhofiletag=rhofiletag,plottag=rhofiletag)
         

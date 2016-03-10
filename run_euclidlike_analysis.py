@@ -2219,12 +2219,13 @@ def z0test_Clcomp(perrors=np.array([1,10,20,30,50]),fidz0=.7,plotdir='output/zdi
 
     #make ratio plot
     fig=plt.figure(1)
-    fig.subplots_adjust(bottom=.15)
-    fig.subplots_adjust(left=.15)
+    fig.subplots_adjust(bottom=.16)
+    fig.subplots_adjust(left=.13)
+    fig.subplots_adjust(right=.95)
     ax=plt.subplot()
     for item in ([ax.xaxis.label, ax.yaxis.label] +
                   ax.get_yticklabels()+ax.get_xticklabels()):
-        item.set_fontsize(22)
+        item.set_fontsize(30)
     plt.ylabel(r'$C_{{\ell}}(z_0)/C_{{\ell}}(z_0={0:0.1f})$'.format(refval))
     plt.xlabel(r'Multipole $\ell$')
     plt.xlim((1,30))
@@ -2238,7 +2239,7 @@ def z0test_Clcomp(perrors=np.array([1,10,20,30,50]),fidz0=.7,plotdir='output/zdi
         else:
             autoind=cldat.crossinds[i+1,i+1]
             plt.plot(l,np.fabs(cldat.cl[autoind,:]/cldat.cl[refautoind,:]),color=z0cols[i%len(z0cols)],linestyle='-',label='$z_0={0:0.2f}$'.format(z0vals[i]),linewidth=2)
-    plt.legend(loc='center right',fontsize=16,ncol=2)
+    plt.legend(loc='center right',fontsize=24,ncol=2)
     plotname=plotname+'_ratio'
     outname=plotdir+plotname+'.pdf'
     print 'saving',outname
@@ -2566,12 +2567,13 @@ def bztest_Clcomp(b2vals=np.array([0.,.01,.1,.5,1.,2.,5.,10.]),plotdir='output/z
 
     #make ratio plot
     fig=plt.figure(1)
-    fig.subplots_adjust(bottom=.15)
-    fig.subplots_adjust(left=.15)
+    fig.subplots_adjust(bottom=.16)
+    fig.subplots_adjust(left=.17)
+    fig.subplots_adjust(right=.95)
     ax=plt.subplot()
     for item in ([ax.xaxis.label, ax.yaxis.label] +
                   ax.get_yticklabels()+ax.get_xticklabels()):
-        item.set_fontsize(22)
+        item.set_fontsize(30)
     plt.ylabel(r'$C_{{\ell}}(b_2)/C_{{\ell}}(b_2={0:0.1f})$ '.format(refval))
     plt.xlabel(r'Multipole $\ell$')
     plt.xlim((1,30))
@@ -2585,7 +2587,7 @@ def bztest_Clcomp(b2vals=np.array([0.,.01,.1,.5,1.,2.,5.,10.]),plotdir='output/z
         else:
             autoind=cldat.crossinds[i+1,i+1]
             plt.plot(l,np.fabs(cldat.cl[autoind,:]/cldat.cl[refautoind,:]),color=b2cols[i%len(b2cols)],linestyle='-',label='$b_2={0:0.1f}$'.format(b2vals[i]),linewidth=2)
-    plt.legend(loc='center right',fontsize=16,ncol=2)
+    plt.legend(loc='center right',fontsize=24,ncol=2)
     plotname=plotname+'_ratio'
     outname=plotdir+plotname+'.pdf'
     print 'saving',outname
@@ -2959,12 +2961,13 @@ def catz_Clcomp(badfracs=np.array([0.,1.e-3,5.e-3,1.e-2,2.e-2,5.e-2,.1,.2]),Nbin
 
     #make ratio plot
     fig=plt.figure(1)
-    fig.subplots_adjust(bottom=.15)
-    fig.subplots_adjust(left=.15)
+    fig.subplots_adjust(bottom=.16)
+    fig.subplots_adjust(left=.13)
+    fig.subplots_adjust(right=.95)
     ax=plt.subplot()
     for item in ([ax.xaxis.label, ax.yaxis.label] +
                   ax.get_yticklabels()+ax.get_xticklabels()):
-        item.set_fontsize(22)
+        item.set_fontsize(30)
     plt.ylabel(r'$C_{{\ell}}(x)/C_{{\ell}}(x={0:0.2f})$'.format(refval))
     plt.xlabel(r'Multipole $\ell$')
     plt.xlim((1,30))
@@ -2978,7 +2981,7 @@ def catz_Clcomp(badfracs=np.array([0.,1.e-3,5.e-3,1.e-2,2.e-2,5.e-2,.1,.2]),Nbin
         else:
             autoind=cldat.crossinds[i+1,i+1]
             plt.plot(l,np.fabs(cldat.cl[autoind,:]/cldat.cl[refautoind,:]),color=fcols[i%len(fcols)],linestyle='-',label='$x={0:0.2f}$'.format(badfracs[i]),linewidth=2)
-    plt.legend(loc='center right',fontsize=16,ncol=2)
+    plt.legend(loc='center right',fontsize=24,ncol=2)
     plotname=plotname+'_ratio'
     outname=plotdir+plotname+'.pdf'
     print 'saving',outname
