@@ -70,6 +70,18 @@ class ClData(object):
         xind=self.crossinds[mapind1,mapind2]
         return xind in self.docross
 
+    #pass string, for all binmaps with that string in their tag, change nbar
+    def changenbar(self,mapstr,newnbar):
+        changeinds=[]
+        for i in xrange(self.Nmap):
+            if mapstr in self.bintaglist[i]:
+                self.nbar[i]=newnbar
+                diagind=self.crossinds[i,i]
+                if newnbar==-1:
+                    self.noisecl[diagind,:]=0.
+                else:
+                    self.noisecl[diagind,:]=1./newnbar
+
     #given binmap tag, remove that map
     def deletemap(self,tag):
         if tag not in self.bintaglist:

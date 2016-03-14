@@ -302,7 +302,7 @@ def caltest_basic_expplot_forpaper(varname='rho',plotdir='output/plots_forpaper/
     ax1.grid(True)
     ax1.set_xscale('log')
     ax1.set_xlim((10**-7.5,10**-1.5))
-    ax1.set_xlabel(r'Variance of calib. error field ${\rm var}[c(\hat{{n}})]$')
+    ax1.set_xlabel(r'Variance of calib. error field ${\rm var}[c]$')
     ax1.axhline(0,color='grey',linestyle='-')
     if varname=='rho':
         ax1.set_ylim(-.3,1.3)
@@ -513,13 +513,13 @@ if __name__=="__main__":
     #catztest_onesim_plot(varname='rho',Nbins=1,recf=badfracs,fidf=.01,secondfidf=.1,dohatch=False,plotdir='output/plots_forpaper/')
     #catztest_onesim_plot(varname='s',Nbins=1,recf=badfracs,fidf=.01,secondfidf=.1,dohatch=False,plotdir='output/plots_forpaper/')
 
-    z0test_Clcomp(perrors=np.array([10,50]),plotdir='output/plots_forpaper/',plotISWgalratio=False)
-    bztest_Clcomp(b2vals=np.array([0.,.1,.5,1.]),plotdir='output/plots_forpaper/',plotISWgalratio=False)
-    catz_Clcomp(badfracs=np.array([0.,1.e-2,5.e-2,.1,.2]),plotdir='output/plots_forpaper/',plotISWgalratio=False)
+    #z0test_Clcomp(perrors=np.array([10,50]),plotdir='output/plots_forpaper/',plotISWgalratio=False)
+    #bztest_Clcomp(b2vals=np.array([0.,.1,.5,1.]),plotdir='output/plots_forpaper/',plotISWgalratio=False)
+    #catz_Clcomp(badfracs=np.array([0.,1.e-2,5.e-2,.1,.2]),plotdir='output/plots_forpaper/',plotISWgalratio=False)
         
-    #caltest_basic_expplot_forpaper('rho')
-    #caltest_basic_expplot_forpaper('s')
-    #caltest_lmin_plot_forpaper('rho')
+    caltest_basic_expplot_forpaper('rho')
+    caltest_basic_expplot_forpaper('s')
+    caltest_lmin_plot_forpaper('rho')
     
     #caltest_Clcomp(varlist,plotdir='output/plots_forpaper/')
 

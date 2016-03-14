@@ -968,8 +968,74 @@ def get_fixedvar_errors_formaps(glmdat,cdatalist=[],overwrite=False,NSIDE=32,Nre
     #print 'outtuplelist',outtuplelis
     #print ' exiting get_fixedvar...; glmdat.glm.shape=',glmdat.glm.shape
     return outtuplelist
-            
 
+#------------------------------------------------------------------------
+# This next func to be used for shotnoise only; generates maps of shot noise
+# which can be added to the same gal map
+# noisedat list entries are (lssmap,nbar in sr^-1)
+def get_shotnoise_formaps(glmdat,noisedatlist=[],overwrite=False,NSIDE=32,Nreal=0):
+    rundir=glmdat.rundir
+    outdir=glmdat.mapdir()
+    outtuplelist=[]
+    for n in noisedatlist: #assume units is steradians
+        cdat=n
+        #defaults
+        nbar=1.e4
+        clmin=0
+        clmax=95
+        Nell=clmax-clmin+1
+        if type(cdat)==str: #if only string, do this to avoid confusion
+            cdat=(cdat,)
+        #print cdat
+        mapstr=cdat[0]
+        nbar=cdat[1]
+
+        #collect maptags for which we're generating calib errs
+        dothesemaps=[]
+        for t in glmdat.maptaglist:
+            if (mapstr in t) and (t not in dothesemaps): 
+                dothesemaps.append(t)
+        #get realization numbers for which we're generating calib errors
+        # if passing a dummy glm, look for Nreal arg to this function
+        # if dummy glm and Nreal==0, get outtuple list but don't make maps
+        dothesereal=np.array([])
+        if glmdat.rlzns.size:
+            dothesereal=glmdat.rlzns
+        elif glmdat.Nreal:
+            dothesereal=np.arange(glmdat.Nreal)
+        elif Nreal:
+            dothesereal=np.arange(Nreal)
+        modtag='shotnbar{0:0.1e}'.format(nbar)
+        print 'USING MODTAG',modtag
+
+        rcountblock=100
+        #loop through maps and realizations, generating calib maps
+        for m in dothesemaps:
+            outtuplelist.append((m,modtag)) #for now, assumes no mask
+            outbase='noise.{0:s}.for_{1:s}'.format(modtag,m)  
+            thisoutdir=outdir+outbase+'/'
+            if not os.path.isdir(thisoutdir):
+                os.mkdir(thisoutdir)
+            print 'Generating calibration error maps with base:',outbase
+            for r in dothesereal:
+                if r%rcountblock==0:
+                    print "    ON realization",r
+                outname=outbase+'.r{0:05d}.fits'.format(r)        
+                #only bother generating map if overwrite or file nonexistant
+                if overwrite or not os.path.isfile(thisoutdir+outname):
+                    clnoise=np.ones(Nell)*1./nbar
+                    cmap = hp.sphtfunc.synfast(clnoise,NSIDE,verbose=False)
+                    #write to file
+                    hp.write_map(thisoutdir+outname,cmap)
+    #return list of map/mod/mask tuples 
+    # which can be given to apply_caliberror_toglm
+    #print 'outtuplelist',outtuplelis
+    #print ' exiting get_fixedvar...; glmdat.glm.shape=',glmdat.glm.shape
+    return outtuplelist
+
+def get_modtag_shotnbar(nbar):
+    modtag='shotnbar{0:0.1e}'.format(nbar)
+    return modtag
 #------------------------------------------------------------------------
 # gen_error_cl_fixedvar_l2
 #   variance of calibration error field is fixed to sig2 for 1<l<=caliblmax
@@ -1128,11 +1194,15 @@ def apply_additive_caliberror_tocl(cldat,mapmodcombos=[]):
 #          cmap - healpy map array of c(nhat) calib error map
 #          innbar - average counts per steradian of input map
 #------------------------------------------------------------------------
-def apply_caliberror_tomap(inmap,cmap,innbar):
-    Nin=innbar*(inmap+1.) #total number count in each direction
-    Nobs=(1.+cmap)*Nin #this is how the calibration error map is defined
-    outnbar=np.average(Nobs)
-    outmap=Nobs/outnbar - 1.
+def apply_caliberror_tomap(inmap,cmap,innbar,justaddnoise=False):
+    if justaddnoise:
+        outmap=inmap+cmap
+        outnbar=innbar
+    else:
+        Nin=innbar*(inmap+1.) #total number count in each direction
+        Nobs=(1.+cmap)*Nin #this is how the calibration error map is defined
+        outnbar=np.average(Nobs)
+        outmap=Nobs/outnbar - 1.
     return outmap,outnbar
 
 #------------------------------------------------------------------------
@@ -1268,14 +1338,17 @@ def apply_caliberror_toglm(inglmdat,mapmodcombos=[],savemaps=False,saveplots=Fal
 #         newmodtags - if scaling!=1, can pass new modtags for saved reconstructions
 #                     (modtags in mapmodcombos are used to find calib error maps,
 #                      while newmodtags will label output modified maps
+#         justaddnoise - False: calibration error Nobs=(1+c)N
+#                        True: additive noise: delta_obs=delta_gal + delta_noise
 #   for each pair, if that map/mod/mask combo not already in inglmdata
 #   apply the calibration error modification associated with modtag to it 
 #   to get new map and nbar value
 #  Returns: outglmdat - new dummy glmData object, with mapmodcombos included
 #------------------------------------------------------------------------
-def apply_caliberror_to_manymaps(inglmdat,mapmodcombos=[],saveplots=False,rlzns=np.array([]),Nreal=0,calmap_scaling=1.,newmodtags=[],overwritefits=False):
-    print mapmodcombos,len(mapmodcombos)
-    print newmodtags,len(newmodtags)
+def apply_caliberror_to_manymaps(inglmdat,mapmodcombos=[],saveplots=False,rlzns=np.array([]),Nreal=0,calmap_scaling=1.,newmodtags=[],overwritefits=False,justaddnoise=False):
+    #print 'Nreal',Nreal,'------------'
+    #print mapmodcombos,len(mapmodcombos)
+    #print newmodtags,len(newmodtags)
     #print 'in apply calerror_toglm, glm shape:',inglmdat.glm.shape
     #for each mapmodcombo, check whether it is already in glmdat
     newmaptags=[]
@@ -1315,10 +1388,10 @@ def apply_caliberror_to_manymaps(inglmdat,mapmodcombos=[],saveplots=False,rlzns=
     # calib error map, then combine them
     #****For now, assumes approp calib error map exists
     rcountblock=100
-    print "applying calib errors to maps for",len(reals),' realizations'
+    #print ">applying calib errors to maps for",len(reals),' realizations'
     for r in reals:
         if r%rcountblock==0:
-            print "    ON realization",r
+            print "    >>ON realization",r
         for c in xrange(len(newmaptags)):
             #print 'r=',r,': applying',newmodtags[c],'to',newmaptags[c]
             n=inglmdat.mapdict[(newmaptags[c],'unmod',newmasktags[c])] #index of unmodified map
@@ -1328,14 +1401,17 @@ def apply_caliberror_to_manymaps(inglmdat,mapmodcombos=[],saveplots=False,rlzns=
             startnbar=inglmdat.nbarlist[n]
 
             #read in calib error map
-            cmapbase='caliberror.{0:s}.for_{1:s}'.format(refmodtags[c],newmaptags[c])
+            if justaddnoise:
+                cmapbase='noise.{0:s}.for_{1:s}'.format(refmodtags[c],newmaptags[c])
+            else:
+                cmapbase='caliberror.{0:s}.for_{1:s}'.format(refmodtags[c],newmaptags[c])
             cmapdir=''.join([inglmdat.mapdir(),cmapbase,'/'])
             #if not os.path.isdir(cmapdir):
             #    print "    creating dir",cmapdir
             #    os.mkdir(cmapdir)
             calibmapf=cmapdir+'{0:s}.r{1:05d}.fits'.format(cmapbase,r)
             calibmap=calmap_scaling*hp.read_map(calibmapf,verbose=False)
-            newmap,newnbar=apply_caliberror_tomap(startmap,calibmap,startnbar)
+            newmap,newnbar=apply_caliberror_tomap(startmap,calibmap,startnbar,justaddnoise=justaddnoise)
             #save the maps' .fits files
             newmapf= inglmdat.get_mapfile_fortags_unchecked(r,newmaptags[c],newmodtags[c],newmasktags[c])
             newmapdir=newmapf[:newmapf.rfind('/')+1]

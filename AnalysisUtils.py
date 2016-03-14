@@ -1027,7 +1027,7 @@ def read_rhodat_wfile(filename):
     else:
         rlzns=np.array([dat[0]])
         rho=np.array([dat[1]])
-    print 'rho.shape in readfunc:',rho.shape
+    #print 'rho.shape in readfunc:',rho.shape
     return rho
 
 def read_relldat_wfile(filename):

@@ -1065,7 +1065,7 @@ def caltest_apply_caliberrors(varlist,Nreal=0,shape='g',width=10.,lmin=0,lmax=30
     #set up calibration error maps
     calinfolist=[(lssbin,refvar,lmax,shape,width,lmin)] #only for max var
     if Nreal and overwritecalibmap:
-        print 'Generating calibraiton error maps.'
+        print 'Generating calibration error maps.'
     dothesemods=get_fixedvar_errors_formaps(glmdat,calinfolist,overwrite=overwritecalibmap,Nreal=Nreal) #generates calibration error maps, returns [(maptag,modtag,masktag)]list
 
     outglmdatlist=[]
@@ -1132,7 +1132,7 @@ def caltest_iswrec(Nreal,varlist,shape='g',width=10.,callmin=0,callmax=30,overwr
 #---------------------------------------------------------------
 # rhocalc utils
 #---------------------------------------------------------------
-
+#not really specific to caltest: just gives array of vals evenly spaced on logscale
 def caltest_get_logspaced_varlist(minvar=1.e-9,maxvar=.1,Nperlog=10):
     logmin=np.log10(minvar)
     logmax=np.log10(maxvar)
@@ -1421,7 +1421,7 @@ def caltest_rhoexpplot(varlist,rhoarraylist,labellist=[],outname='',legtitle='',
     plt.sca(ax1)
     ax1.grid(True)
     ax1.set_xscale('log')
-    ax1.set_xlabel(r'Variance of calib. error field ${\rm var}[c(\hat{{n}})]$')
+    ax1.set_xlabel(r'Variance of calib. error field ${\rm var}[c]$')
     ax1.axhline(0,color='grey',linestyle='-')
     if varname=='rho':
         ax1.set_ylim(-.3,1.2)
@@ -1541,7 +1541,7 @@ def caltest_rhoexpplot_wratio(varlist,rhoarraylist,labellist=[],outname='',legti
         #ax2.set_ylabel(r'$\langle \chi^2 \rangle /\langle \chi^2_{{c=0}} \rangle - 1$')
     
     
-    ax2.set_xlabel(r'Variance of calib. error field ${\rm var}[c(\hat{{n}})]$')
+    ax2.set_xlabel(r'Variance of calib. error field ${\rm var}[c]$')
     if plotlines:
         ax1.set_ylabel(r'$\langle {0:s} \rangle$'.format(varstr))
         ax2.set_ylabel(r'$\langle {0:s} \rangle /\langle {0:s}_{{c=0}} \rangle -1$'.format(varstr))
@@ -3241,6 +3241,220 @@ def lmintest_plot_rhoexp(lminlist=np.arange(1,30),lmaxlist=-1,z0=.7,overwrite=Fa
     print 'Saving plot to ',plotdir+outname
     plt.savefig(plotdir+outname)
     plt.close()
+
+#===============================================================
+# shot noise tests
+#===============================================================
+# How does increasing the amount of shot noise affect <rho> or <s>?
+#------------------------
+def shottest_getrhoexp(nbarlist=np.array([1.e5,1.e6,1.e7,1.e8,1.e9]),varname='rho'): #assumes nbarlist in units of 1/sr
+    mapname='eucz07'
+    cldat=depthtest_get_Cl(z0vals=np.array([0.7]))
+    rhovals=[]
+    for n in nbarlist:
+        cldat.changenbar(mapname,n)
+        includeglm=[mapname+'_bin0']
+        recdat=RecData(includeglm=includeglm,inmaptag=mapname)
+        rhopred=compute_rho_fromcl(cldat,recdat,varname=varname)
+        rhovals.append(rhopred)
+    rhovals=np.array(rhovals)
+    return rhovals
+
+def shottest_get_fidCl(): #with no shot noise
+    mapname='eucz07'
+    cldat=depthtest_get_Cl(z0vals=np.array([0.7]))
+    cldat.changenbar(mapname,-1)
+    return cldat
+
+#when generating data maps, basically treating shot noise as modeled calib error
+# asumes nbarlist in inverse steradians
+def shottest_apply_noisetomap(nbarlist=[1.e4],Nreal=0,overwritecalibmap=False,scaletovar=False,redofits=True):
+    cldat=shottest_get_fidCl()
+    refvar,refind=caltest_get_scaleinfo(nbarlist,scaletovar)
+    fidbins=caltest_get_fidbins()
+    lssbin=fidbins[1].tag #just the fiducial depthtest binmap
+    glmdat=caltest_get_fidglm()
+
+    #set up noise maps
+    noiseinfolist=[(lssbin,refvar)] #only for max var
+    if Nreal and overwritecalibmap:
+        print 'Generating shot noise maps.'
+    dothesemods=get_shotnoise_formaps(glmdat,noiseinfolist,overwrite=overwritecalibmap,Nreal=Nreal) #generates calibration error maps, returns [(maptag,modtag,masktag)]list
+    print 'dothesemods',dothesemods
+
+    #apply calibration errors
+    outglmdatlist=[]
+    for n in nbarlist:
+        scaling =refvar/n #to multiply noise maps
+        newcaltag=get_modtag_shotnbar(n)
+        print 'Applying shot noise to map, newcaltag',newcaltag
+        outglmdatlist.append(apply_caliberror_to_manymaps(glmdat,dothesemods,Nreal=Nreal,calmap_scaling=scaling,newmodtags=[newcaltag],overwritefits=redofits,justaddnoise=True))
+
+    outglmdat=glmdat.copy(Nreal=0)
+    for n in xrange(len(outglmdatlist)):
+        outglmdat=outglmdat+outglmdatlist[n]
+    #print 'outglmdat.modtaglist',outglmdat.modtaglist
+    return outglmdat #includes, isw, fiduical, and cal error map names
+
+def shottest_get_reclist(nbarlist):
+    reclist=[]
+    fidbins=caltest_get_fidbins()
+    lssbin=fidbins[1].tag #will just be the depthtest bin map
+    lsstype=fidbins[1].typetag
+    noiseinfolist=[(lssbin,nbar) for nbar in nbarlist]
+    fidglm=caltest_get_fidglm()
+    dothesemods=get_shotnoise_formaps(fidglm,noiseinfolist,overwrite=False,Nreal=0)
+    #put fidicual in
+    includecl=[lssbin]
+    inmaptype=lsstype
+    reclist.append(RecData(includecl,includecl,inmaptype,'unmod'))
+    for m in dothesemods:
+        includeglm=[m]
+        rectag=m[1]#modtag
+        reclist.append(RecData(includeglm,includecl,inmaptype,rectag))
+    return reclist #includes fiducial case as first entry
+    
+def shottest_iswrec(Nreal,nbarlist=[1.e4],overwritecalibmap=False,scaletovar=1.e4,domaps=True):
+    fidcl=shottest_get_fidCl()
+    dummyglm=shottest_apply_noisetomap(nbarlist,0,overwritecalibmap,scaletovar,redofits=False)#includes fidicual case
+    reclist=shottest_get_reclist(nbarlist)
+    doiswrec_formaps(dummyglm,fidcl,Nreal,reclist=reclist,domaps=domaps)
+
+# [work in progress, no code yet to do these reconstructions]
+# assuming reconstructions have already been done, along with rho or s calc,
+# and assuming all nbar have the same number of realizations
+#  read in the statistic (rho or s) info from files
+#  returns a Nbar x Nreal array of rho values
+def shottest_getrhodat_fromfiles(nbarlist,varname='rho'):
+    Nnbar=nbarlist.size
+    mapdir='output/depthtest/map_output/'
+    files=[]
+    for n in nbarlist: #nbar in steradiancs
+        files.append('iswREC.eucz07.shotnbar{0:0.1e}.fullsky-lmin02.depthtest.{1:s}.dat'.format(n,varname))
+    rhogrid=np.array([read_rhodat_wfile(mapdir+f) for f in files])
+    return rhogrid
+
+def shottest_get_rhodat(datnbar,varname='rho'):
+    #get 2d Nnbar x Nreal array of rho data, assumign it has already been calc'd
+    rhodat=shottest_getrhodat_fromfiles(datnbar,varname) #nbar in steradians
+    Nnbar=rhodat.shape[0]
+    Nreal=rhodat.shape[1]
+    rhomean=np.zeros(Nnbar)
+    rhostd=np.zeros(Nnbar)
+    for i in xrange(Nnbar):
+        rho=rhodat[i,:]
+        rhomean[i]=np.mean(rho)
+        rhostd[i]=np.std(rho)
+    return rhomean,rhostd,Nreal
+
+
+# plot expectation values
+def shottest_plot_rhoexp(nbarlist=np.array([1.e5,1.e6,1.e7,1.e8,1.e9]),varname='rho',overwrite=False,saverho=True,filetag='',plotdir='output/shottest_plots/',passnbarunit='sr',plotnbarunit='amin2',dodata=False,datnbar=np.array([]),dummylegpt=False):
+    #passednbarunit - what units are nbarlist?per... sr deg2 or amin2
+    # assumes nbarlist adn datnbar are in same units
+    #plotnbarunit - sr deg2 or amin2, with implied ^-1
+    fidnbar=1.e9#in sr^-1, will be noted on plot
+    fidlabel=r'${\rm fiducial }\quad \bar{n}=10^9\,{\rm sr}^{-1}$'
+    if passnbarunit=='sr':
+        tosr=1.
+        if plotnbarunit=='sr':
+            toplot=1.
+        elif plotnbarunit=='deg2':
+            toplot=(np.pi/180.)**2
+        elif plotnbarunit=='amin2':
+            toplot=(np.pi/180./60.)**2
+        fidnbar*=toplot
+    elif passnbarunit=='deg2':
+        tosr=(180./np.pi)**2
+        if plotnbarunit=='sr':
+            toplot=tosr
+        elif plotnbarunit=='deg2':
+            toplot=1.
+            fidnbar*=(np.pi/180.)**2
+        elif plotnbarunit=='amin2':
+            toplot=(1/60.)**2
+            fidnbar*=(np.pi/180./60.)**2
+    elif passnbarunit=='amin2':
+        tosr=(180.*60./np.pi)**2
+        if plotnbarunit=='sr':
+            toplot=tosr
+        elif plotnbarunit=='deg2':
+            toplot=(60.)**2
+            fidnbar*=(np.pi/180.)**2
+        elif plotnbarunit=='amin2':
+            toplot=1.
+            fidnbar*=(np.pi/180./60.)**2
+    
+    rhogrid=shottest_getrhoexp(nbarlist*tosr,varname)#assumes steradian
+    plt.figure(0)
+    plt.subplots_adjust(bottom=.23)
+    plt.subplots_adjust(left=.2)
+    plt.subplots_adjust(right=.95)
+    ax=plt.subplot()
+    for item in ([ax.title, ax.xaxis.label, ax.yaxis.label] +
+                 ax.get_xticklabels() + ax.get_yticklabels()):
+        item.set_fontsize(22)
+    for item in ([ax.xaxis.label, ax.yaxis.label] ):
+        item.set_fontsize(32)
+    
+
+    #plot data/theory
+    colors=['#e41a1c','#377eb8','#4daf4a','#984ea3','#ff7f00','#ffff33','#a65628','#f781bf']
+    if varname=='rho':
+        varstr=r'\rho'
+    elif varname=='s':
+        varstr='s'
+    plt.plot(nbarlist*toplot,rhogrid,color=colors[0],label=r'$\langle {0:s}\rangle$ from theory'.format(varstr))
+    if plotnbarunit=='sr':
+        plt.xlabel(r'$\bar{{n}}$ [${\rm sr}^{-1}$]')
+    elif plotnbarunit=='deg2':
+        plt.xlabel(r'$\bar{{n}}$ [${\rm deg}^{-2}$]')
+    elif plotnbarunit=='amin2':
+        plt.xlabel(r'$\bar{{n}}$ $[{\rm arcmin}^{-2}]$')
+        
+    plt.ylabel(r'${0:s}$'.format(varstr))
+    plt.xscale('log')
+    #plt.xlim((0,15))
+    #plt.ylim((.75,.965))
+
+    if dodata:
+        if not datnbar.size:
+            datnbar=nbarlist
+        rhomean,rhostd,Nreal=shottest_get_rhodat(datnbar*tosr,varname)
+        #colors will match lines
+        if dummylegpt:
+            label=''
+        else:
+            label='Results from sim.'
+        plt.errorbar(datnbar,rhomean,yerr=rhostd,linestyle='None',marker='o',color=colors[0],label=label)
+        datlabel='Results from sim.'
+        #plot dummy point for legend
+        if dummylegpt:
+            plt.errorbar([-1],[.9],yerr=[.01],linestyle='None',marker='o',color='black',label=datlabel)
+
+    if varname=='rho':
+        plt.axhline(0,color='grey',linestyle=':')
+        plt.axhline(1,color='grey',linestyle=':')
+        plt.legend(fontsize=20,loc='lower right',numpoints=1)
+        aloc=(fidnbar,0.1)
+    elif varname=='s':
+        plt.legend(fontsize=20,loc='upper right',numpoints=1)
+        plt.yscale('log')
+        aloc=(fidnbar,1.001)
+    #plot reference liens
+    plt.axvline(fidnbar,linestyle='-',color='grey')
+    plt.annotate(fidlabel,xy=aloc,horizontalalignment='right',verticalalignment='bottom',fontsize=18,color='grey',rotation=90)
+
+    if filetag:
+        outtag='_'+filetag
+    else:
+        outtag=filetag
+    outname='shottest_'+varname+'_exp'+outtag+'.pdf'
+    print 'Saving plot to ',plotdir+outname
+    plt.savefig(plotdir+outname)
+    plt.close()
+    
+
 #===============================================================
 # anglular momentum tests
 #===============================================================
@@ -3591,6 +3805,18 @@ def anglmomtest_get_filteredrho(llims=[(2,3),(5,5)],Nreal=10000,varname='rho',do
     lmintest_iswrec(Nreal,lminlist,lmaxlist,domaps)
 
 
+def angmomtest_LrecLtrue_corrcoef(datdir='output/angmom_study/',plotdir='output/angmom_study/'):
+    labels=['z0=0.3','z0=0.7']
+    files=['Lmax_true_Lmax_rec_z0_03.dat','Lmax_true_Lmax_rec_z0_07.dat']
+    N = len(files)
+    for n in xrange(N):
+        dat=np.loadtxt(datdir+files[n])
+        Ltrue=dat[:,0]
+        Lrec=dat[:,1]
+        Rmatrix=np.corrcoef(dat,rowvar=0) #matix correletion coefficents
+        r=Rmatrix[0,1] #off diag tells us corr between maps
+        print labels[n],', Pearson corr between Lrec-Ltrue = ',r
+
 
 #################################################################
 if __name__=="__main__":
@@ -3773,6 +3999,8 @@ if __name__=="__main__":
                 angmomtest_Lvsrho_plot(plotdat=dattype,Lfile=f,note=n,fileprefix=p,shuffleLrec=shuffle,ellfilter=llims[i])
                 pass
             angmomtest_rhovsrho_plot(note=n,fileprefix=p,shufflerhofilt=shuffle,ellfilter=llims[i])
+    if 0: #correlation coefs for Lmax numbers taht dragan emailed on 3/10/16
+        angmomtest_LrecLtrue_corrcoef()
 
 
             
@@ -3805,3 +4033,16 @@ if __name__=="__main__":
         caltest_compare_lmin(varlist,varname='rho',dodataplot=True,recminelllist=reclminlist,shortrecminelllist=shortreclminlist,shortvarlist=shortvarlist,justdat=True)
         caltest_compare_lmin(varlist,varname='s',dodataplot=True,recminelllist=reclminlist,shortrecminelllist=shortreclminlist,shortvarlist=shortvarlist,justdat=True)
         
+    # shot noise tests
+    if 1:
+        shortnbarlist=np.array([1.e-4,1.e-3,.01,.1,1.,10.,100.])#in arcmin^-2
+        shortnbarsr=shortnbarlist*((180.*60./np.pi)**2)
+        scaletovar=shortnbarsr[0]
+        nbarlist=caltest_get_logspaced_varlist(1.e-6,1.e3)
+        if 0: #gen many maps
+            Nreal=10000
+            shottest_apply_noisetomap(nbarlist=shortnbarsr,Nreal=Nreal,overwritecalibmap=False,scaletovar=scaletovar)
+            shottest_iswrec(Nreal,nbarlist=shortnbarsr,scaletovar=scaletovar,domaps=True)
+            
+        shottest_plot_rhoexp(nbarlist=nbarlist,varname='rho',passnbarunit='amin2',overwrite=0,dodata=True,datnbar=shortnbarlist)
+        shottest_plot_rhoexp(nbarlist=nbarlist,varname='s',passnbarunit='amin2',overwrite=0,dodata=True,datnbar=shortnbarlist)
