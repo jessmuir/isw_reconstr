@@ -3307,7 +3307,7 @@ def shottest_get_reclist(nbarlist):
     #put fidicual in
     includecl=[lssbin]
     inmaptype=lsstype
-    reclist.append(RecData(includecl,includecl,inmaptype,'unmod'))
+    #reclist.append(RecData(includecl,includecl,inmaptype,'unmod'))
     for m in dothesemods:
         includeglm=[m]
         rectag=m[1]#modtag
@@ -3315,10 +3315,13 @@ def shottest_get_reclist(nbarlist):
     return reclist #includes fiducial case as first entry
     
 def shottest_iswrec(Nreal,nbarlist=[1.e4],overwritecalibmap=False,scaletovar=1.e4,domaps=True):
-    fidcl=shottest_get_fidCl()
+    fidcl=shottest_get_fidCl()#don't use fidcl here!
     dummyglm=shottest_apply_noisetomap(nbarlist,0,overwritecalibmap,scaletovar,redofits=False)#includes fidicual case
-    reclist=shottest_get_reclist(nbarlist)
-    doiswrec_formaps(dummyglm,fidcl,Nreal,reclist=reclist,domaps=domaps)
+    #do one rec at a time to be able to properly handle shot noise in cldat
+    for n in nbarlist:
+        reclist=shottest_get_reclist([n])
+        fidcl.changenbar('eucz07',n)
+        doiswrec_formaps(dummyglm,fidcl,Nreal,reclist=reclist,domaps=domaps)
 
 # [work in progress, no code yet to do these reconstructions]
 # assuming reconstructions have already been done, along with rho or s calc,
@@ -3431,16 +3434,16 @@ def shottest_plot_rhoexp(nbarlist=np.array([1.e5,1.e6,1.e7,1.e8,1.e9]),varname='
         #plot dummy point for legend
         if dummylegpt:
             plt.errorbar([-1],[.9],yerr=[.01],linestyle='None',marker='o',color='black',label=datlabel)
-
+    plt.xlim((1.e-5,1.e3))
     if varname=='rho':
         plt.axhline(0,color='grey',linestyle=':')
         plt.axhline(1,color='grey',linestyle=':')
         plt.legend(fontsize=20,loc='lower right',numpoints=1)
-        aloc=(fidnbar,0.1)
+        aloc=(fidnbar,0.175)
     elif varname=='s':
-        plt.legend(fontsize=20,loc='upper right',numpoints=1)
-        plt.yscale('log')
-        aloc=(fidnbar,1.001)
+        plt.legend(fontsize=20,loc='lower left',numpoints=1)
+        #plt.yscale('log')
+        aloc=(fidnbar,.5)
     #plot reference liens
     plt.axvline(fidnbar,linestyle='-',color='grey')
     plt.annotate(fidlabel,xy=aloc,horizontalalignment='right',verticalalignment='bottom',fontsize=18,color='grey',rotation=90)
@@ -4041,7 +4044,7 @@ if __name__=="__main__":
         nbarlist=caltest_get_logspaced_varlist(1.e-6,1.e3)
         if 0: #gen many maps
             Nreal=10000
-            shottest_apply_noisetomap(nbarlist=shortnbarsr,Nreal=Nreal,overwritecalibmap=False,scaletovar=scaletovar)
+            #shottest_apply_noisetomap(nbarlist=shortnbarsr,Nreal=Nreal,overwritecalibmap=1,scaletovar=scaletovar)
             shottest_iswrec(Nreal,nbarlist=shortnbarsr,scaletovar=scaletovar,domaps=True)
             
         shottest_plot_rhoexp(nbarlist=nbarlist,varname='rho',passnbarunit='amin2',overwrite=0,dodata=True,datnbar=shortnbarlist)

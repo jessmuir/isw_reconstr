@@ -826,6 +826,7 @@ def getglm_frommaps(dummyglm,rlzns=np.array([]),Nreal=1):
             mapfile=dummyglm.get_mapfile(rlzns[r],n) #filename of .fits file
             #read in map, extract glm
             mapdat=hp.read_map(mapfile,verbose=False)
+            #print mapfile,'\n   rms:',np.std(mapdat)
             glm[r,n,:]=hp.map2alm(mapdat,dummyglm.lmax)
         #print 'realization',r,'glm nonzero?',np.any(glm[r,:,:])
         
@@ -1025,6 +1026,7 @@ def get_shotnoise_formaps(glmdat,noisedatlist=[],overwrite=False,NSIDE=32,Nreal=
                 if overwrite or not os.path.isfile(thisoutdir+outname):
                     clnoise=np.ones(Nell)*1./nbar
                     cmap = hp.sphtfunc.synfast(clnoise,NSIDE,verbose=False)
+                    #print '***nbar, clnoise, cmap rms = ',nbar,clnoise[4],np.std(cmap)
                     #write to file
                     hp.write_map(thisoutdir+outname,cmap)
     #return list of map/mod/mask tuples 

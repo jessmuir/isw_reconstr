@@ -414,7 +414,7 @@ def depthtest_TTscatter_forpaper(r=0, z0vals=np.array([0.3,0.5,0.6,0.7,0.8]),sav
             recfbase=recmapf[recmapf.rfind('/')+1:recmapf.rfind('.fits')]
             hp.mollview(recmap,title=recfbase,unit='K',max=plotmax,min=-1*plotmax)
             plt.savefig(plotdir+'mapplot_'+recfbase+'.pdf')
-
+    plt.close()
             
     #compute rho (could also read from file but this seams simplest)
     rhovals=[rho_onereal(iswmaps[n],recmaps[n]) for n in xrange(Nrec)]
@@ -495,8 +495,8 @@ if __name__=="__main__":
     #depthtest_plot_rhohist_forpaper(z0vals=np.array([.3,.5, .6,.7,.8]))
     #depthtest_plot_shist_forpaper(z0vals=np.array([.3,.5, .6,.7,.8]))
     #depthtest_plot_dndz_forpaper()
-    #for r in xrange(10,15):
-    #    depthtest_TTscatter_forpaper(r)
+    #for r in xrange(13,14):
+    #    depthtest_TTscatter_forpaper(r,savepngmaps=False)
 
     #bintest_plot_rhohist_forpaper()
     #bintest_plot_zwindowfuncs(plotdir='output/plots_forpaper/')
@@ -505,6 +505,14 @@ if __name__=="__main__":
 
     #lmintest_plot_rhoexp(lminlist=np.arange(1,20),varname='rho',dodata=True,datlmin=np.array([1,2,3,4,5]),plotdir='output/plots_forpaper/')
 
+    #shot noise tests
+    shortnbarlist=np.array([1.e-4,1.e-3,.01,.1,1.,10.])#in arcmin^-2
+    shortnbarsr=shortnbarlist*((180.*60./np.pi)**2)
+    scaletovar=shortnbarsr[0]
+    nbarlist=caltest_get_logspaced_varlist(1.e-6,1.e3)
+    shottest_plot_rhoexp(nbarlist=nbarlist,varname='rho',passnbarunit='amin2',overwrite=0,dodata=True,datnbar=shortnbarlist,plotdir='output/plots_forpaper/')
+    shottest_plot_rhoexp(nbarlist=nbarlist,varname='s',passnbarunit='amin2',overwrite=0,dodata=True,datnbar=shortnbarlist,plotdir='output/plots_forpaper/')
+    
     #z0test_onesim_plot(varname='rho',dohatch=False,plotdir='output/plots_forpaper/')
     #z0test_onesim_plot(varname='s',dohatch=False,plotdir='output/plots_forpaper/')
     #bztest_onesim_plot(varname='rho',dohatch=False,plotdir='output/plots_forpaper/') 
@@ -517,9 +525,9 @@ if __name__=="__main__":
     #bztest_Clcomp(b2vals=np.array([0.,.1,.5,1.]),plotdir='output/plots_forpaper/',plotISWgalratio=False)
     #catz_Clcomp(badfracs=np.array([0.,1.e-2,5.e-2,.1,.2]),plotdir='output/plots_forpaper/',plotISWgalratio=False)
         
-    caltest_basic_expplot_forpaper('rho')
-    caltest_basic_expplot_forpaper('s')
-    caltest_lmin_plot_forpaper('rho')
+    #caltest_basic_expplot_forpaper('rho')
+    #caltest_basic_expplot_forpaper('s')
+    #caltest_lmin_plot_forpaper('rho')
     
     #caltest_Clcomp(varlist,plotdir='output/plots_forpaper/')
 

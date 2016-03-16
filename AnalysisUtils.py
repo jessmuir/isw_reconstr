@@ -311,6 +311,7 @@ def calc_isw_est(cldat,glmdat,recdat,writetofile=True,getmaps=True,redofits=True
         lmax=lmax_forrec
     
     b0=np.ones((Nreal,NLSS))#find best fit bias for each real, for each LSS tracer
+    #print '------reconstructing isw000-------'
     if fitbias:
         for i in xrange(NLSS):
             #get cltheory form diagonal entry in Dl
@@ -320,6 +321,14 @@ def calc_isw_est(cldat,glmdat,recdat,writetofile=True,getmaps=True,redofits=True
             for r in xrange(Nreal):
                 clobs[:,r]=hp.alm2cl(glmgrid[r,i,:])
             b0[:,i]=fitcl_forb0_onereal(cltheory[lmin:lmax+1],clobs[lmin:lmax+1,:])#only fit to desired ell
+            # print ' theory cl for ell=4:',cltheory[4]
+            # print ' observ cl for ell=4:',clobs[4,0]#0th real
+            # print '       best fit bias:',b0[0,i],b0[0,i]**2
+            # plt.figure(0)
+            # plt.semilogy(np.arange(Nell),np.fabs(cltheory),label='theory')
+            # plt.semilogy(np.arange(Nell),np.fabs(clobs),label='obs')
+            # plt.legend()
+            # plt.show()
 
             showtestplot=False
             if showtestplot:
@@ -489,6 +498,8 @@ def s_onereal(truemap,recmap):
     if (not np.any(truemap)) or (not np.any(recmap)):
         print "At least one of these maps is all zeros."
         return 0
+    #print ' s, recmap std:',np.std(recmap)
+    #print ' s, trumap std:',np.std(truemap)
     diff=recmap-truemap
     vardiff=np.mean(diff*diff)
     sigtrue=np.sqrt(np.var(truemap))
@@ -737,12 +748,13 @@ def doiswrec_formaps(dummyglm,cldat,Nreal=1,rlzns=np.array([]),reclist=[],Nglm=0
 #          if overwrite, will makenew rho output file
 #          otherwise, will add rho data to that in existing file
 def calc_rho_forreclist(glmdat,almdat,reclist,rlzns,savedat=True,overwrite=False,filetag='',varname='rho'):
-    print "Computing rho statistics"
+    print "-------Computing ",varname,"statistics-------"
     rhogrid=[]
     for i in xrange(len(reclist)):
         truemapf=glmdat.get_mapfile_fortags(0,reclist[i].zerotagstr) #mod/mask tags default
         truemapbase=truemapf[:truemapf.rfind('.r')]
         recmapf=almdat.get_mapfile(0,i,'fits') #realization 0, map index i, filetype fits
+        #print recmapf
         recmapbase=recmapf[:recmapf.rfind('.r')]
         #print '----'
         #print 'truemapbase',truemapbase
@@ -807,6 +819,7 @@ def rho_manyreal(truefilebase,recfilebase,Nreal=1,rlzns=np.array([]),savedat=Fal
         f2=''.join([recfilebase,'.r{0:05d}.fits'.format(rlzns[r])])
         map1orig=hp.read_map(f1,verbose=False)
         map2orig=hp.read_map(f2,verbose=False)
+        #print ' pre ell removal rms:',np.std(map1orig),np.std(map2orig)
         #filter out ell<lmin
         map1=remove_lowell_frommap(map1orig,lmin,lmax)
         map2=remove_lowell_frommap(map2orig,lmin,lmax)
@@ -1137,10 +1150,17 @@ def compute_rho_fromcl(cldat,recdat,reccldat=0,varname='rho',fitbias=True):
             crosspowerell+=estop[i,:]*Dl[:,0,i+1]
         crosspowerell*=(2.*lvals+1)
         numerator=np.sqrt(sig2rec+sig2isw -2*np.sum(crosspowerell))
-    
         denom=np.sqrt(sig2isw)
         result=numerator/denom
-        
+        # print 's = ',result
+        # print '      Dl[4,0,1]=',Dl[4,0,1]
+        # print '      Dl[4,1,1]=',Dl[4,1,1]
+        # print '      est[gal,4]=',estop[0,4]
+        # print '    sig2isw=',sig2isw
+        # print '    sig2rec=',sig2rec
+        # print '    xpowsum=',2*np.sum(crosspowerell)
+        # print '    numerat=',numerator
+        # print '    denom  =',denom
     elif varname=='chisq': 
         # chisq is sum over l of |alm_true-alm_rec|^2
         denom=Dl[:,0,0]#true isw autopower
@@ -1286,7 +1306,7 @@ def compute_rell_fromcl(cldat,recdat,reccldat=0,varname='rell'):
 #------------------------------------------------------------------------------
 #plot_Tin_Trec  - make scatter plot comparing true to reconstructed isw
 #------------------------------------------------------------------------------
-def plot_Tin_Trec(iswmapfiles,recmapfiles,reclabels,plotdir='output/',plotname='',colorlist=[],dotitle=False,filesuffix='png'):
+def plot_Tin_Trec(iswmapfiles,recmapfiles,reclabels,plotdir='output/',plotname='',colorlist=[],dotitle=False,filesuffix='pdf'):
     if not colorlist:
         colors=['#404040','#c51b8a','#0571b0','#66a61e','#ffa319','#d7191c']
     else:
