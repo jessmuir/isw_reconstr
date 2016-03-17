@@ -82,6 +82,7 @@ def depthtest_get_reclist(z0vals=np.array([.3,.6,.7,.8])):
     return reclist
 
 #use cldat to generate glm, alm, and maps; saves maps but not alm
+#   does isw reconstruction automatically
 def depthtest_get_glm_and_rec(Nreal=1,z0vals=np.array([.3,.6,.7,.8]),minreal=0,justgetrho=0,dorell=0,dorho=1,dos=1,dochisq=1,dochisqell=0):
     t0=time.time()
     cldat=depthtest_get_Cl(justread=True,z0vals=z0vals)
@@ -91,6 +92,16 @@ def depthtest_get_glm_and_rec(Nreal=1,z0vals=np.array([.3,.6,.7,.8]),minreal=0,j
     getmaps_fromCl(cldat,rlzns=rlzns,reclist=reclist,justgetrho=justgetrho,dorell=dorell,dorho=dorho,dos=dos,dochisq=dochisq,dochisqell=dochisqell)
     t1=time.time()
     print "total time for Nreal",Nreal,": ",t1-t0,'sec'
+
+#do reconstructions based on exisitng LSS maps
+# if domaps=False, just computes rho, s, etc without generating maps
+def depthtest_iswrec(Nreal,z0vals=np.array([.3,.6,.7,.8]),minreal=0,dorell=0,dorho=1,dos=1,domaps=True):
+    cldat=depthtest_get_Cl(z0vals=z0vals)
+    rlzns=np.arange(minreal,minreal+Nreal)
+    reclist=depthtest_get_reclist(z0vals)
+    dummyglm=get_glm(cldat,Nreal=0,matchClruntag=True)
+    doiswrec_formaps(dummyglm,cldat,rlzns=rlzns,reclist=reclist,domaps=domaps,dorell=dorell,dos=dos)
+    
 
 #get arrays of rho saved in .rho.dat files or .s.dat
 def depthtest_read_rho_wfiles(z0vals=np.array([.3,.6,.7,.8]),varname='rho'):
@@ -203,42 +214,6 @@ def depthtest_get_expected_rell(z0vals=np.array([0.3,0.6,0.7,0.8]),varname='rell
     rellpred=np.array(rellpred)#[Nrec,Nell]
     #print rellpred
     return rellpred
-
-#--------------------------------
-#testing or knowledge of predicted rho and distribution
-def depthtest_rho_tests(z0vals=np.array([0.7])):
-    cldat=depthtest_get_Cl(z0vals=z0vals)
-    reclist=depthtest_get_reclist(z0vals)
-    rhopred=compute_rho_fromcl(cldat,reclist[0])
-    print "predicted rho:",rhopred
-    rhogrid=depthtest_read_rho_wfiles(z0vals)
-    Nrho=rhogrid.shape[1]
-    rhomean=np.mean(rhogrid[0,:])
-    print "mean rho:",rhomean
-    #get histogram data
-    nvals,evals,patches=plt.hist(rhogrid[0,:],bins=100,range=(-.4,1),histtype='stepfilled')
-    bincenters=np.array([.5*(evals[i]+evals[i+1]) for i in xrange(len(nvals))])
-    binwidth=evals[1]-evals[0]
-    plt.figure()
-    
-    from scipy.optimize import leastsq
-    distfit=lambda x,n:rho_sampledist(x,rhopred,Nsample=n)*Nrho*binwidth
-    p0=np.array([12])
-    errfunc=lambda n,x,y:distfit(x,n)-y
-    n0=100 #initial guess
-    n1,success=leastsq(errfunc,n0,args=(bincenters,nvals))
-    
-    print 'best fit N:',n1
-    rvals=-1+np.arange(201)*.01
-    distvals=distfit(rvals,n1)
-    plt.plot(rvals,distvals,label='fitted function')
-    plt.plot(bincenters,nvals,label='histogram points',linestyle='None',marker='o')
-    plt.xlim(-.4,1)
-    plt.title("Pearson sampling distribution fit to hist for depth z0=0.7")
-    plt.xlabel('r')
-    plt.ylabel('counts')
-    plt.legend(loc='upper left')
-    plt.show()
 
 #do Tisw-Trec scatter plot for a given realization r
 def depthtest_TTscatter(r=0, z0vals=np.array([0.3,0.6,0.7,0.8]),savepngmaps=True,colors=['#1b9e77','#d95f02','#7570b3','#e7298a','#66a61e','#e6ab02']):
@@ -444,7 +419,11 @@ def bintest_get_baseClvals(finestN=6,z0=0.7,sigz=0.05,justread=True):
     zmax=max(m.zmax for m in binmaps)
     rundat = ClRunData(tag='eucbintest{0:d}s{1:03d}'.format(finestN,int(1000*sigz)),iswilktag='eucbintest',rundir='output/eucbintest/',lmax=95,zmax=zmax)
     return getCl(binmaps,rundat,dopairs=['all'],DoNotOverwrite=justread)
-# 
+
+# if base cls are calcualted (the ones for finest bin divisions)
+#      iterate through divisions, combining bins and save results
+# if base cls not calcualated, computes them, then does bin combos
+# if both already done, or justread, just reads in existing data 
 def bintest_get_Clvals(finestN=6,z0=0.7,sigz=0.05,justread=True):
     #get info for isw and finest binned division, calculate cls
     if not justread:
@@ -642,6 +621,7 @@ def bintest_get_expected_rell(divstr,varname='rell'):
 #  will need to add glm to do reconstructions though
 
 #use cldat to generate glm, alm, and maps; saves maps but not alm
+# does isw reconstruction automatically
 def bintest_get_glm_and_rec(Nreal=1,divlist=['6','222','111111'],minreal=0,justgetrho=0,dorell=0):
     t0=time.time()
     allcldat=bintest_get_Clvals(justread=True) #default finestN,z0,sigz
@@ -656,6 +636,21 @@ def bintest_get_glm_and_rec(Nreal=1,divlist=['6','222','111111'],minreal=0,justg
     getmaps_fromCl(cldat,rlzns=rlzns,reclist=reclist,justgetrho=justgetrho,dorell=dorell)
     t1=time.time()
     print "total time for Nreal",Nreal,": ",t1-t0,'sec'
+
+
+# reconstruct the isw based on existing galaxy maps, without regenerating those maps
+# if domaps=False, just computes rho, s, etc without generating maps
+def bintest_iswrec(Nreal,divlist=['6','222','111111'],minreal=0,dorell=0,dorho=1,dos=1,domaps=True):
+    allcldat=bintest_get_Clvals()
+    #get reduced cl with only desired divlist maps in it; 
+    maptypes=bintest_get_maptypelist(finestN=6,getdivs=divlist,z0=0.7,sigz=0.05,includeisw=True)
+    mapsfor=[mt.tag for mt in maptypes] #tags for maps we want to make
+    cldat=get_reduced_cldata(allcldat,dothesemaps=mapsfor)
+    
+    rlzns=np.arange(minreal,minreal+Nreal)
+    reclist=bintest_get_reclist(getdivs=divlist)
+    dummyglm=get_glm(cldat,Nreal=0,matchClruntag=True)
+    doiswrec_formaps(dummyglm,cldat,rlzns=rlzns,reclist=reclist,domaps=domaps,dorell=dorell,dos=dos)
 
 #get arrays of rho saved in .rho.dat files, or .s.dat files
 def bintest_read_rho_wfiles(divlist=['6','222','111111'],sigz=0.05,varname='rho'):
@@ -1145,7 +1140,7 @@ def caltest_get_logspaced_varlist(minvar=1.e-9,maxvar=.1,Nperlog=10):
 #assuming many realizations of maps have been run, read in the rho data
 # and return an array which can be used to add those points to a plot
 #for compatibility with pre-lmintest data, if recminelllist.size==1, no lmin tag
-def caltest_getrhodat_fromfiles(varlist,shape='g',width=10.,lmin=0,lmax=30,recminelllist=np.array([2]),varname='rho'):
+def caltest_getrhodat_fromfiles(varlist,shape='g',width=10.,lmin=0,lmax=30,recminelllist=np.array([2]),varname='rho',getunmod=True):
     Nvar=len(varlist)
     #read in rho values
     modnames=[getmodtag_fixedvar(v,shape,lmin,lmax,width) for v in varlist]
@@ -1156,7 +1151,8 @@ def caltest_getrhodat_fromfiles(varlist,shape='g',width=10.,lmin=0,lmax=30,recmi
         reclminstr="-lmin{0:02d}".format(recminell)
         files=['iswREC.eucz07.{0:s}.fullsky{2:s}.depthtest.{1:s}.dat'.format(modname,varname,reclminstr) for modname in modnames]
         #append fiducial case (no cal error) for that lmin
-        files.append('iswREC.eucz07.unmod.fullsky{1:s}.depthtest.{0:s}.dat'.format(varname,reclminstr))
+        if getunmod:
+            files.append('iswREC.eucz07.unmod.fullsky{1:s}.depthtest.{0:s}.dat'.format(varname,reclminstr))
         rhogrid=np.array([read_rhodat_wfile(mapdir+f) for f in files])#filesxrho
         outrho.append(rhogrid)
     outrho=np.array(outrho)
@@ -1166,7 +1162,7 @@ def caltest_getrhodat_fromfiles(varlist,shape='g',width=10.,lmin=0,lmax=30,recmi
 # will return 1d list of tuples, in order first of shape, then lminlist
 #   note that caltest_compare_clcal_shapes functions assumes just one
 #     or the other of shape and reclmin are varied
-def caltest_getdataplot_forshapecompare(varname='rho',varlist=[],shapelist=['g'],widthlist=[10.],lminlist=[0],lmaxlist=[30],labellist=[''],cleanplot=False,recminelllist=np.array([2]),colorlist=['#e41a1c'],getlabels=False):
+def caltest_getdataplot_forshapecompare(varname='rho',varlist=[],shapelist=['g'],widthlist=[10.],lminlist=[0],lmaxlist=[30],labellist=[''],cleanplot=False,recminelllist=np.array([2]),colorlist=['#e41a1c'],getlabels=False,getunmod=True):
     print "Reading in rho data"
     #just hard coding these in, since they depend on what realizations
     # I've run, so I don't expect a ton of variation here
@@ -1188,8 +1184,8 @@ def caltest_getdataplot_forshapecompare(varname='rho',varlist=[],shapelist=['g']
             #shapetag=r'Gaussian $C_{{\ell}}^{{\rm cal}}$' 
             shapetag=r'$C_{{\ell}}^{{\rm cal}}\propto e^{{-(\ell/{0:.0f})^2}}$'.format(widthlist[i],caliblmin,caliblmax)
             #shapetag='l2_{1:d}l{0:d}'.format(caliblmax,caliblmin)
-        rhogrid=caltest_getrhodat_fromfiles(varlist,shape,widthlist[i],caliblmin,caliblmax,recminelllist,varname)#3D: [lmin,calerror,realization]
-        #  last entry in calerror dimension is value for no calibration error
+        rhogrid=caltest_getrhodat_fromfiles(varlist,shape,widthlist[i],caliblmin,caliblmax,recminelllist,varname,getunmod=getunmod)#3D: [lmin,calerror,realization]
+        #if getunmod last entry in calerror dimension is value for no calibration error
         
         #print rhogrid.shape
         Nreal=rhogrid.shape[2]
@@ -1213,7 +1209,10 @@ def caltest_getdataplot_forshapecompare(varname='rho',varlist=[],shapelist=['g']
             if len(shapelist)==1: #colors hot being used for shapes, just lmin
                 col=colorlist[k%len(colorlist)]
             means[k,:]=np.array([np.mean(rhogrid[k,j,:]) for j in xrange(Nvar)])
-            refmeans[k]=np.mean(rhogrid[k,-1,:])
+            if getunmod:
+                refmeans[k]=np.mean(rhogrid[k,-1,:])
+            else:
+                refmeans[k]=-100 #nonsense value so we don't use it by mistake
             sigs[k,:]=np.array([np.std(rhogrid[k,j,:]) for j in xrange(Nvar)])
             plotdatalist.append((varlist,means[k,:],label,col,sigs[k,:],refmeans[k],Nreal))
         #(datvar,datrho,datlabel,datcol,datsig),...]
@@ -1343,7 +1342,9 @@ def caltest_get_rhoexp(varlist=[1.e-4],lmax=30,lmin=1,shape='g',width=10.,overwr
     #for each variance, get calib error Cl
     clmodlist=[]
     for mm in mapmods:
-        clmodlist.append(apply_additive_caliberror_tocl(fidcl,[mm]))
+        #print 'INRHOEXP---modding Cl---',mm
+        clmod=apply_additive_caliberror_tocl(fidcl,[mm])
+        clmodlist.append(clmod)
     # include fidicual cl as last entry
     if varlist[-1]!=0.:
         print "  appending fiducial case, no calib error"
@@ -2009,14 +2010,14 @@ def z0test_rhoexpplot(simz0,recz0,rhogrid,varname='rho',outtag='',outname='',leg
     #if fitbias=False, doesn't fit for b0
     # if biascomp, sets fitbias=True, will plot greyed out line for no bias fitting version
     #        for comparison
-def z0test_onesim_plot(fidz0=0.7,perrors=np.array([1,10,20,50]),varname='rho',colorlist=[],plotdir='output/zdisttest/plots/',outtag='onesim',outname='',dohatch=False,fitbias=True,biascomp=True):
+def z0test_onesim_plot(fidz0=0.7,perrors=np.array([1,10,20,50]),varname='rho',colorlist=[],plotdir='output/zdisttest/plots/',outtag='onesim',outname='',dohatch=False,fitbias=True,biascomp=True,overwritedat=True):
     simz0=np.array([fidz0])
     recz0=z0test_getz0vals(perrors,fidz0)
     if not fitbias:
         outtag=outtag+'_nob0fit'
-    rhogrid=z0test_get_rhoexp(simz0=simz0,recz0=recz0,overwrite=False,saverho=True,doplot=False,varname=varname,filetag=outtag,fitbias=fitbias) #should be 1xNrec
+    rhogrid=z0test_get_rhoexp(simz0=simz0,recz0=recz0,overwrite=overwritedat,saverho=True,doplot=False,varname=varname,filetag=outtag,fitbias=fitbias) #should be 1xNrec
     if biascomp:
-        nofitrhogrid=z0test_get_rhoexp(simz0=simz0,recz0=recz0,overwrite=False,saverho=True,doplot=False,varname=varname,filetag=outtag+'_nob0fit',fitbias=False)
+        nofitrhogrid=z0test_get_rhoexp(simz0=simz0,recz0=recz0,overwrite=overwritedat,saverho=True,doplot=False,varname=varname,filetag=outtag+'_nob0fit',fitbias=False)
         outtag=outtag+'_biascomp'
     
     Nsim=simz0.size
@@ -2347,13 +2348,14 @@ def bztest_rhoexpplot(simb2,recb2,rhogrid,varname='rho',outtag='',outname='',plo
 
     
 #simb2 fixed at fidb2, varying recb2.
-def bztest_onesim_plot(fidb2=0.5,recb2=np.array([0.,.01,.1,.5,1.,2.,5.,10.]),varname='rho',plotdir='output/zdisttest/plots/',outtag='onesim',outname='',dohatch=False,fitbias=True,biascomp=True):
+def bztest_onesim_plot(fidb2=0.5,recb2=np.array([0.,.01,.1,.5,1.,2.,5.,10.]),varname='rho',plotdir='output/zdisttest/plots/',outtag='onesim',outname='',dohatch=False,fitbias=True,biascomp=True,overwritedat=True):
+    #recb2=np.array([0,.5,1.])#revert
     simb2=np.array([fidb2])
     if not fitbias:
         outtag=outtag+'_nob0fit'
-    rhogrid=bztest_get_rhoexp(simb2=simb2,recb2=recb2,overwrite=False,saverho=True,doplot=False,varname=varname,filetag=outtag,fitbias=fitbias) #should be 1xNrec
+    rhogrid=bztest_get_rhoexp(simb2=simb2,recb2=recb2,overwrite=overwritedat,saverho=True,doplot=False,varname=varname,filetag=outtag,fitbias=fitbias) #should be 1xNrec
     if biascomp:
-        nofitrhogrid=bztest_get_rhoexp(simb2=simb2,recb2=recb2,overwrite=False,saverho=True,doplot=False,varname=varname,filetag=outtag+'_nob0fit',fitbias=False)
+        nofitrhogrid=bztest_get_rhoexp(simb2=simb2,recb2=recb2,overwrite=overwritedat,saverho=True,doplot=False,varname=varname,filetag=outtag+'_nob0fit',fitbias=False)
         outtag=outtag+'_biascomp'
     
     Nsim=simb2.size
@@ -2810,7 +2812,8 @@ def catztest_onerec_plot(fidrecf=0.,simf=np.array([0.,5.e-4,1.e-3,2.e-3,.01,.02,
     plt.savefig(plotdir+outname)
     plt.close()
 
-def catztest_onesim_plot(fidf=0.02,recf=np.array([0.,5.e-4,1.e-3,2.e-3,.01,.02,.1,.2]),varname='rho',plotdir='output/zdisttest/plots/',outtag='onesim',outname='',Nbins=1,secondfidf=-1,dohatch=False,biascomp=True): #working here
+def catztest_onesim_plot(fidf=0.02,recf=np.array([0.,5.e-4,1.e-3,2.e-3,.01,.02,.1,.2]),varname='rho',plotdir='output/zdisttest/plots/',outtag='onesim',outname='',Nbins=1,secondfidf=-1,dohatch=False,biascomp=True,overwritedat=True): #working here
+    print '****Nbins',Nbins
     #if secondfidf>0, will plot a second line
     colors=['#a6611a','#2c7bb6']
     if secondfidf>0:
@@ -2878,7 +2881,7 @@ def catztest_onesim_plot(fidf=0.02,recf=np.array([0.,5.e-4,1.e-3,2.e-3,.01,.02,.
         y=np.arange(-linthreshx,linthreshx,.01*linthreshx)
         ax1.fill_between(y,ymin,ymax,color='none',edgecolor='grey',hatch='/',linewidth=0)
     if biascomp:
-        nofitrhogrid=catz_get_rhoexp(simfracs=simf,recfracs=recf,overwrite=False,saverho=True,doplot=False,varname=varname,filetag=outtag[1:]+'_nob0fit',fitbias=False,Nbins=Nbins)
+        nofitrhogrid=catz_get_rhoexp(simfracs=simf,recfracs=recf,overwrite=overwritedat,saverho=True,doplot=False,varname=varname,filetag=outtag[1:]+'_nob0fit',fitbias=False,Nbins=Nbins)
         outtag=outtag+'_biascomp'
         for i in xrange(Nsim):
             ax1.plot(recf,nofitrhogrid[i,:]/matchval[i]-1,marker='d',color='#969696')
@@ -3826,48 +3829,44 @@ if __name__=="__main__":
     #plot_isw_kernel()
     depthtestz0=np.array([.3,.5,.6,.7,.8])
     #depthtestz0=np.array([.5])
-    if 0: #compute Cl
-        t0=time.time()
+    if 0: #compute Cl # this takes a shile
         depthtest_get_Cl(justread=False,z0vals=depthtestz0)
-        t1=time.time()
-        print "time:",str(t1-t0),"sec"
     if 0: #generate depthhtest maps
         nomaps=False#True
-        Nreal=10000
-        depthtest_get_glm_and_rec(Nreal=Nreal,z0vals=depthtestz0,justgetrho=nomaps,minreal=0,dorho=1,dos=True,dochisq=False,dorell=0,dochisqell=False)
+        Nreal=100#00
+        # "get_glm..." to gen maps and recs, or do just iswrec if mapes already exist
+        #depthtest_get_glm_and_rec(Nreal=Nreal,z0vals=depthtestz0,justgetrho=nomaps,minreal=0,dorho=1,dos=True,dochisq=False,dorell=0,dochisqell=False)
+        depthtest_iswrec(Nreal,z0vals=np.array([.3,.6,.7,.8]),minreal=0,justgetrho=0,dorell=0,dorho=1,dos=1,domaps=True)
     if 0: #plot info about depthtest maps
         #depthtest_TTscatter(0,depthtestz0,savepngmaps=False)
         #depthtest_TTscatter(0,np.array([.3,.6,.8]),colors=['#1b9e77','#7570b3','#66a61e'],savepngmaps=False)
         #depthtest_plot_zwindowfuncs(depthtestz0)
-        for N in 1000*np.arange(1,11):
-            depthtest_plot_rhohist(depthtestz0,varname='rho',firstNreal=N)
+        for N in 1000*np.arange(1,11): #how much do results change with Nreal
+            #depthtest_plot_rhohist(depthtestz0,varname='rho',firstNreal=N)
+            pass
         depthtest_plot_rhohist(depthtestz0,varname='rho')
         depthtest_plot_rhohist(depthtestz0,varname='s')
-        #depthtest_plot_rhohist(depthtestz0,varname='chisq')
-        #depthtest_plot_relldat(depthtestz0,getpred=True,varname='rell')
-        #depthtest_plot_relldat(depthtestz0,getpred=True,varname='chisqell')
-        #depthtest_rho_tests()
 
-    if 0: #bin test rho expectation value calculations
-        #compute cl
-        #cldat05=bintest_get_Clvals(finestN=6,z0=0.7,sigz=0.05,justread=0)
-        #cldat03=bintest_get_Clvals(finestN=6,z0=0.7,sigz=0.03,justread=0)
-        #cldat001=bintest_get_Clvals(finestN=6,z0=0.7,sigz=0.001,justread=0)
-        #cldat100=bintest_get_Clvals(finestN=6,z0=0.7,sigz=0.1,justread=0)
+    if 1: #bin test rho expectation value calculations
+        if 0:         #compute cl, can take a while
+            #cldat05=bintest_get_Clvals(finestN=6,z0=0.7,sigz=0.05,justread=0)
+            #cldat03=bintest_get_Clvals(finestN=6,z0=0.7,sigz=0.03,justread=0)
+            #cldat001=bintest_get_Clvals(finestN=6,z0=0.7,sigz=0.001,justread=0)
+            #cldat100=bintest_get_Clvals(finestN=6,z0=0.7,sigz=0.1,justread=0)
         
         #compute and save expectation values for rho[0.001,0.03,0.05,0.1]
         bintest_rhoexp_comparesigs(finestN=6,z0=0.7,sigzlist=[0.001,0.03,0.05,.1])
         bintest_rhoexp_comparesigs(finestN=6,z0=0.7,sigzlist=[0.001,0.03,0.05,.1],varname='s')
-        #bintest_rhoexp_comparesigs(finestN=6,z0=0.7,sigzlist=[0.001,0.03,0.05],checkautoonly=0,varname='chisq')
 
-        for s in [0.001,0.03,0.05,0.1]:
+        for s in [0.001,0.03,0.05,0.1]: #some tests for z distributions
             #bintest_plot_cl_vals(finestN=6,z0=0.7,sigz=s)
-            bintest_plot_zwindowfuncs(sigz=s)
+            Ebintest_plot_zwindowfuncs(sigz=s)
             pass
         
     if 0: #bin test with many realizations, generate maps
         nomaps=False
         bintest_get_glm_and_rec(Nreal=10000,divlist=['6','222','111111'],minreal=0,justgetrho=nomaps,dorell=0)
+        bintest_iswrec(Nreal,divlist=['6','222','111111'],minreal=0,justgetrho=0,dorell=0,dorho=1,dos=1,domaps=True):
     if 0: #bin test with many realizations, make plots
         for N in 1000*np.arange(1,11):
             bintest_plot_rhohist(getrhopred=True,varname='rho',firstNreal=N)
@@ -3909,20 +3908,20 @@ if __name__=="__main__":
         for r in xrange(5):
             caltest_TTscatter(r)
             pass
-        #caltest_TTscatter(4,savepngmaps=True)'
+        caltest_TTscatter(4,savepngmaps=True)
 
     if 0: #z0test and b2test theory calcs
         simz0=np.array([.35,.56,.63,.693,.7,.707,.7700,.84,1.05])
         perrors=[1,10,20,50]
-        #z0test_get_rhoexp(overwrite=True,doplot=True,varname='rho',perrors=perrors)
-        #z0test_get_rhoexp(overwrite=True,doplot=True,varname='s',perrors=perrors)
+        z0test_get_rhoexp(overwrite=True,doplot=True,varname='rho',perrors=perrors)
+        z0test_get_rhoexp(overwrite=True,doplot=True,varname='s',perrors=perrors)
         
         #z0test_get_rhoexp(overwrite=True,doplot=True,varname='chisq',simz0=simz0)
         #recb2=np.array([0.,.5,1.,10.])
         simb2=np.array([0.,.01,.1,.5,1.,2.,5.,10.])
         recb2=simb2
-        #bztest_get_rhoexp(simb2,recb2,overwrite=True,doplot=True,varname='rho')
-        #bztest_get_rhoexp(simb2,recb2,overwrite=True,doplot=True,varname='s')
+        bztest_get_rhoexp(simb2,recb2,overwrite=True,doplot=True,varname='rho')
+        bztest_get_rhoexp(simb2,recb2,overwrite=True,doplot=True,varname='s')
         #z0test_Clcomp()
         #bztest_Clcomp()
 
@@ -3932,20 +3931,19 @@ if __name__=="__main__":
                 badfracs=np.array([0.,5.e-4,1.e-3,2.e-3,5.e-3,1.e-2,2.e-2,.1,.2])
             elif Nbins==3:
                 badfracs=np.array([1.e-3,1.e-2,.1,.2])                                
-            catz_windowtest(badfracs,Nbins=Nbins)
+            #catz_windowtest(badfracs,Nbins=Nbins)
             catz_get_rhoexp(overwrite=True,doplot=True,varname='rho',badfracs=badfracs,Nbins=Nbins)
             catz_get_rhoexp(overwrite=True,doplot=True,varname='s',badfracs=badfracs,Nbins=Nbins)
         #catz_Clcomp()
 
 
     if 0: #zdist tests with less info
-        #z0test_onesim_plot(varname='rho',biascomp=True)
-        #z0test_onesim_plot(varname='s',biascomp=True)
+        z0test_onesim_plot(varname='rho',biascomp=True)
+        z0test_onesim_plot(varname='s',biascomp=True)
         #z0test_onesim_plot(varname='rho',fitbias=0)
         #z0test_onesim_plot(varname='s',fitbias=0)
-        
-        #bztest_onesim_plot(varname='rho')
-        #bztest_onesim_plot(varname='s')
+        bztest_onesim_plot(varname='rho')
+        bztest_onesim_plot(varname='s')
         #bztest_onerec_plot(varname='rho')
         #bztest_onerec_plot(varname='s')
         
@@ -4037,7 +4035,7 @@ if __name__=="__main__":
         caltest_compare_lmin(varlist,varname='s',dodataplot=True,recminelllist=reclminlist,shortrecminelllist=shortreclminlist,shortvarlist=shortvarlist,justdat=True)
         
     # shot noise tests
-    if 1:
+    if 0:
         shortnbarlist=np.array([1.e-4,1.e-3,.01,.1,1.,10.,100.])#in arcmin^-2
         shortnbarsr=shortnbarlist*((180.*60./np.pi)**2)
         scaletovar=shortnbarsr[0]

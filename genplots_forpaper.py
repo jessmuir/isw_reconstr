@@ -267,6 +267,7 @@ def bintest_plot_rhohist_forpaper(divstr=['6','222','111111']):
 #combine stuff from caltest_compare_clcal_shapes with rhoexpplot
 def caltest_basic_expplot_forpaper(varname='rho',plotdir='output/plots_forpaper/'):
     outname='caltest_'+varname+'_exp_basic.pdf'
+    #outname='caltest_'+varname+'_exp_test.pdf'
     colorlist=['#e41a1c','#377eb8','#4daf4a','#984ea3','#ff7f00']#qualitative
     reclmin=2
     #info about calibration errors
@@ -277,14 +278,15 @@ def caltest_basic_expplot_forpaper(varname='rho',plotdir='output/plots_forpaper/
 
     #what points to plot
     varlist=list(caltest_get_logspaced_varlist(minvar=1.e-8,maxvar=.1,Nperlog=10))
-    shortvarlist=[1.e-7,1.e-6,1.e-5,1.e-4,1.e-3,1.e-2]#for data points 
-
+    shortvarlist=[1.e-7,1.e-6,1.e-5,1.e-4,1.e-3,1.e-2]#for data points
+    
     #get data
     rhoexplist=[]#will be 1D; [variance ] 
     rhoexplist=caltest_get_rhoexp(varlist,lmax=lmaxcal,lmin=lmincal,shape=shape,width=width,overwrite=False,doplot=False,saverho=True,varname=varname,reclmin=reclmin)
     #shapestr=r'$C_{{\ell}}^{{\rm cal}}\propto e^{{-(\ell/{0:.0f})^2}}$'.format(width,lmincal,lmaxcal)
     linelabel='Theory (add. only)'
-    datplot=caltest_getdataplot_forshapecompare(varname,shortvarlist,[shape],[width],[lmincal],[lmaxcal],recminelllist=np.array([reclmin]),colorlist=colorlist,labellist=['Results from sim.'])
+    datplot=caltest_getdataplot_forshapecompare(varname,shortvarlist,[shape],[width],[lmincal],[lmaxcal],recminelllist=np.array([reclmin]),colorlist=colorlist,labellist=['Results from sim.'],getunmod=True)
+    #setting getunmod=false since we don't need cal=0 reference means
 
     #do plotting!
     #assuming last entry in varlist, rhoarray is fiducial (var=0)
@@ -310,8 +312,8 @@ def caltest_basic_expplot_forpaper(varname='rho',plotdir='output/plots_forpaper/
         ax1.set_ylabel(r'$\langle \rho \rangle$')
     elif varname=='s':
         ax1.set_ylabel(r'$\langle s \rangle$')
-        ax1.set_ylim(.1,1.e4)
-        ax1.set_yscale('log')
+        #ax1.set_ylim(.1,1.e4)
+        #ax1.set_yscale('log')
 
     #fill in regions for current/future values
     nowmin=1.e-4
@@ -510,16 +512,20 @@ if __name__=="__main__":
     shortnbarsr=shortnbarlist*((180.*60./np.pi)**2)
     scaletovar=shortnbarsr[0]
     nbarlist=caltest_get_logspaced_varlist(1.e-6,1.e3)
-    shottest_plot_rhoexp(nbarlist=nbarlist,varname='rho',passnbarunit='amin2',overwrite=0,dodata=True,datnbar=shortnbarlist,plotdir='output/plots_forpaper/')
-    shottest_plot_rhoexp(nbarlist=nbarlist,varname='s',passnbarunit='amin2',overwrite=0,dodata=True,datnbar=shortnbarlist,plotdir='output/plots_forpaper/')
-    
-    #z0test_onesim_plot(varname='rho',dohatch=False,plotdir='output/plots_forpaper/')
-    #z0test_onesim_plot(varname='s',dohatch=False,plotdir='output/plots_forpaper/')
-    #bztest_onesim_plot(varname='rho',dohatch=False,plotdir='output/plots_forpaper/') 
-    #bztest_onesim_plot(varname='s',dohatch=False,plotdir='output/plots_forpaper/')
-    badfracs=np.array([0.,1.e-3,5.e-3,1.e-2,2.e-2,5.e-2,.1,.2])
-    #catztest_onesim_plot(varname='rho',Nbins=1,recf=badfracs,fidf=.01,secondfidf=.1,dohatch=False,plotdir='output/plots_forpaper/')
-    #catztest_onesim_plot(varname='s',Nbins=1,recf=badfracs,fidf=.01,secondfidf=.1,dohatch=False,plotdir='output/plots_forpaper/')
+    #shottest_plot_rhoexp(nbarlist=nbarlist,varname='rho',passnbarunit='amin2',overwrite=0,dodata=True,datnbar=shortnbarlist,plotdir='output/plots_forpaper/')
+    #shottest_plot_rhoexp(nbarlist=nbarlist,varname='s',passnbarunit='amin2',overwrite=0,dodata=True,datnbar=shortnbarlist,plotdir='output/plots_forpaper/')
+
+    overwritedat=1
+    # z0test_onesim_plot(varname='rho',dohatch=False,plotdir='output/plots_forpaper/',overwritedat=overwritedat)
+    # z0test_onesim_plot(varname='s',dohatch=False,plotdir='output/plots_forpaper/',overwritedat=overwritedat)
+    # bztest_onesim_plot(varname='rho',dohatch=False,plotdir='output/plots_forpaper/',overwritedat=overwritedat) 
+    # bztest_onesim_plot(varname='s',dohatch=False,plotdir='output/plots_forpaper/',overwritedat=overwritedat)
+    # badfracs=np.array([0.,1.e-3,5.e-3,1.e-2,2.e-2,5.e-2,.1,.2])
+    # catztest_onesim_plot(varname='rho',Nbins=1,recf=badfracs,fidf=.01,secondfidf=.1,dohatch=False,plotdir='output/plots_forpaper/',overwritedat=overwritedat)
+    # catztest_onesim_plot(varname='s',Nbins=1,recf=badfracs,fidf=.01,secondfidf=.1,dohatch=False,plotdir='output/plots_forpaper/',overwritedat=overwritedat)
+    # badfracs=np.array([0.,1.e-3,1.e-2,.1,.2])
+    # catztest_onesim_plot(varname='rho',Nbins=3,recf=badfracs,fidf=.01,secondfidf=.1,dohatch=False,plotdir='output/plots_forpaper/',overwritedat=overwritedat)
+    # catztest_onesim_plot(varname='s',Nbins=3,recf=badfracs,fidf=.01,secondfidf=.1,dohatch=False,plotdir='output/plots_forpaper/',overwritedat=overwritedat)
 
     #z0test_Clcomp(perrors=np.array([10,50]),plotdir='output/plots_forpaper/',plotISWgalratio=False)
     #bztest_Clcomp(b2vals=np.array([0.,.1,.5,1.]),plotdir='output/plots_forpaper/',plotISWgalratio=False)

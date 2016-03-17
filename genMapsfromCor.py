@@ -811,6 +811,7 @@ def get_maps_from_glm_1real(glmdat,rlz=0,redofits=False,makeplots=False,NSIDE=32
 #  outglm - glmdata object with same propreties as dummy, with data filled in
 #------------------------------------------------------------------------
 def getglm_frommaps(dummyglm,rlzns=np.array([]),Nreal=1):
+    print '----------------------in getglm_frmmmaps'
     if rlzns.size:
         Nreal=rlzns.size
     else:
@@ -1132,6 +1133,7 @@ def getmodtag_fixedvar(sig2,shape='g',lmin=0,lmax=30,width=10.):
 # assumes calibration error maps are uncorrelated with each other and galaxies
 #------------------------------------------------------------------------
 def apply_additive_caliberror_tocl(cldat,mapmodcombos=[]):
+    #print '  in apply caliberror to cl'
     Nmap=cldat.Nmap
     Nell=cldat.Nell
     
@@ -1163,6 +1165,7 @@ def apply_additive_caliberror_tocl(cldat,mapmodcombos=[]):
             #put this cal cl into clcal grid
             thisNell=thiscalcl.size
             calcl[i,:thisNell]=thiscalcl
+            #print '    calcl[l=4]=',calcl[i,4]
 
     #epsilon parameter tells us how nbar changes; includign only c00 contrib
     epsilon=calcl[:,0]/np.sqrt(4*np.pi) #is zero if no Clcal input
@@ -1180,9 +1183,10 @@ def apply_additive_caliberror_tocl(cldat,mapmodcombos=[]):
         i,j=crosspairs[n]
         if i==j:
             outcl[n,:]+=calcl[i,:] #additive power from calib error auto power
-        outcl[n,0]+=-1*calcl[i,0]*calcl[j,0] #from some of the epsilon terms 
+        outcl[n,0]+=-1*np.sqrt(calcl[i,0]*calcl[j,0]) #from some of the epsilon terms 
         outcl[n,:]/=(1.+epsilon[i])*(1.+epsilon[j]) #no mod if epsilon small
         #print '  changed?',np.any(outcl[n,:]==cldat.cl[n,:])
+        #print '      ij=',i,j,', outcl[ij,4]=',outcl[n,4],'  prev',cldat.cl[n,4]
         
     #creat outcldata object with new outcl and nbar
     #print 'HAS CL changed? ',np.any(cldat.cl-outcl)

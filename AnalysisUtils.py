@@ -114,8 +114,8 @@ def scale_Dl_byb0(inDl,b0):
     NLSS=b0.size
     Dl=inDl.copy()
     for i in xrange(NLSS):
-        Dl[:,i,:]=Dl[:,i,:]*b0[i]
-        Dl[:,:,i]=Dl[:,:,i]*b0[i]
+        Dl[:,i+1,:]=Dl[:,i+1,:]*b0[i]
+        Dl[:,:,i+1]=Dl[:,:,i+1]*b0[i]
     return Dl
 
 #================================================
@@ -281,7 +281,6 @@ def get_glm_array_forrec(glmdat,includelist=[],zerotag='isw_bin0'):
 #                also saves to file
 #-------------------------------------------------------------------------
 def calc_isw_est(cldat,glmdat,recdat,writetofile=True,getmaps=True,redofits=True,makeplots=False,dorho=False,fitbias=True):
-    
     maptag=recdat.maptag
     rectag=recdat.rectag
     lmin_forrec=recdat.lmin
@@ -309,7 +308,7 @@ def calc_isw_est(cldat,glmdat,recdat,writetofile=True,getmaps=True,redofits=True
         lmax=Nell-1
     else:
         lmax=lmax_forrec
-    
+
     b0=np.ones((Nreal,NLSS))#find best fit bias for each real, for each LSS tracer
     #print '------reconstructing isw000-------'
     if fitbias:
@@ -324,8 +323,12 @@ def calc_isw_est(cldat,glmdat,recdat,writetofile=True,getmaps=True,redofits=True
             # print ' theory cl for ell=4:',cltheory[4]
             # print ' observ cl for ell=4:',clobs[4,0]#0th real
             # print '       best fit bias:',b0[0,i],b0[0,i]**2
+            # print '    R for ell=4 b0=1:',Dl[4,0,1]/cltheory[4]
+            # print '  R for ell=4 wb0fit:',Dl[4,0,1]/cltheory[4]/b0[0,i]
+
             # plt.figure(0)
             # plt.semilogy(np.arange(Nell),np.fabs(cltheory),label='theory')
+            # plt.semilogy(np.arange(Nell),np.fabs(cltheory*b0[0,i]**2),label='theory*b0^2')
             # plt.semilogy(np.arange(Nell),np.fabs(clobs),label='obs')
             # plt.legend()
             # plt.show()
@@ -349,14 +352,18 @@ def calc_isw_est(cldat,glmdat,recdat,writetofile=True,getmaps=True,redofits=True
     Dlr=np.zeros((Nreal,Nell,NLSS+1,NLSS+1))
     Dinvr=np.zeros((Nreal,Nell,NLSS+1,NLSS+1))
     for r in xrange(Nreal):
+        #print '         bias:',b0[r,:]
         Dlr[r,:,:,:]=scale_Dl_byb0(Dl,b0[r,:]) #b0=1 if no fitting
         Dinvr[r,:,:,:] = invert_Dl(Dlr[r,:,:,:])
-
+        #print '   prescaling:',Dl[4,0,0],Dl[4,0,1],Dl[4,1,1]
+        #print '  postscaling:',Dlr[r,4,0,0],Dlr[r,4,0,1],Dlr[r,4,1,1]
+        #print '  R4 after scaling func',Dlr[r,4,0,1]/Dlr[r,4,1,1]
     #compute estimator; will have same number of realizations as glmdat
     almest=np.zeros((glmgrid.shape[0],1,glmgrid.shape[2]),dtype=np.complex)
     ellvals,emmvals=glmdat.get_hp_landm()
     for lmind in xrange(glmdat.Nlm):
         ell=ellvals[lmind]
+        emm=emmvals[lmind]
         if ell<lmin_forrec or (lmax_forrec>0 and ell>lmax_forrec): 
             continue
         Nl=1./Dinvr[:,ell,0,0] #Nreal sized array
@@ -364,7 +371,6 @@ def calc_isw_est(cldat,glmdat,recdat,writetofile=True,getmaps=True,redofits=True
             almest[:,0,lmind]-=Dinvr[:,ell,0,i+1]*glmgrid[:,i,lmind]
             #print 'just added',-1*Dinv[ell,0,i]*glmgrid[:,i,lmind]
         almest[:,0,lmind]*=Nl
-
     outmaptags=[recdat.maptag]
     outmodtags=[recdat.rectag]
     outmasktags=[recdat.masktag]#for now, only handles changing lmin/max, not masks
@@ -817,12 +823,15 @@ def rho_manyreal(truefilebase,recfilebase,Nreal=1,rlzns=np.array([]),savedat=Fal
     for r in xrange(Nreal):
         f1=''.join([truefilebase,'.r{0:05d}.fits'.format(rlzns[r])])
         f2=''.join([recfilebase,'.r{0:05d}.fits'.format(rlzns[r])])
+        #print f1
+        #print f2
         map1orig=hp.read_map(f1,verbose=False)
         map2orig=hp.read_map(f2,verbose=False)
-        #print ' pre ell removal rms:',np.std(map1orig),np.std(map2orig)
+        #print '  pre ell removal rms:',np.std(map1orig),np.std(map2orig)
         #filter out ell<lmin
         map1=remove_lowell_frommap(map1orig,lmin,lmax)
         map2=remove_lowell_frommap(map2orig,lmin,lmax)
+        #print '  true/rec map rms:',np.std(map1),np.std(map2)
         
         #compute cross correlations and store the value
         if varname=='rho':
@@ -1095,7 +1104,7 @@ def compute_rho_fromcl(cldat,recdat,reccldat=0,varname='rho',fitbias=True):
         if fitbias:
             for i in xrange(NLSS):
                 #only fit to lvalues we want to use
-                b0[i]=fitcl_forb0_onereal(Dl[lmin:lmax+1,i+1,i+1],recDl[lmin:lmax+1,i+1,i+1])
+                b0[i]=fitcl_forb0_onereal(recDl[lmin:lmax+1,i+1,i+1],Dl[lmin:lmax+1,i+1,i+1])
                 #print dtags[i+1],recdtags[i+1],'bias:',b0[i]
             
         recDl=scale_Dl_byb0(recDl,b0)
