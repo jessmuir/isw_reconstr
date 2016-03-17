@@ -369,51 +369,16 @@ if __name__=="__main__":
     lmax=80
     
     Nreal=10000
-    #checkMD_cl_ordering() #when order of maps changes, cl vals shift as expected
     if 1:
         #rhofiletag='nob0fit'
         rhofiletag=''
-        #MDtest_get_glm_and_rec(Nreal,justgetrho=False,dorho=1,Ndesbins=Ndesbins,lmin=lmin,lmax=lmax,rhofiletag=rhofiletag)
         #MDtest_get_glm(Nreal,Ndesbins=[2,3],nvss=1)
-
-        #MDtest_iswrec(Nreal,Ndesbins=[2,3],nvss=1,lmin=lmin,lmax=lmax,rhofiletag=rhofiletag,fitbias=True) #including more maps here doesn't mess up results
-
+        MDtest_iswrec(Nreal,Ndesbins=[2,3],nvss=1,lmin=lmin,lmax=lmax,rhofiletag=rhofiletag,fitbias=True) 
         MDtest_plot_rhohist('rho',Ndesbins=[2,3],nvss=1,lmin=lmin,lmax=lmax,firstNreal=Nreal,rhofiletag=rhofiletag,plottag=rhofiletag)
         
-    if 0: #Looking at Cl to try and debug rho problems these all look reasonable
+    if 0: #Looking at Cl to test that they look reasonable
         MDtest_plot_clvals(Ndesbins=[2,3],nvss=True,tag='all')
         MDtest_plot_clvals(Ndesbins=[3],nvss=0,tag='just3')
         MDtest_plot_clvals(Ndesbins=[2],nvss=0,tag='just2')
         MDtest_plot_clvals(Ndesbins=[],nvss=1,tag='justnvss')
-
-
-# NOTES FROM 2/17,2/18 ON WHY ORDER OF NDESBINS SEEMS TO MATTER
-# what have I found so far?
-#  passing both des surveys and nvss gives messed up results (low rho) for the second survey passed.
-#  if nvss is in list of surveys before des bins it is fine, if after, it gets messed up too.
-#  if des maps are passed [2,3], 2 is ok but 3 is messed up, but if [3,2] both are messed up
-
-# if I set all cl vals for des3 or des2 to zero, hsitogram behaves as expected
-# if run get_glm on subset of maps, but the do iswrec for all, or and/or plot rhohist for all, the histogram behaves as expected: maps not simulated with other have rho=0. So I think the problem is in the get_glm func
-# if nvss+ one des survey passed, seeems ok, though des3 might be still giving slightly low rho.
-# checked that even when re-ordered, cl values are still associated with correct pairs of maps. This is true whether or not nvss is included.
-#<rho> seems ok, but the rho extracted from realizations is off
-
-#when messing with cls for desMD3
-# setting isw cross corss to zero has expected effect; all rho are zero indep of order for desmaps.
-# when passed in getglm as [2,3], making first two md3 bins equal to those of md2
-#   gives rho which matches <rho> and has <rho>~barrho
-
-#however: if i make the 3 map a copy of 2 in terms of auto and isw corr
-#   but no md2-md3 cross corrs, <rho> stays high but barrho drops for whichever
-#       map is passed second;
-#   if i reduce cross cor of map 3 with isw, with 3-2 cross corr=0, md2 fixes
-#
-# COULD IT BE THAT I NEED THESE MAPS TO BE CORRELATED IN ORDER FOR HEALPY
-# TO BE ABLE TO GENERATE PROPER MAPS? AS IN, AM I GIVING INCOMPATIBLE SETS OF CL?
-#  --maybe! I think in the depthtest I was doing cross corrs between all maps
-#           and for bintest too...
-# rerunning MD checks with cross corr pairs set to 'all'
-
-
 

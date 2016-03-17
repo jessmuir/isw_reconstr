@@ -309,10 +309,10 @@ def caltest_basic_expplot_forpaper(varname='rho',plotdir='output/plots_forpaper/
     if varname=='rho':
         ax1.set_ylim(-.3,1.3)
         ax1.axhline(1,color='grey',linestyle='-')
-        ax1.set_ylabel(r'$\langle \rho \rangle$')
+        ax1.set_ylabel(r'$\rho$')
     elif varname=='s':
-        ax1.set_ylabel(r'$\langle s \rangle$')
-        #ax1.set_ylim(.1,1.e4)
+        ax1.set_ylabel(r'$s$')
+        ax1.set_ylim((.1,2.5))
         #ax1.set_yscale('log')
 
     #fill in regions for current/future values
@@ -349,7 +349,7 @@ def caltest_basic_expplot_forpaper(varname='rho',plotdir='output/plots_forpaper/
             datNreal=datplot[i][6]
         if not datcol:
             datcol=colorlist[0]
-        ax1.errorbar(datvar,datrho,yerr=datsig/datrefmean,label=datlabel,color=datcol,linestyle='None',marker='o')    
+        ax1.errorbar(datvar,datrho,yerr=datsig,label=datlabel,color=datcol,linestyle='None',marker='o')    
             
     plt.sca(ax1)
     if varname=='rho':
@@ -504,18 +504,17 @@ if __name__=="__main__":
     #bintest_plot_zwindowfuncs(plotdir='output/plots_forpaper/')
     #bintest_rhoexp_comparesigs(sigzlist=[0.001,0.05,.1],markerlist=['v','d','^','d'],plotdir='output/plots_forpaper/',datsigs=[0.05],datdivs=['111111','222','6'],overwrite=0)
 
-
     #lmintest_plot_rhoexp(lminlist=np.arange(1,20),varname='rho',dodata=True,datlmin=np.array([1,2,3,4,5]),plotdir='output/plots_forpaper/')
 
-    #shot noise tests
-    shortnbarlist=np.array([1.e-4,1.e-3,.01,.1,1.,10.])#in arcmin^-2
-    shortnbarsr=shortnbarlist*((180.*60./np.pi)**2)
-    scaletovar=shortnbarsr[0]
-    nbarlist=caltest_get_logspaced_varlist(1.e-6,1.e3)
-    #shottest_plot_rhoexp(nbarlist=nbarlist,varname='rho',passnbarunit='amin2',overwrite=0,dodata=True,datnbar=shortnbarlist,plotdir='output/plots_forpaper/')
-    #shottest_plot_rhoexp(nbarlist=nbarlist,varname='s',passnbarunit='amin2',overwrite=0,dodata=True,datnbar=shortnbarlist,plotdir='output/plots_forpaper/')
+    # #shot noise tests
+    # shortnbarlist=np.array([1.e-4,1.e-3,.01,.1,1.,10.])#in arcmin^-2
+    # shortnbarsr=shortnbarlist*((180.*60./np.pi)**2)
+    # scaletovar=shortnbarsr[0]
+    # nbarlist=caltest_get_logspaced_varlist(1.e-6,1.e3)
+    # shottest_plot_rhoexp(nbarlist=nbarlist,varname='rho',passnbarunit='amin2',overwrite=0,dodata=True,datnbar=shortnbarlist,plotdir='output/plots_forpaper/')
+    # shottest_plot_rhoexp(nbarlist=nbarlist,varname='s',passnbarunit='amin2',overwrite=0,dodata=True,datnbar=shortnbarlist,plotdir='output/plots_forpaper/')
 
-    overwritedat=1
+    # overwritedat=1
     # z0test_onesim_plot(varname='rho',dohatch=False,plotdir='output/plots_forpaper/',overwritedat=overwritedat)
     # z0test_onesim_plot(varname='s',dohatch=False,plotdir='output/plots_forpaper/',overwritedat=overwritedat)
     # bztest_onesim_plot(varname='rho',dohatch=False,plotdir='output/plots_forpaper/',overwritedat=overwritedat) 
@@ -527,16 +526,19 @@ if __name__=="__main__":
     # catztest_onesim_plot(varname='rho',Nbins=3,recf=badfracs,fidf=.01,secondfidf=.1,dohatch=False,plotdir='output/plots_forpaper/',overwritedat=overwritedat)
     # catztest_onesim_plot(varname='s',Nbins=3,recf=badfracs,fidf=.01,secondfidf=.1,dohatch=False,plotdir='output/plots_forpaper/',overwritedat=overwritedat)
 
-    #z0test_Clcomp(perrors=np.array([10,50]),plotdir='output/plots_forpaper/',plotISWgalratio=False)
-    #bztest_Clcomp(b2vals=np.array([0.,.1,.5,1.]),plotdir='output/plots_forpaper/',plotISWgalratio=False)
-    #catz_Clcomp(badfracs=np.array([0.,1.e-2,5.e-2,.1,.2]),plotdir='output/plots_forpaper/',plotISWgalratio=False)
+    # z0test_Clcomp(perrors=np.array([10,50]),plotdir='output/plots_forpaper/',plotISWgalratio=False)
+    # bztest_Clcomp(b2vals=np.array([0.,.1,.5,1.]),plotdir='output/plots_forpaper/',plotISWgalratio=False)
+    # catz_Clcomp(badfracs=np.array([0.,1.e-2,5.e-2,.1,.2]),plotdir='output/plots_forpaper/',plotISWgalratio=False)
         
-    #caltest_basic_expplot_forpaper('rho')
-    #caltest_basic_expplot_forpaper('s')
-    #caltest_lmin_plot_forpaper('rho')
+    caltest_basic_expplot_forpaper('rho')
+    caltest_basic_expplot_forpaper('s')
+    caltest_lmin_plot_forpaper('rho')
     
+    varlist=list(caltest_get_logspaced_varlist(minvar=1.e-8,maxvar=.1,Nperlog=10))
+    shortvarlist=[1.e-7,1.e-6,1.e-5,1.e-4,1.e-3,1.e-2] #var[c] value to simulate
+    reclminlist=np.array([2,3,5])
+    shortreclminlist=reclminlist
     #caltest_Clcomp(varlist,plotdir='output/plots_forpaper/')
-
     #caltest_compare_lmin(varlist,varname='rho',dodataplot=True,recminelllist=reclminlist,shortrecminelllist=shortreclminlist,shortvarlist=shortvarlist,justdat=True,plotdir='output/plots_forpaper/')
     
     

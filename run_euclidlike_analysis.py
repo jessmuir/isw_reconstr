@@ -156,19 +156,22 @@ def depthtest_plot_zwindowfuncs(z0vals=np.array([.3,.6,.7,.8])):
     
 #--------------------------------
 # plot histogram of rho or s, switch between variables given by varname
-def depthtest_plot_rhohist(z0vals=np.array([.3,.6,.7,.8]),getrhopred=True,varname='rho',firstNreal=-1):
+def depthtest_plot_rhohist(z0vals=np.array([.3,.6,.7,.8]),getrhopred=True,varname='rho',firstNreal=-1,startrealat=0):
     plotdir='output/depthtest/plots/'
     testname="Depth test"
     rhogrid=depthtest_read_rho_wfiles(z0vals,varname)
     Nreal=rhogrid.shape[1]
-    if firstNreal>0 and firstNreal<Nreal:
+    if firstNreal>0 and firstNreal<(Nreal-startrealat):
         Nreal=firstNreal
-        rhogrid=rhogrid[:,:Nreal]
+        rhogrid=rhogrid[:,startrealat:startrealat+Nreal]
     if getrhopred:
         rhopred=depthtest_get_expected_rho(z0vals,varname)
     else:
         rhopred=[]
-    plotname ='depthtest_{1:s}hist_r{0:05d}'.format(Nreal,varname)
+    if startrealat==0:
+        plotname ='depthtest_{1:s}hist_r{0:05d}'.format(Nreal,varname)
+    else:
+        plotname ='depthtest_{1:s}hist_r{0:05d}_startat{2:05d}'.format(Nreal,varname,startrealat)
     reclabels=['$z_0={0:0.1f}$'.format(z0) for z0 in z0vals]
 
     if varname=='rho':
@@ -739,7 +742,7 @@ def bintest_rhoexpplot(allzedges,labels,rhoarraylist,labellist=[],outname='',leg
     plt.tick_params(axis='x', which='major', labelsize=14)
     if varname=='rho':
         ax2.set_xlabel(r'$\langle \rho \rangle$',fontsize=20)
-        ax2.set_xlim((.87,.92))
+        ax2.set_xlim((.92,.98))
         #legloc='upper left'
         legloc='lower right'
     elif varname=='s':
@@ -757,27 +760,28 @@ def bintest_rhoexpplot(allzedges,labels,rhoarraylist,labellist=[],outname='',leg
         colorlist=scattercolors
     #plot datapoints if we have them
     DODATA=False
-    for i in xrange(len(datplot[0])):
-        DODATA=True
-        datrho=datplot[0][i]#array
-        datstd=datplot[1][i]#array #of standard dev
-        datdiv=datplot[2][i]#list of strings, translate into arry of y vals
-        daty=[]
-        for d in datdiv:
-            for j in xrange(len(labels)):
-                if labels[j]==d:
-                    daty.append(yvals[j])
-        datlabel=datplot[3][i] #dummy empty string for now
-        datcol=''
-        datcol=datplot[4][i]
-        if type(datcol)==int: #is index rather tha color string
-            datcol=colorlist[datcol]
-        #uniform error bars if datsig is a number, nonuni if array
+    if len(datplot):
+        for i in xrange(len(datplot[0])):
+            DODATA=True
+            datrho=datplot[0][i]#array
+            datstd=datplot[1][i]#array #of standard dev
+            datdiv=datplot[2][i]#list of strings, translate into arry of y vals
+            daty=[]
+            for d in datdiv:
+                for j in xrange(len(labels)):
+                    if labels[j]==d:
+                        daty.append(yvals[j])
+            datlabel=datplot[3][i] #dummy empty string for now
+            datcol=''
+            datcol=datplot[4][i]
+            if type(datcol)==int: #is index rather tha color string
+                datcol=colorlist[datcol]
+            #uniform error bars if datsig is a number, nonuni if array
 
-        print datrho
-        print daty
-        print np.array(datstd)
-        ax2.errorbar(datrho,daty,xerr=np.array(datstd),label='',color=datcol,linestyle='None',marker='x',markersize=15,markeredgewidth=2,zorder=-32)
+            print datrho
+            print daty
+            print np.array(datstd)
+            ax2.errorbar(datrho,daty,xerr=np.array(datstd),label='',color=datcol,linestyle='None',marker='x',markersize=15,markeredgewidth=2,zorder=-32)
         
     for i in xrange(len(rhoarraylist)):
         rhoarray=rhoarraylist[i]
@@ -1095,7 +1099,7 @@ def caltest_get_scaleinfo(varlist,scaletovar=False):
     print refvar,refind
     return refvar,refind
 
-def caltest_get_reclist(varlist,shape='g',width=10.,lmin=0,lmax=30,recminelllist=np.array([1])):
+def caltest_get_reclist(varlist,shape='g',width=10.,lmin=0,lmax=30,recminelllist=np.array([2])):
     reclist=[]
     fidbins=caltest_get_fidbins()
     lssbin=fidbins[1].tag #will just be the depthtest bin map
@@ -1461,7 +1465,7 @@ def caltest_rhoexpplot(varlist,rhoarraylist,labellist=[],outname='',legtitle='',
         if type(datsig)==0:
             ax1.plot(datvar,datrho,label=datlabel,color=datcol,linestyle='None',marker='o')
         else: #uniform error bars if datsig is a number, nonuni if array
-            ax1.errorbar(datvar,datrho,yerr=datsig/datrefmean,label=datlabel,color=datcol,linestyle='None',marker='o')
+            ax1.errorbar(datvar,datrho,yerr=datsig,label=datlabel,color=datcol,linestyle='None',marker='o')
     #plot dummy datapoint for legend
     if len(datplot):
         xmin,xmax=ax1.get_xlim()
@@ -1528,19 +1532,12 @@ def caltest_rhoexpplot_wratio(varlist,rhoarraylist,labellist=[],outname='',legti
     if varname=='rho':
         ax1.set_ylim(-.3,1.3)
         varstr=r'\rho'
-        #ax1.set_ylabel(r'$\langle \rho \rangle$')
-        #ax2.set_ylabel(r'$\langle \rho \rangle /\langle \rho_{{c=0}} \rangle -1$')
     elif varname=='s':
-        ax2.set_yscale('symlog',linthreshy=.01)
-        ax2.set_ylim(-1,1.e4)
+        #ax2.set_yscale('symlog',linthreshy=.01)
+        ax2.set_ylim(-1,5)
         varstr='s'
-        #ax1.set_ylabel(r'$\langle s \rangle$')
-        #ax2.set_ylabel(r'$\langle s \rangle /\langle s_{{c=0}} \rangle - 1$')
     elif varname=='chisq':
         varstr=r'\chi^2'
-        #ax1.set_ylabel(r'$\langle \chi^2 \rangle$')
-        #ax2.set_ylabel(r'$\langle \chi^2 \rangle /\langle \chi^2_{{c=0}} \rangle - 1$')
-    
     
     ax2.set_xlabel(r'Variance of calib. error field ${\rm var}[c]$')
     if plotlines:
@@ -1586,7 +1583,7 @@ def caltest_rhoexpplot_wratio(varlist,rhoarraylist,labellist=[],outname='',legti
             if datrefmean:
                 ax2.plot(datvar,datrho/datrefmean -1.,label=datlabel,color=datcol,linestyle='None',marker='o')
         else: #uniform error bars if datsig is a number, nonuni if array
-            ax1.errorbar(datvar,datrho,yerr=datsig/datrefmean,label=datlabel,color=datcol,linestyle='None',marker='o')#,capsize=5)
+            ax1.errorbar(datvar,datrho,yerr=datsig,label=datlabel,color=datcol,linestyle='None',marker='o')#,capsize=5)
             if datrefmean:
                 ax2.errorbar(datvar,datrho/datrefmean-1.,yerr=datsig/datrefmean,label=datlabel,color=datcol,linestyle='None',marker='o')#,capsize=5)
 
@@ -1605,7 +1602,8 @@ def caltest_rhoexpplot_wratio(varlist,rhoarraylist,labellist=[],outname='',legti
         ax2.set_yticks([-1.5+i*.5 for i in xrange(4)])
         ax2.set_ylim((-1.25,.25))
     elif varname=='s':
-        ax2.set_yticks([-1,-.01,0 ,.01,1.,100,10000])
+        #ax2.set_yticks([-1,,0 ,1,2,3,4,5])
+        pass
     plt.sca(ax1)
     if varname=='rho':
         plt.legend(fontsize=20,title=legtitle,loc='upper right',numpoints=1)
@@ -1617,6 +1615,8 @@ def caltest_rhoexpplot_wratio(varlist,rhoarraylist,labellist=[],outname='',legti
     print 'Saving plot to ',plotdir+outname
     plt.savefig(plotdir+outname)
     plt.close()
+
+    
 #---------------------------------------------------------------
 # plot comparison bewteen Cl cal and Cl gal or Cl gal-ISW to understand
 # why the transition in rho happens where it is
@@ -1719,7 +1719,7 @@ def caltest_TTscatter(r=0,varlist=[1.e-7,1.e-6,1.e-5,1.e-4],savepngmaps=False):
     reclist=caltest_get_reclist(varlist) #includes fiducial case
     dummyglm=caltest_apply_caliberrors(varlist)#includes true isw, fiducial case
     dummyalm=get_dummy_recalmdat(dummyglm,reclist,outruntag=dummyglm.runtag)
-    
+
     #all realizations have the same truemapf
     truemapf=dummyglm.get_mapfile_fortags(r,reclist[0].zerotagstr)
     iswmapfiles=[truemapf]*(Nvar+1)
@@ -1733,7 +1733,8 @@ def caltest_TTscatter(r=0,varlist=[1.e-7,1.e-6,1.e-5,1.e-4],savepngmaps=False):
     #get rec filenames, go from largest to smallest variance
     for i in reversed(xrange(Nvar)):
         modtag=getmodtag_fixedvar(varlist[i],'g',lmin=0,lmax=30,width=10)
-        recmapf=dummyalm.get_mapfile_fortags(r,maptag='iswREC.eucz07',modtag=modtag)
+        masktag='fullsky-lmin02'
+        recmapf=dummyalm.get_mapfile_fortags(r,maptag='iswREC.eucz07',modtag=modtag,masktag=masktag)
         recmapfiles.append(recmapf)
         reclabels.append(r'$\langle c^2(\hat{{n}})\rangle$={0:.0e}'.format(varlist[i]))
         if savepngmaps:
@@ -1741,7 +1742,7 @@ def caltest_TTscatter(r=0,varlist=[1.e-7,1.e-6,1.e-5,1.e-4],savepngmaps=False):
             #set up color scheme for lss map
             mono_cm=matplotlib.cm.Greys_r
             mono_cm.set_under("w") #set background to white
-            lssf=dummyglm.get_mapfile_fortags(r,'eucz07_bin0',modtag)
+            lssf=dummyglm.get_mapfile_fortags(r,'eucz07_bin0',modtag,masktag)
             lssm=hp.read_map(lssf,verbose=False)
             plotmax=lssmax#0.7*np.max(np.fabs(lssm))
             lssfbase=lssf[lssf.rfind('/')+1:lssf.rfind('.fits')]
@@ -1764,7 +1765,7 @@ def caltest_TTscatter(r=0,varlist=[1.e-7,1.e-6,1.e-5,1.e-4],savepngmaps=False):
             recpngf.append(plotdir+'mapplot_'+recfbase+'.pdf')
             plt.savefig(plotdir+'mapplot_'+recfbase+'.pdf')
     #then do fiducial case
-    fidrecf=dummyalm.get_mapfile_fortags(r,'iswREC.eucz07','unmod')
+    fidrecf=dummyalm.get_mapfile_fortags(r,'iswREC.eucz07','unmod',masktag)
     recmapfiles.append(fidrecf)
     reclabels.append('No calib. error')
     if savepngmaps:
@@ -2193,11 +2194,7 @@ def z0test_Clcomp(perrors=np.array([1,10,20,30,50]),fidz0=.7,plotdir='output/zdi
         plt.ylim((1.e-10,1.e-5))
     plt.yscale('log')
 
-    #dummy lines for legend
-    line1,=plt.plot(np.array([]),np.array([]),color='black',linestyle='-',label='gal-gal',linewidth=2)
-    line2,=plt.plot(np.array([]),np.array([]),color='black',linestyle='--',label='ISW-gal',linewidth=2)
-    if plotISWgalratio:
-        line3,=plt.plot(l,np.fabs(cldat.cl[xiswind,:]/cldat.cl[autoind,:])*clscaling,color='black',linestyle=':',label='ISW-gal/gal-gal')
+
     for i in xrange(z0vals.size):
         bmap=bins[i+1]
         if bmap.isISW:
@@ -2205,11 +2202,15 @@ def z0test_Clcomp(perrors=np.array([1,10,20,30,50]),fidz0=.7,plotdir='output/zdi
         else:
             autoind=cldat.crossinds[i+1,i+1]
             xiswind=cldat.crossinds[i+1,0]
-            plt.plot(l,np.fabs(cldat.cl[autoind,:])*clscaling,color=z0cols[i],linestyle='-',label=r'$z_0={0:0.2f}$'.format(z0vals[i]),linewidth=2)
-            plt.plot(l,np.fabs(cldat.cl[xiswind,:])*clscaling,color=z0cols[i],linestyle='--',linewidth=2)
+            plt.plot(l,np.fabs(cldat.cl[autoind,:])*clscaling,color=z0cols[i%len(z0cols)],linestyle='-',label=r'$z_0={0:0.2f}$'.format(z0vals[i]),linewidth=2)
+            plt.plot(l,np.fabs(cldat.cl[xiswind,:])*clscaling,color=z0cols[i%len(z0cols)],linestyle='--',linewidth=2)
             if plotISWgalratio:
-                plt.plot(l,np.fabs(cldat.cl[xiswind,:]/cldat.cl[autoind,:])*clscaling,color=z0cols[i],linestyle=':')
-
+                plt.plot(l,np.fabs(cldat.cl[xiswind,:]/cldat.cl[autoind,:])*clscaling,color=z0cols[i%len(z0cols)],linestyle=':')
+    #dummy lines for legend
+    line1,=plt.plot(np.array([]),np.array([]),color='black',linestyle='-',label='gal-gal',linewidth=2)
+    line2,=plt.plot(np.array([]),np.array([]),color='black',linestyle='--',label='ISW-gal',linewidth=2)
+    if plotISWgalratio:
+        line3,=plt.plot(l,np.fabs(cldat.cl[xiswind,:]/cldat.cl[autoind,:])*clscaling,color='black',linestyle=':',label='ISW-gal/gal-gal')
     plt.legend(loc='center right',fontsize=16,ncol=2)
 
     plotname='z0test_cl_compare'
@@ -2543,11 +2544,6 @@ def bztest_Clcomp(b2vals=np.array([0.,.01,.1,.5,1.,2.,5.,10.]),plotdir='output/z
         plt.ylim((1.e-10,5.e-5))
     plt.yscale('log')
 
-    #dummy lines for legend
-    line1,=plt.plot(np.array([]),np.array([]),color='black',linestyle='-',label='gal-gal',linewidth=2)
-    line2,=plt.plot(np.array([]),np.array([]),color='black',linestyle='--',label='ISW-gal',linewidth=2)
-    if plotISWgalratio:
-        line3,=plt.plot(np.array([]),np.array([]),color='black',linestyle=':',label='ISW-gal/gal-gal',linewidth=2)
     for i in xrange(b2vals.size):
         bmap=bins[i+1]
         if bmap.isISW:
@@ -2559,7 +2555,11 @@ def bztest_Clcomp(b2vals=np.array([0.,.01,.1,.5,1.,2.,5.,10.]),plotdir='output/z
             plt.plot(l,np.fabs(cldat.cl[xiswind,:])*clscaling,color=b2cols[i%len(b2cols)],linestyle='--',linewidth=2)
             if plotISWgalratio:
                 plt.plot(l,np.fabs(cldat.cl[xiswind,:]/cldat.cl[autoind,:])*clscaling,color=b2cols[i%len(b2cols)],linestyle=':',linewidth=2)
-    
+    #dummy lines for legend
+    line1,=plt.plot(np.array([]),np.array([]),color='black',linestyle='-',label='gal-gal',linewidth=2)
+    line2,=plt.plot(np.array([]),np.array([]),color='black',linestyle='--',label='ISW-gal',linewidth=2)
+    if plotISWgalratio:
+        line3,=plt.plot(np.array([]),np.array([]),color='black',linestyle=':',label='ISW-gal/gal-gal',linewidth=2)
     plt.legend(loc='center right',fontsize=16,ncol=2)
     plotname='bztest_cl_compare'
     outname=plotdir+plotname+'.pdf'
@@ -2938,11 +2938,6 @@ def catz_Clcomp(badfracs=np.array([0.,1.e-3,5.e-3,1.e-2,2.e-2,5.e-2,.1,.2]),Nbin
         plt.ylim((1.e-10,5.e-6))
     plt.yscale('log')
     
-    #dummy lines for legend
-    line1,=plt.plot(np.array([]),np.array([]),color='black',linestyle='-',label='gal-gal',linewidth=2)
-    line2,=plt.plot(np.array([]),np.array([]),color='black',linestyle='--',label='ISW-gal',linewidth=2)
-    if plotISWgalratio:
-        line3,=plt.plot(l,np.fabs(cldat.cl[xiswind,:]/cldat.cl[autoind,:])*clscaling,color='black',linestyle=':',label='ISW-gal/gal-gal',linewidth=2)
     for i in xrange(badfracs.size):
         bmap=bins[i+1]
         if bmap.isISW:
@@ -2953,8 +2948,12 @@ def catz_Clcomp(badfracs=np.array([0.,1.e-3,5.e-3,1.e-2,2.e-2,5.e-2,.1,.2]),Nbin
             plt.plot(l,np.fabs(cldat.cl[autoind,:])*clscaling,color=fcols[i%len(fcols)],linestyle='-',label='$x={0:0.2f}$'.format(badfracs[i]),linewidth=2)
             plt.plot(l,np.fabs(cldat.cl[xiswind,:])*clscaling,color=fcols[i%len(fcols)],linestyle='--',linewidth=2)
             if plotISWgalratio:
-                plt.plot(l,np.fabs(cldat.cl[xiswind,:]/cldat.cl[autoind,:])*clscaling,color=fcols[i%badfracs.size],linestyle=':',linewidth=2)
-
+                plt.plot(l,np.fabs(cldat.cl[xiswind,:]/cldat.cl[autoind,:])*clscaling,color=fcols[i%len(fcols)],linestyle=':',linewidth=2)
+    #dummy lines for legend
+    line1,=plt.plot(np.array([]),np.array([]),color='black',linestyle='-',label='gal-gal',linewidth=2)
+    line2,=plt.plot(np.array([]),np.array([]),color='black',linestyle='--',label='ISW-gal',linewidth=2)
+    if plotISWgalratio:
+        line3,=plt.plot(l,np.fabs(cldat.cl[xiswind,:]/cldat.cl[autoind,:])*clscaling,color='black',linestyle=':',label='ISW-gal/gal-gal',linewidth=2)
     plt.legend(loc='center right',fontsize=16,ncol=2)
     plotname='catztest_cl_compare'
     outname=plotdir+plotname+'.pdf'
@@ -3834,30 +3833,32 @@ if __name__=="__main__":
     #   formatting in more detail. 
     
     depthtestz0=np.array([.3,.5,.6,.7,.8])
-    if 0: #compute Cl # this takes a shile
+    if 0: #compute Cl # this takes a while;
         depthtest_get_Cl(justread=False,z0vals=depthtestz0)
-    if 0: #some tests for depthtest
+    if 0: #for testing
         depthtest_plot_zwindowfuncs(depthtestz0)
     if 0: #generate depthhtest maps
-        nomaps=False#True
-        Nreal=100#00
+        Nreal=10000
         simmaps=False #do you want to simulate maps, or just do reconstructions?
+        z0vals=depthtestz0
+        #z0vals=np.array([0.7])
         if simmaps: #generate maps and do reconstructions
-            depthtest_get_glm_and_rec(Nreal=Nreal,z0vals=depthtestz0,justgetrho=nomaps,minreal=0,dorho=1,dos=True,dochisq=False,dorell=0,dochisqell=False)
+            depthtest_get_glm_and_rec(Nreal=Nreal,z0vals=z0vals,justgetrho=False,minreal=0,dorho=1,dos=True,dochisq=False,dorell=0,dochisqell=False)
         else: #do recs based on existing galaxy maps
-            depthtest_iswrec(Nreal,z0vals=np.array([.3,.6,.7,.8]),minreal=0,justgetrho=0,dorell=0,dorho=1,dos=1,domaps=True)
+            depthtest_iswrec(Nreal,z0vals=z0vals,minreal=0,dorho=1,dos=1,domaps=True)
             #note, if you just want t compute rho but don't want to redo isw recs
             # change domaps to False
     if 0: #plot info about depthtest maps, assumes you've already done isw recs
-        #depthtest_TTscatter(0,depthtestz0,savepngmaps=False)
-        #depthtest_TTscatter(0,np.array([.3,.6,.8]),colors=['#1b9e77','#7570b3','#66a61e'],savepngmaps=False)
-        for N in 1000*np.arange(1,11): #how much do results change with Nreal
-            #depthtest_plot_rhohist(depthtestz0,varname='rho',firstNreal=N)
+        for r in xrange(10):
+             #depthtest_TTscatter(r,depthtestz0,savepngmaps=False)
+             pass
+        for N in 1000*np.arange(1,10): #how much do results change with Nreal
+            #depthtest_plot_rhohist(depthtestz0,varname='rho',firstNreal=1000,startrealat=N)
             pass
         depthtest_plot_rhohist(depthtestz0,varname='rho')
         depthtest_plot_rhohist(depthtestz0,varname='s')
 
-    if 1: #bin test rho expectation value calculations, can be done w/out maps
+    if 0: #bin test rho expectation value calculations, can be done w/out maps
         if 0:         #compute cl, can take a while
             # generally, i will have computed the 'base Cl' for this on
             # a computing cluster or something, then have these funcs do bin combos
@@ -3868,11 +3869,11 @@ if __name__=="__main__":
         
         #compute and save expectation values for rho[0.001,0.03,0.05,0.1]
         bintest_rhoexp_comparesigs(finestN=6,z0=0.7,sigzlist=[0.001,0.03,0.05,.1])
-        bintest_rhoexp_comparesigs(finestN=6,z0=0.7,sigzlist=[0.001,0.03,0.05,.1],varname='s')
+        #bintest_rhoexp_comparesigs(finestN=6,z0=0.7,sigzlist=[0.001,0.03,0.05,.1],varname='s')
 
         for s in [0.001,0.03,0.05,0.1]: #some tests for z distributions
             #bintest_plot_cl_vals(finestN=6,z0=0.7,sigz=s)
-            bintest_plot_zwindowfuncs(sigz=s)
+            #bintest_plot_zwindowfuncs(sigz=s)
             pass
         
     if 0: #bin test with many realizations, generate maps
@@ -3958,22 +3959,11 @@ if __name__=="__main__":
         catztest_onesim_plot(varname='rho',Nbins=3,recf=badfracs,fidf=.01,secondfidf=.1,overwritedat=overwritedat)
         catztest_onesim_plot(varname='s',Nbins=3,recf=badfracs,fidf=.01,secondfidf=.1,overwritedat=overwritedat)
    
-
         
     #caltest: look at the impact of calibration errors!
     if 0: #plotting cl for caltest to look at where cl^cal crosses cl^gal
         varlist=list(caltest_get_logspaced_varlist(minvar=1.e-8,maxvar=.1,Nperlog=10))    
         caltest_Clcomp(varlist)
-        
-    # if 0: #caltest, rho for many realizations; most of this has been merged into cal/lmintest
-    #     shortvarlist=[1.e-7,1.e-6,1.e-5,1.e-4,1.e-3,1.e-2]
-    #     nomaps=False
-    #     #caltest_get_scaleinfo(shortvarlist,scaletovar=False)
-    #     Nreal=10#000
-    #     caltest_apply_caliberrors(Nreal=Nreal,varlist=shortvarlist,overwritecalibmap=False,scaletovar=1.e-3,shape='g',width=10.,lmin=0,lmax=30)
-        
-    #     #domaps= do we redo reconstructions?
-    #     caltest_iswrec(Nreal=Nreal,varlist=shortvarlist,shape='g',width=10.,callmin=0,callmax=30,scaletovar=1.e-3,domaps=True)
     
 
     #lmin caltests; vary both the amount of calibration error and lmin
@@ -3998,7 +3988,7 @@ if __name__=="__main__":
         for r in xrange(5): #adjust range to generate plots for diff realizaitons
             caltest_TTscatter(r)
             pass
-        caltest_TTscatter(4,savepngmaps=True)
+        #caltest_TTscatter(4,savepngmaps=True)#actuallys saves pdf
         
     #angular momentum tests; requires external data about Ltrue, Lrec
     #  has not been edited since some other changes in code, so may not work 100%
