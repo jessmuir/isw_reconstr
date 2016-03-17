@@ -1105,7 +1105,6 @@ def compute_rho_fromcl(cldat,recdat,reccldat=0,varname='rho',fitbias=True):
             for i in xrange(NLSS):
                 #only fit to lvalues we want to use
                 b0[i]=fitcl_forb0_onereal(recDl[lmin:lmax+1,i+1,i+1],Dl[lmin:lmax+1,i+1,i+1])
-                #print dtags[i+1],recdtags[i+1],'bias:',b0[i]
         recDl=scale_Dl_byb0(recDl,b0)
         recDinv=invert_Dl(recDl)
         recNl=np.zeros(Nell)

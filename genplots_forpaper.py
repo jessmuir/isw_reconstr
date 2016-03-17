@@ -387,10 +387,12 @@ def depthtest_TTscatter_forpaper(r=0, z0vals=np.array([0.3,0.5,0.6,0.7,0.8]),sav
     for i in xrange(Nrec):
         truemapf=glmdat.get_mapfile_fortags(r,reclist[i].zerotagstr)
         truemap=hp.read_map(truemapf,verbose=False)
+        truemap=remove_lowell_frommap(truemap,lmin=2)
         iswmapfiles.append(truemapf)
         iswmaps.append(truemap)
         recmapf=almdat.get_mapfile(r,i,'fits')
         recmap=hp.read_map(recmapf,verbose=False)
+        recmap=remove_lowell_frommap(recmap,lmin=2)
         recmapfiles.append(recmapf)
         recmaps.append(recmap)
         if savepngmaps:
@@ -496,8 +498,10 @@ if __name__=="__main__":
     #depthtest_plot_rhohist_forpaper(z0vals=np.array([.3,.5, .6,.7,.8]))
     #depthtest_plot_shist_forpaper(z0vals=np.array([.3,.5, .6,.7,.8]))
     #depthtest_plot_dndz_forpaper()
-    #for r in xrange(13,14):
-    #    depthtest_TTscatter_forpaper(r,savepngmaps=False)
+    for r in xrange(13,14):
+        #depthtest_TTscatter_forpaper(r,savepngmaps=False)
+        pass
+    #depthtest_TTscatter_forpaper(r,z0vals=np.array([0.7]),savepngmaps=True)
 
     #bintest_plot_rhohist_forpaper()
     #bintest_plot_zwindowfuncs(plotdir='output/plots_forpaper/')
@@ -529,8 +533,8 @@ if __name__=="__main__":
     # bztest_Clcomp(b2vals=np.array([0.,.1,.5,1.]),plotdir='output/plots_forpaper/',plotISWgalratio=False)
     # catz_Clcomp(badfracs=np.array([0.,1.e-2,5.e-2,.1,.2]),plotdir='output/plots_forpaper/',plotISWgalratio=False)
         
-    caltest_basic_expplot_forpaper('rho')
-    caltest_basic_expplot_forpaper('s')
+    #caltest_basic_expplot_forpaper('rho')
+    #caltest_basic_expplot_forpaper('s')
     #caltest_lmin_plot_forpaper('rho')
     
     #varlist=list(caltest_get_logspaced_varlist(minvar=1.e-8,maxvar=.1,Nperlog=10))

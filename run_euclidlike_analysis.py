@@ -236,10 +236,12 @@ def depthtest_TTscatter(r=0, z0vals=np.array([0.3,0.6,0.7,0.8]),savepngmaps=True
     for i in xrange(Nrec):
         truemapf=glmdat.get_mapfile_fortags(r,reclist[i].zerotagstr)
         truemap=hp.read_map(truemapf,verbose=False)
+        truemap=remove_lowell_frommap(truemap,lmin=2)
         iswmapfiles.append(truemapf)
         iswmaps.append(truemap)
         recmapf=almdat.get_mapfile(r,i,'fits')
         recmap=hp.read_map(recmapf,verbose=False)
+        recmap=remove_lowell_frommap(recmap,lmin=2)
         recmapfiles.append(recmapf)
         recmaps.append(recmap)
         if savepngmaps:
@@ -3251,7 +3253,7 @@ def lmintest_plot_rhoexp(lminlist=np.arange(1,30),lmaxlist=-1,z0=.7,overwrite=Fa
 #===============================================================
 # How does increasing the amount of shot noise affect <rho> or <s>?
 #------------------------
-def shottest_getrhoexp(nbarlist=np.array([1.e5,1.e6,1.e7,1.e8,1.e9]),varname='rho'): #assumes nbarlist in units of 1/sr
+def shottest_getrhoexp(nbarlist=np.array([1.e5,1.e7,1.e9]),varname='rho'): #assumes nbarlist in units of 1/sr
     mapname='eucz07'
     cldat=depthtest_get_Cl(z0vals=np.array([0.7]))
     rhovals=[]
@@ -3356,12 +3358,13 @@ def shottest_get_rhodat(datnbar,varname='rho'):
 
 
 # plot expectation values
-def shottest_plot_rhoexp(nbarlist=np.array([1.e5,1.e6,1.e7,1.e8,1.e9]),varname='rho',overwrite=False,saverho=True,filetag='',plotdir='output/shottest_plots/',passnbarunit='sr',plotnbarunit='amin2',dodata=False,datnbar=np.array([]),dummylegpt=False):
+def shottest_plot_rhoexp(nbarlist=np.array([1.e5,1.e6,1.e7,1.e8,1.e9]),varname='rho',overwrite=True,saverho=True,filetag='',plotdir='output/shottest_plots/',passnbarunit='sr',plotnbarunit='amin2',dodata=False,datnbar=np.array([]),dummylegpt=False):
     #passednbarunit - what units are nbarlist?per... sr deg2 or amin2
     # assumes nbarlist adn datnbar are in same units
     #plotnbarunit - sr deg2 or amin2, with implied ^-1
     fidnbar=1.e9#in sr^-1, will be noted on plot
     fidlabel=r'${\rm fiducial }\quad \bar{n}=10^9\,{\rm sr}^{-1}$'
+    #datnbar=np.array([.1])#revert
     if passnbarunit=='sr':
         tosr=1.
         if plotnbarunit=='sr':
@@ -3391,7 +3394,9 @@ def shottest_plot_rhoexp(nbarlist=np.array([1.e5,1.e6,1.e7,1.e8,1.e9]),varname='
         elif plotnbarunit=='amin2':
             toplot=1.
             fidnbar*=(np.pi/180./60.)**2
-    
+
+    print 'to plot=',toplot
+    print 'to sr = ',tosr
     rhogrid=shottest_getrhoexp(nbarlist*tosr,varname)#assumes steradian
     plt.figure(0)
     plt.subplots_adjust(bottom=.23)
@@ -3850,8 +3855,8 @@ if __name__=="__main__":
             depthtest_iswrec(Nreal,z0vals=z0vals,minreal=0,dorho=1,dos=1,domaps=True)
             #note, if you just want t compute rho but don't want to redo isw recs
             # change domaps to False
-    if 0: #plot info about depthtest maps, assumes you've already done isw recs
-        for r in xrange(10):
+    if 1: #plot info about depthtest maps, assumes you've already done isw recs
+        for r in xrange(10,20):
              #depthtest_TTscatter(r,depthtestz0,savepngmaps=False)
              pass
         for N in 1000*np.arange(1,10): #how much do results change with Nreal
@@ -3859,6 +3864,7 @@ if __name__=="__main__":
             pass
         depthtest_plot_rhohist(depthtestz0,varname='rho')
         depthtest_plot_rhohist(depthtestz0,varname='s')
+        depthtest_TTscatter(13,depthtestz0,savepngmaps=True)
 
     if 0: #bin test rho expectation value calculations, can be done w/out maps
         if 0:         #compute cl, can take a while
