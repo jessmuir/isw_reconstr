@@ -3826,33 +3826,45 @@ def angmomtest_LrecLtrue_corrcoef(datdir='output/angmom_study/',plotdir='output/
 
 #################################################################
 if __name__=="__main__":
-    #plot_isw_kernel()
+    #Below are a number of function calls used in our analysis
+    # the "if 0"s serve as switches, to only run one calculation at a time
+    # They are organized roughly in the order of the sections in our paper
+    #   but note that they may not generate the same plots. for some plots
+    #   i rewrote the functions in 'genplots_forpaper.py' so taht I could adjust
+    #   formatting in more detail. 
+    
     depthtestz0=np.array([.3,.5,.6,.7,.8])
-    #depthtestz0=np.array([.5])
     if 0: #compute Cl # this takes a shile
         depthtest_get_Cl(justread=False,z0vals=depthtestz0)
+    if 0: #some tests for depthtest
+        depthtest_plot_zwindowfuncs(depthtestz0)
     if 0: #generate depthhtest maps
         nomaps=False#True
         Nreal=100#00
-        # "get_glm..." to gen maps and recs, or do just iswrec if mapes already exist
-        #depthtest_get_glm_and_rec(Nreal=Nreal,z0vals=depthtestz0,justgetrho=nomaps,minreal=0,dorho=1,dos=True,dochisq=False,dorell=0,dochisqell=False)
-        depthtest_iswrec(Nreal,z0vals=np.array([.3,.6,.7,.8]),minreal=0,justgetrho=0,dorell=0,dorho=1,dos=1,domaps=True)
-    if 0: #plot info about depthtest maps
+        simmaps=False #do you want to simulate maps, or just do reconstructions?
+        if simmaps: #generate maps and do reconstructions
+            depthtest_get_glm_and_rec(Nreal=Nreal,z0vals=depthtestz0,justgetrho=nomaps,minreal=0,dorho=1,dos=True,dochisq=False,dorell=0,dochisqell=False)
+        else: #do recs based on existing galaxy maps
+            depthtest_iswrec(Nreal,z0vals=np.array([.3,.6,.7,.8]),minreal=0,justgetrho=0,dorell=0,dorho=1,dos=1,domaps=True)
+            #note, if you just want t compute rho but don't want to redo isw recs
+            # change domaps to False
+    if 0: #plot info about depthtest maps, assumes you've already done isw recs
         #depthtest_TTscatter(0,depthtestz0,savepngmaps=False)
         #depthtest_TTscatter(0,np.array([.3,.6,.8]),colors=['#1b9e77','#7570b3','#66a61e'],savepngmaps=False)
-        #depthtest_plot_zwindowfuncs(depthtestz0)
         for N in 1000*np.arange(1,11): #how much do results change with Nreal
             #depthtest_plot_rhohist(depthtestz0,varname='rho',firstNreal=N)
             pass
         depthtest_plot_rhohist(depthtestz0,varname='rho')
         depthtest_plot_rhohist(depthtestz0,varname='s')
 
-    if 1: #bin test rho expectation value calculations
+    if 1: #bin test rho expectation value calculations, can be done w/out maps
         if 0:         #compute cl, can take a while
-            #cldat05=bintest_get_Clvals(finestN=6,z0=0.7,sigz=0.05,justread=0)
-            #cldat03=bintest_get_Clvals(finestN=6,z0=0.7,sigz=0.03,justread=0)
-            #cldat001=bintest_get_Clvals(finestN=6,z0=0.7,sigz=0.001,justread=0)
-            #cldat100=bintest_get_Clvals(finestN=6,z0=0.7,sigz=0.1,justread=0)
+            # generally, i will have computed the 'base Cl' for this on
+            # a computing cluster or something, then have these funcs do bin combos
+            cldat05=bintest_get_Clvals(finestN=6,z0=0.7,sigz=0.05,justread=0)
+            cldat03=bintest_get_Clvals(finestN=6,z0=0.7,sigz=0.03,justread=0)
+            cldat001=bintest_get_Clvals(finestN=6,z0=0.7,sigz=0.001,justread=0)
+            cldat100=bintest_get_Clvals(finestN=6,z0=0.7,sigz=0.1,justread=0)
         
         #compute and save expectation values for rho[0.001,0.03,0.05,0.1]
         bintest_rhoexp_comparesigs(finestN=6,z0=0.7,sigzlist=[0.001,0.03,0.05,.1])
@@ -3860,110 +3872,136 @@ if __name__=="__main__":
 
         for s in [0.001,0.03,0.05,0.1]: #some tests for z distributions
             #bintest_plot_cl_vals(finestN=6,z0=0.7,sigz=s)
-            Ebintest_plot_zwindowfuncs(sigz=s)
+            bintest_plot_zwindowfuncs(sigz=s)
             pass
         
     if 0: #bin test with many realizations, generate maps
-        nomaps=False
-        bintest_get_glm_and_rec(Nreal=10000,divlist=['6','222','111111'],minreal=0,justgetrho=nomaps,dorell=0)
-        bintest_iswrec(Nreal,divlist=['6','222','111111'],minreal=0,justgetrho=0,dorell=0,dorho=1,dos=1,domaps=True):
-    if 0: #bin test with many realizations, make plots
-        for N in 1000*np.arange(1,11):
-            bintest_plot_rhohist(getrhopred=True,varname='rho',firstNreal=N)
+        Nreal=10000
+        simmaps=False #if true, simulates galaxy maps, if false, just do isw recs
+        if simmaps: #simulate galaxy maps and do isw rec
+            bintest_get_glm_and_rec(Nreal=Nreal,divlist=['6','222','111111'],minreal=0,justgetrho=False,dorell=0) #set justgetrho=true if you just want to compute rho etc
+        else: #do isw rec from existing gal maps. set domaps=False if you 
+            bintest_iswrec(Nreal,divlist=['6','222','111111'],minreal=0,dorho=1,dos=1,domaps=True) #set domaps=False if you just want rho and s
+    if 0: #bin test with many realizations, make plots after having already done recs
         bintest_plot_rhohist(getrhopred=True,varname='rho')
         bintest_plot_rhohist(getrhopred=True,varname='s')
-        #bintest_plot_rhohist(getrhopred=True,varname='chisq')
-        #bintest_plot_relldat()
 
-    #shortvarlist=[1.e-6,1.e-5,1.e-4,1.e-3] #for testing datapoints
-    #
-    if 0: #cal test, rho expectation value calcs, again mostly merged with lmin/caltest
-        shortvarlist=[1.e-7,1.e-6,1.e-5,1.e-4,1.e-3,1.e-2]
-        #shortvarlist=[1.e-6,1.e-5,1.e-4,1.e-3]
-        varlist=list(caltest_get_logspaced_varlist(minvar=1.e-8,maxvar=.1,Nperlog=10))    
-        #caltest_get_rhoexp(varlist,overwrite=1,doplot=1,saverho=1,varname='rho')
-        #caltest_get_rhoexp(varlist,overwrite=1,doplot=1,saverho=1,varname='s')
-        #caltest_compare_clcal_shapes(varlist,shapelist=['g','l2'],varname='rho',lmaxlist=[],lminlist=[],widthlist=[],dodataplot=True)
-        #caltest_compare_clcal_shapes(varlist,shapelist=['g','l2'],varname='rho',shortvarlist=shortvarlist)
-        caltest_compare_clcal_shapes(varlist,shapelist=['g'],varname='rho',shortvarlist=shortvarlist)
-        caltest_compare_clcal_shapes(varlist,shapelist=['g'],varname='s',shortvarlist=shortvarlist)
-
-
-    if 0: #plotting cl for caltest
-        varlist=list(caltest_get_logspaced_varlist(minvar=1.e-8,maxvar=.1,Nperlog=10))    
-        caltest_Clcomp(varlist)
+    #lmin tests; assuming depthtest maps already have been generated
+    #    look at how changing lmin affects reconstruction
+    if 0: 
+        Nreal=1
+        inlminlist=np.array([1,2,3,4,5])
+        #inlminlist=np.array([10])
+        inlmaxlist=np.array([-1])#3,5,10,20,-1]) #-1 will use largest available lmax
+        lminlist,lmaxlist=lmintest_get_lminmaxcombos(inlminlist,inlmaxlist)
+        if 0: #do reconstructions for Nreal for combos of inlminlist and inlmax
+            domaps=True
+            Nreal=10000
+            lmintest_iswrec(Nreal=Nreal,lminlist=lminlist,lmaxlist=lmaxlist,domaps=domaps)
+        #if dodata=True, assumes you've done recs for many realizations and
+        # adds datapoints to plot. can plot without simulations if you set dodata=0
+        lmintest_plot_rhoexp(overwrite=0,lminlist=np.arange(1,20),lmaxlist=inlmaxlist,varname='rho',dodata=True,datlmin=inlminlist)
         
-    if 0: #caltest, rho for many realizations; most of this has been merged into cal/lmintest
-        shortvarlist=[1.e-7,1.e-6,1.e-5,1.e-4,1.e-3,1.e-2]
-        nomaps=False
-        #caltest_get_scaleinfo(shortvarlist,scaletovar=False)
-        Nreal=10#000
-        caltest_apply_caliberrors(Nreal=Nreal,varlist=shortvarlist,overwritecalibmap=False,scaletovar=1.e-3,shape='g',width=10.,lmin=0,lmax=30)
-        
-        #domaps= do we redo reconstructions?
-        caltest_iswrec(Nreal=Nreal,varlist=shortvarlist,shape='g',width=10.,callmin=0,callmax=30,scaletovar=1.e-3,domaps=True)
+    # shot noise tests; assumes depthtest maps have already been generated
+    if 0:
+        shortnbarlist=np.array([1.e-4,1.e-3,.01,.1,1.,10.,100.])#in arcmin^-2
+        shortnbarsr=shortnbarlist*((180.*60./np.pi)**2)
+        scaletovar=shortnbarsr[0]
+        nbarlist=caltest_get_logspaced_varlist(1.e-6,1.e3)
+        if 0: #gen many maps
+            Nreal=10000
+            #shottest_apply_noisetomap(nbarlist=shortnbarsr,Nreal=Nreal,overwritecalibmap=1,scaletovar=scaletovar) #only need to do this once
+            shottest_iswrec(Nreal,nbarlist=shortnbarsr,scaletovar=scaletovar,domaps=True)
+            
+        shottest_plot_rhoexp(nbarlist=nbarlist,varname='rho',passnbarunit='amin2',overwrite=0,dodata=True,datnbar=shortnbarlist)
+        shottest_plot_rhoexp(nbarlist=nbarlist,varname='s',passnbarunit='amin2',overwrite=0,dodata=True,datnbar=shortnbarlist)
 
-    
-    if 0: #scatter plots for calib test
-        for r in xrange(5):
-            caltest_TTscatter(r)
-            pass
-        caltest_TTscatter(4,savepngmaps=True)
-
-    if 0: #z0test and b2test theory calcs
+    if 0: #z0test and b2test theory calcs; used these mostly for testing
+        #  if doplot=True, will genearate colorblock plots that we ended up not using
+        #  since the plots were hard to read.
+        # the plotting functions haven't been tested after some edits, may not work
         simz0=np.array([.35,.56,.63,.693,.7,.707,.7700,.84,1.05])
         perrors=[1,10,20,50]
         z0test_get_rhoexp(overwrite=True,doplot=True,varname='rho',perrors=perrors)
         z0test_get_rhoexp(overwrite=True,doplot=True,varname='s',perrors=perrors)
-        
-        #z0test_get_rhoexp(overwrite=True,doplot=True,varname='chisq',simz0=simz0)
-        #recb2=np.array([0.,.5,1.,10.])
         simb2=np.array([0.,.01,.1,.5,1.,2.,5.,10.])
         recb2=simb2
         bztest_get_rhoexp(simb2,recb2,overwrite=True,doplot=True,varname='rho')
         bztest_get_rhoexp(simb2,recb2,overwrite=True,doplot=True,varname='s')
-        #z0test_Clcomp()
-        #bztest_Clcomp()
 
-    if 0: #catztest theory calcs, makes colorblock plots
-        for Nbins in [1,3]:
+    if 0: #catztest theory calcs, makes colorblock plots; see note above
+        for Nbins in [1,3]: #numbers in badfracs reflect what i computed Cl for
             if Nbins==1:
                 badfracs=np.array([0.,5.e-4,1.e-3,2.e-3,5.e-3,1.e-2,2.e-2,.1,.2])
             elif Nbins==3:
                 badfracs=np.array([1.e-3,1.e-2,.1,.2])                                
-            #catz_windowtest(badfracs,Nbins=Nbins)
+            #catz_windowtest(badfracs,Nbins=Nbins) #plot window functions
             catz_get_rhoexp(overwrite=True,doplot=True,varname='rho',badfracs=badfracs,Nbins=Nbins)
             catz_get_rhoexp(overwrite=True,doplot=True,varname='s',badfracs=badfracs,Nbins=Nbins)
-        #catz_Clcomp()
 
+    if 0: #plot how these variables change Cl
+        z0test_Clcomp()
+        bztest_Clcomp()
+        catz_Clcomp()
 
-    if 0: #zdist tests with less info
-        z0test_onesim_plot(varname='rho',biascomp=True)
-        z0test_onesim_plot(varname='s',biascomp=True)
-        #z0test_onesim_plot(varname='rho',fitbias=0)
-        #z0test_onesim_plot(varname='s',fitbias=0)
-        bztest_onesim_plot(varname='rho')
-        bztest_onesim_plot(varname='s')
-        #bztest_onerec_plot(varname='rho')
-        #bztest_onerec_plot(varname='s')
+    if 0: #zdist tests with less info; these are what we ended up using
+        overwritedat=1 #if true, overwrites rho and s .dat files, otherwise readonly
+        z0test_onesim_plot(varname='rho',overwritedat=overwritedat)
+        z0test_onesim_plot(varname='s',overwritedat=overwritedat)
+        bztest_onesim_plot(varname='rho',overwritedat=overwritedat) 
+        bztest_onesim_plot(varname='s',overwritedat=overwritedat)
         
-        Nbins=1
-        if Nbins==1:
-            badfracs=np.array([0.,1.e-3,5.e-3,1.e-2,2.e-2,5.e-2,.1,.2])#1 bin
-            badfracs1sim=badfracs#1 bin
-            #catz_Clcomp(badfracs=badfracs)
-        elif Nbins==3:
-            badfracs=np.array([0.,1.e-3,1.e-2,.1,.2])#3 bin
-            badfracs1sim=badfracs
-        #catztest_onerec_plot(varname='rho',Nbins=Nbins,simf=badfracs)
-        #catztest_onerec_plot(varname='s',Nbins=Nbins,simf=badfracs)
-        catztest_onesim_plot(varname='rho',Nbins=Nbins,recf=badfracs1sim,fidf=.01,secondfidf=.1)
-        catztest_onesim_plot(varname='s',Nbins=Nbins,recf=badfracs1sim,fidf=.01,secondfidf=.1)
-        #catz_Clcomp()
-        #catz_windowtest(badfracs,Nbins=Nbins)
-        #z0test_Clcomp()
-        #bztest_Clcomp()
-    #angular momentum tests
+        badfracs=np.array([0.,1.e-3,5.e-3,1.e-2,2.e-2,5.e-2,.1,.2])
+        catztest_onesim_plot(varname='rho',Nbins=1,recf=badfracs,fidf=.01,secondfidf=.1,overwritedat=overwritedat)
+        catztest_onesim_plot(varname='s',Nbins=1,recf=badfracs,fidf=.01,secondfidf=.1,overwritedat=overwritedat)
+        badfracs=np.array([0.,1.e-3,1.e-2,.1,.2])
+        catztest_onesim_plot(varname='rho',Nbins=3,recf=badfracs,fidf=.01,secondfidf=.1,overwritedat=overwritedat)
+        catztest_onesim_plot(varname='s',Nbins=3,recf=badfracs,fidf=.01,secondfidf=.1,overwritedat=overwritedat)
+   
+
+        
+    #caltest: look at the impact of calibration errors!
+    if 0: #plotting cl for caltest to look at where cl^cal crosses cl^gal
+        varlist=list(caltest_get_logspaced_varlist(minvar=1.e-8,maxvar=.1,Nperlog=10))    
+        caltest_Clcomp(varlist)
+        
+    # if 0: #caltest, rho for many realizations; most of this has been merged into cal/lmintest
+    #     shortvarlist=[1.e-7,1.e-6,1.e-5,1.e-4,1.e-3,1.e-2]
+    #     nomaps=False
+    #     #caltest_get_scaleinfo(shortvarlist,scaletovar=False)
+    #     Nreal=10#000
+    #     caltest_apply_caliberrors(Nreal=Nreal,varlist=shortvarlist,overwritecalibmap=False,scaletovar=1.e-3,shape='g',width=10.,lmin=0,lmax=30)
+        
+    #     #domaps= do we redo reconstructions?
+    #     caltest_iswrec(Nreal=Nreal,varlist=shortvarlist,shape='g',width=10.,callmin=0,callmax=30,scaletovar=1.e-3,domaps=True)
+    
+
+    #lmin caltests; vary both the amount of calibration error and lmin
+    #  assumes depthtest galaxy maps already exist, generates maps and data needed
+    #  for both the basic calibration error test and the one where lmin is varied
+    if 0:
+        shortvarlist=[1.e-7,1.e-6,1.e-5,1.e-4,1.e-3,1.e-2] #var[c] value to simulate
+        shortreclminlist=np.array([2,3,5])#1,3,10])
+        if 0: #do recs for many realizations
+            Nreal=10000
+            #caltest_apply_caliberrors(Nreal=Nreal,varlist=shortvarlist,overwritecalibmap=False,scaletovar=1.e-3,shape='g',width=10.,lmin=0,lmax=30) #only do once
+            caltest_iswrec(Nreal,shortvarlist,scaletovar=1.e-3,recminelllist=shortreclminlist,domaps=True) #set domaps=False if you just want to calculate rho, s
+
+        varlist=list(caltest_get_logspaced_varlist(minvar=1.e-8,maxvar=.1,Nperlog=10))#for theory calcs
+        reclminlist=np.array([2,3,5])
+        
+        caltest_compare_lmin(varlist,varname='rho',dodataplot=True,recminelllist=reclminlist,shortrecminelllist=shortreclminlist,shortvarlist=shortvarlist,justdat=True)
+        caltest_compare_lmin(varlist,varname='s',dodataplot=True,recminelllist=reclminlist,shortrecminelllist=shortreclminlist,shortvarlist=shortvarlist,justdat=True)
+    
+    
+    if 0: #scatter plots for calib test, do be done after maps and rec generation
+        for r in xrange(5): #adjust range to generate plots for diff realizaitons
+            caltest_TTscatter(r)
+            pass
+        caltest_TTscatter(4,savepngmaps=True)
+        
+    #angular momentum tests; requires external data about Ltrue, Lrec
+    #  has not been edited since some other changes in code, so may not work 100%
     if 0:
         shuffle=0
         angmomfiles=['Lmax_true_Lmax_rec.dat','Lmax_true_Lmax_rec_5_to_5.dat']
@@ -4002,48 +4040,3 @@ if __name__=="__main__":
             angmomtest_rhovsrho_plot(note=n,fileprefix=p,shufflerhofilt=shuffle,ellfilter=llims[i])
     if 0: #correlation coefs for Lmax numbers taht dragan emailed on 3/10/16
         angmomtest_LrecLtrue_corrcoef()
-
-
-            
-    #lmin tests
-    if 0: #generate rho data from many realizations
-        Nreal=1
-        inlminlist=np.array([1,2,3,4,5])
-        #inlminlist=np.array([10])
-        inlmaxlist=np.array([-1])#3,5,10,20,-1])
-        lminlist,lmaxlist=lmintest_get_lminmaxcombos(inlminlist,inlmaxlist)
-        if 0: #do reconstructions for Nreal for combos of inlminlist and inlmax
-            domaps=True
-            Nreal=10000
-            lmintest_iswrec(Nreal=Nreal,lminlist=lminlist,lmaxlist=lmaxlist,domaps=domaps)
-        lmintest_plot_rhoexp(overwrite=0,lminlist=np.arange(1,20),lmaxlist=inlmaxlist,varname='rho',dodata=True,datlmin=inlminlist)
-        #lmintest_plot_rhoexp(overwrite=0,lmaxlist=np.array([-1]),varname='rho',dodata=False)
-
-    #lmin caltests
-    if 0:
-        shortvarlist=[1.e-7,1.e-6,1.e-5,1.e-4,1.e-3,1.e-2]
-        shortreclminlist=np.array([2,3,5])#1,3,10])
-        if 0: #do recs for many realizations
-            Nreal=10000
-            caltest_apply_caliberrors(Nreal=Nreal,varlist=shortvarlist,overwritecalibmap=False,scaletovar=1.e-3,shape='g',width=10.,lmin=0,lmax=30)
-            caltest_iswrec(Nreal,shortvarlist,scaletovar=1.e-3,recminelllist=shortreclminlist,domaps=True)
-
-        varlist=list(caltest_get_logspaced_varlist(minvar=1.e-8,maxvar=.1,Nperlog=10))
-        reclminlist=np.array([2,3,5])
-        
-        caltest_compare_lmin(varlist,varname='rho',dodataplot=True,recminelllist=reclminlist,shortrecminelllist=shortreclminlist,shortvarlist=shortvarlist,justdat=True)
-        caltest_compare_lmin(varlist,varname='s',dodataplot=True,recminelllist=reclminlist,shortrecminelllist=shortreclminlist,shortvarlist=shortvarlist,justdat=True)
-        
-    # shot noise tests
-    if 0:
-        shortnbarlist=np.array([1.e-4,1.e-3,.01,.1,1.,10.,100.])#in arcmin^-2
-        shortnbarsr=shortnbarlist*((180.*60./np.pi)**2)
-        scaletovar=shortnbarsr[0]
-        nbarlist=caltest_get_logspaced_varlist(1.e-6,1.e3)
-        if 0: #gen many maps
-            Nreal=10000
-            #shottest_apply_noisetomap(nbarlist=shortnbarsr,Nreal=Nreal,overwritecalibmap=1,scaletovar=scaletovar)
-            shottest_iswrec(Nreal,nbarlist=shortnbarsr,scaletovar=scaletovar,domaps=True)
-            
-        shottest_plot_rhoexp(nbarlist=nbarlist,varname='rho',passnbarunit='amin2',overwrite=0,dodata=True,datnbar=shortnbarlist)
-        shottest_plot_rhoexp(nbarlist=nbarlist,varname='s',passnbarunit='amin2',overwrite=0,dodata=True,datnbar=shortnbarlist)
