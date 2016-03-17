@@ -1306,7 +1306,8 @@ def caltest_compare_lmin(varlist,shapecal='g',varname='rho',lmaxcal=30,lmincal=0
 #                     assuming no calib error
 #         inserts fiducial (no calib error) as last entry
 #         returns grid of rho or s values of size Nrec=Nvar
-def caltest_get_rhoexp(varlist=[1.e-4],lmax=30,lmin=1,shape='g',width=10.,overwrite=False,doplot=True,saverho=True,varname='rho',filetag='',reclmin=1,plotdir='output/caltest_plots/',nolmintag=False):
+def caltest_get_rhoexp(varlist=[1.e-4],lmax=30,lmin=1,shape='g',width=10.,overwrite=False,doplot=True,saverho=True,varname='rho',filetag='',reclmin=1,plotdir='output/caltest_plots/',nolmintag=False,dofidrec=True):
+    print 'varlist'
     if shape=='g':
         shapestr='g{2:d}_{0:d}l{1:d}'.format(lmin,lmax,int(width))
     elif shape=='l2':
@@ -1350,7 +1351,7 @@ def caltest_get_rhoexp(varlist=[1.e-4],lmax=30,lmin=1,shape='g',width=10.,overwr
         clmod=apply_additive_caliberror_tocl(fidcl,[mm])
         clmodlist.append(clmod)
     # include fidicual cl as last entry
-    if varlist[-1]!=0.:
+    if varlist[-1]!=0. and dofidrec:
         print "  appending fiducial case, no calib error"
         varlist.append(0.)
         clmodlist.append(fidcl)
@@ -1363,7 +1364,8 @@ def caltest_get_rhoexp(varlist=[1.e-4],lmax=30,lmin=1,shape='g',width=10.,overwr
     Nrec=len(varlist)
     rhoarray=np.zeros(Nrec)
     for r in xrange(Nrec):
-        rhoarray[r]=compute_rho_fromcl(fidcl,recdat,reccldat=clmodlist[r],varname=varname)
+        #print '--ON VAR=',varlist[r],'---------'
+        rhoarray[r]=compute_rho_fromcl(clmodlist[r],recdat,reccldat=fidcl,varname=varname)
 
     #if save, write to file
     if saverho:

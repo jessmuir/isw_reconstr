@@ -277,15 +277,15 @@ def caltest_basic_expplot_forpaper(varname='rho',plotdir='output/plots_forpaper/
     lmaxcal=30#max ell for caliberror
 
     #what points to plot
-    varlist=list(caltest_get_logspaced_varlist(minvar=1.e-8,maxvar=.1,Nperlog=10))
+    varlist=list(caltest_get_logspaced_varlist(minvar=1.e-8,maxvar=100,Nperlog=10))
     shortvarlist=[1.e-7,1.e-6,1.e-5,1.e-4,1.e-3,1.e-2]#for data points
     
     #get data
     rhoexplist=[]#will be 1D; [variance ] 
-    rhoexplist=caltest_get_rhoexp(varlist,lmax=lmaxcal,lmin=lmincal,shape=shape,width=width,overwrite=False,doplot=False,saverho=True,varname=varname,reclmin=reclmin)
+    rhoexplist=caltest_get_rhoexp(varlist,lmax=lmaxcal,lmin=lmincal,shape=shape,width=width,overwrite=True,doplot=False,saverho=True,varname=varname,reclmin=reclmin)
     #shapestr=r'$C_{{\ell}}^{{\rm cal}}\propto e^{{-(\ell/{0:.0f})^2}}$'.format(width,lmincal,lmaxcal)
     linelabel='Theory (add. only)'
-    datplot=caltest_getdataplot_forshapecompare(varname,shortvarlist,[shape],[width],[lmincal],[lmaxcal],recminelllist=np.array([reclmin]),colorlist=colorlist,labellist=['Results from sim.'],getunmod=True)
+    datplot=caltest_getdataplot_forshapecompare(varname,shortvarlist,[shape],[width],[lmincal],[lmaxcal],recminelllist=np.array([reclmin]),colorlist=colorlist,labellist=['Results from sim.'],getunmod=False)
     #setting getunmod=false since we don't need cal=0 reference means
 
     #do plotting!
@@ -312,8 +312,7 @@ def caltest_basic_expplot_forpaper(varname='rho',plotdir='output/plots_forpaper/
         ax1.set_ylabel(r'$\rho$')
     elif varname=='s':
         ax1.set_ylabel(r'$s$')
-        ax1.set_ylim((.1,2.5))
-        #ax1.set_yscale('log')
+        ax1.set_ylim((.1,3.))
 
     #fill in regions for current/future values
     nowmin=1.e-4
@@ -336,7 +335,7 @@ def caltest_basic_expplot_forpaper(varname='rho',plotdir='output/plots_forpaper/
     #theory line
     ax1.plot(varlist[:-1],rhoexplist[:-1],label=linelabel,color=colorlist[0])
 
-    #data points should just have one entry, but copying whole mess anyway
+    ##data points should just have one entry, but copying whole mess anyway
     for i in xrange(len(datplot)):
         datvar=datplot[i][0]#array
         datrho=datplot[i][1]#array
@@ -355,7 +354,7 @@ def caltest_basic_expplot_forpaper(varname='rho',plotdir='output/plots_forpaper/
     if varname=='rho':
         plt.legend(fontsize=16,loc='upper right',numpoints=1)
     elif varname=='s':
-        plt.legend(fontsize=16,loc='upper left',numpoints=1)
+        plt.legend(fontsize=16,loc='upper right',numpoints=1)
 
     print 'Saving plot to ',plotdir+outname
     plt.savefig(plotdir+outname)
@@ -507,12 +506,12 @@ if __name__=="__main__":
     #lmintest_plot_rhoexp(lminlist=np.arange(1,20),varname='rho',dodata=True,datlmin=np.array([1,2,3,4,5]),plotdir='output/plots_forpaper/')
 
     # #shot noise tests
-    # shortnbarlist=np.array([1.e-4,1.e-3,.01,.1,1.,10.])#in arcmin^-2
-    # shortnbarsr=shortnbarlist*((180.*60./np.pi)**2)
-    # scaletovar=shortnbarsr[0]
-    # nbarlist=caltest_get_logspaced_varlist(1.e-6,1.e3)
-    # shottest_plot_rhoexp(nbarlist=nbarlist,varname='rho',passnbarunit='amin2',overwrite=0,dodata=True,datnbar=shortnbarlist,plotdir='output/plots_forpaper/')
-    # shottest_plot_rhoexp(nbarlist=nbarlist,varname='s',passnbarunit='amin2',overwrite=0,dodata=True,datnbar=shortnbarlist,plotdir='output/plots_forpaper/')
+    shortnbarlist=np.array([1.e-4,1.e-3,.01,.1,1.,10.])#in arcmin^-2
+    shortnbarsr=shortnbarlist*((180.*60./np.pi)**2)
+    scaletovar=shortnbarsr[0]
+    nbarlist=caltest_get_logspaced_varlist(1.e-6,1.e3)
+    shottest_plot_rhoexp(nbarlist=nbarlist,varname='rho',passnbarunit='amin2',overwrite=0,dodata=True,datnbar=shortnbarlist,plotdir='output/plots_forpaper/')
+    shottest_plot_rhoexp(nbarlist=nbarlist,varname='s',passnbarunit='amin2',overwrite=0,dodata=True,datnbar=shortnbarlist,plotdir='output/plots_forpaper/')
 
     # overwritedat=1
     # z0test_onesim_plot(varname='rho',dohatch=False,plotdir='output/plots_forpaper/',overwritedat=overwritedat)
@@ -532,12 +531,12 @@ if __name__=="__main__":
         
     caltest_basic_expplot_forpaper('rho')
     caltest_basic_expplot_forpaper('s')
-    caltest_lmin_plot_forpaper('rho')
+    #caltest_lmin_plot_forpaper('rho')
     
-    varlist=list(caltest_get_logspaced_varlist(minvar=1.e-8,maxvar=.1,Nperlog=10))
-    shortvarlist=[1.e-7,1.e-6,1.e-5,1.e-4,1.e-3,1.e-2] #var[c] value to simulate
-    reclminlist=np.array([2,3,5])
-    shortreclminlist=reclminlist
+    #varlist=list(caltest_get_logspaced_varlist(minvar=1.e-8,maxvar=.1,Nperlog=10))
+    #shortvarlist=[1.e-7,1.e-6,1.e-5,1.e-4,1.e-3,1.e-2] #var[c] value to simulate
+    #reclminlist=np.array([2,3,5])
+    #shortreclminlist=reclminlist
     #caltest_Clcomp(varlist,plotdir='output/plots_forpaper/')
     #caltest_compare_lmin(varlist,varname='rho',dodataplot=True,recminelllist=reclminlist,shortrecminelllist=shortreclminlist,shortvarlist=shortvarlist,justdat=True,plotdir='output/plots_forpaper/')
     
