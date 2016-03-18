@@ -29,7 +29,13 @@ genplots_forpaper.py - either calls functions of run_euclidlike_analysis or has 
     rewritten in a way that allows greater control of formatting. Contains function
     callsed used to generate plots for our paper.
 
-
+==========================================
+output directory
+--------------------------
+contains data files for Cl used for depth test, bin test, and z distribution tests,
+but no map or plot output. The files in the run scripts will assume t0hat there exist
+some subdirectories in this which you will have to make manually. Contact me
+if you'd like more information about that. 
 
 ==========================================
 utility scripts containing functions and class definitions used for various calcs
