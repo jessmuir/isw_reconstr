@@ -41,6 +41,7 @@ class RunData(object):
         self.ilkdir = self.cldir+'Ilktab/'
         self.glmdir = rundir+'glm_output/'
         self.mapdir = rundir+'map_output/'
+        self.plotdir= rundir+'plots/'
         
         #create them if they don't exist
         if not os.path.isdir(self.rundir):
@@ -61,6 +62,9 @@ class RunData(object):
         if not os.path.isdir(self.mapdir):
             print "    creating dir",self.mapdir
             os.mkdir(self.mapdir)
+        if not os.path.isdir(self.plotdir):
+            print "    creating dir",self.plotdir
+            os.mkdir(self.plotdir)
             
         if lmax: #if lmax given, do all values below
             self.lmax=lmax
@@ -176,11 +180,12 @@ class MapRunData(RunData):
         pass
 
     #maybe put some info here about which maps have which masks, eg.
+    # haven't actually done anything with this; the though was to have some way
+    # to bundle info needed for maps but not Cl calculations.
 
 
 ###########################################################################
 #helper functions for multiprocessing with class methods
-# note: don't actaully need these in setup where Ilk, Cl not class methods
 ###########################################################################
 def _pickle_method(method):
     func_name = method.im_func.__name__

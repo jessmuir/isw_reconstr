@@ -1,0 +1,116 @@
+This repository contains the code used for calculations and simulations
+for the paper "Peeling off the late Universe: Reconstructing the ISW map with 
+galaxy surveys," by Jessica Muir and Dragan Huterer.
+
+Most of the files in it were used to produce the results in the paper, though
+some were used for testing. Comments in each file should be somewhat self-explanatory
+but brief descriptions of the various files are below.
+
+README written 3/18/16 - Jessie Muir
+
+==========================================
+run scripts contain functions which run specific analysis and make plots.
+--------------------------
+run_euclidlike_analysis.py - the main script for our paper's analysis.
+    The name refers to the fact that we model our fiducial survey on Euclid's dn/dz.
+    Has functions defined for the various studies we ran (roughly corresponding to
+    paper sections). At the bottom, it contains  a number of functions calls with
+    if statements set up as switches and some  explanatory comments. These are the
+    function calls used to get our results. Changes switches to 1 and execute file
+    to run. 
+    >Depends on all the scripts listed in the 'utilities' section below
+    >Assumes you have an output directory set up for each test, not included in repo.
+
+run_MDcrosscheck_analysis.py - contains calculations used to check our ISW rec
+    pipeline against paper by Manzotti and Dodelson. Uses some functions defined in
+    run_euclidlike_analysis.py.
+
+genplots_forpaper.py - either calls functions of run_euclidlike_analysis or has them
+    rewritten in a way that allows greater control of formatting. Contains function
+    callsed used to generate plots for our paper.
+
+
+
+==========================================
+utility scripts containing functions and class definitions used for various calcs
+--------------------------
+ClRunUtils - contains some classes used in Cl calculations
+   -KData - bundles together info about wave number k used in Cl computation
+   -RunData - keeps track directories where results go, tags to add to output files,
+       where file of cosmological parameters used is and the relevent Cosmology object
+       but not specific info about Cl clculation
+   -ClRunData - inherits from RunData, cotains additional info needed for Cl integrals
+   
+CosmParams.py - containts class and function which bundles info about cosmology, P(k)
+   -Cosmology - reads in and keeps track of cosmological paramters, can run camb to
+       compute P(k) tabulates background cosmology functions or reads them in
+       
+MapParams.py - contains classes and functions used to model LSS surveys
+   -MapWrapper - contains some string tags identifying maps + bools isISW, isGal
+   -MapType - inherits from MapWrapper, still a pretty general class which keeps
+     track of some general info about a map, its redshift distribution and # of bins
+     Creates a list of BinMap objects for each associated Bin
+   -SurveyType - inherits from MapType, is specific to galaxy surveys, contains info
+     about dn/dz, b(z), nbar, fraction of catastrophic photo z erorrs. When initialized
+     computes appropriate dn/dz for each bun and normalizes them before creating
+     list of associated SurveyBinMap objects
+   -BinMap - inherits from MapWraper, contains info for a map that has a tophat z range
+   -SurveyBinMap - object containing info about a single bin of a galaxy survey  
+
+genCrossCor.py - contains classes and functions used to compute, read in, store Cl data
+   -ClData - class bundling array of Cl data together with tags for the input maps
+      ell values, shot noise levels, and tranlastions between map and crosscorr indices
+   - functions to compute Cl using Limber approx
+   - functions used to compute and tabulate I_l(k) transfer functions
+   - functions for computing, tabulating, and reading in Cl
+   >Depends on the ClRunUTils, CosmParams, MapParams.
+   >Note that Ilk and Cl integrals are set up to use python multiprocessing, but
+    that due to some issue with the linear algebra module of numpy, running both
+    of these at once cause errors on macs. I usually just run these on a cluster
+    to avoid this problem. There are hardcoded "DOPARALLEL" booleans which can be used
+    to switch multiprocessing on and off for these calculations.
+   >I have not done this, but one could feasibly write a function that reads Cl output
+    from CLASS into my ClData object format, so some utilities here can be used
+    independently of the actual integral calculations
+   
+genMapsfromCor.py - contains classes and functions used to generate and store map info
+   -glmData - classes that holds g_lm (and a_lm) data in an array of size
+     Nrealizations x Nmaps x Nlm, as well as info about the associated maps
+     and a bunch of functions that keep track of where the fits files for the maps go
+     Becasue of this, it is useful even if you don't want the g_lm data; if you
+     set this up with Nreal=0, can use it as a way to keep track of map info and
+     filenames
+   -functions to generate glm from Cl, read in glm from files, or extract glm from maps
+   -functions for generate calibration error or shot noise maps, adding noise to
+     existing galaxy maps
+   >Depends on all utilities functions above
+   
+mapdef_utils.py - contains some functions used to generate maptypes used in our survey
+    as well as those used to get teh RunData object used in our analysis.
+    >Depends on above utilties functions
+
+AnalysisUtils.py - contains functions and class defs used to do+analyze ISW rec
+   -RecData - class that holds info about an ISW reconstruction: what input LSS maps,
+     to use for maps and model Cl's, what ell values, info for output map files
+   -functions for fitting for constant bias
+   -funcitons which extract info from a ClData object and convert into an
+     NellxNmapxNmap array used to make ISW estimator, with ISW map at index 0
+   -functions which extract and order glm data from glmData objects to make it
+     consistant with Dl matrix used in reconstruction
+   -functions which compute ISW estimator for one or many maps or reconstruction
+     setupts described using RecData objects
+   -functions used to compute reconstruction quality statistics from maps or theory
+     in our paper we only looked at rho and s, there are some functions here for other
+     stats that we didn't end up using; code has been edited since we last used these
+     so they may not work without some tweaking.
+   -a few plotting functions, though most of the work for this will be in the 'run'
+     scripts described at the top of this README.
+
+==========================================
+test scripts used in early stages of the project
+  These have not been run in a while, and so may not be compatible with all
+  changes that have since been made to the utility scripts.
+--------------------------
+testmapmaking.py - used to run intial tests of map making and reconstruction utilities
+test_integrals.py - used to test accuracy/convergence of Cl calculations
+testscript.py - used to test that some features of the utility scripts can run
