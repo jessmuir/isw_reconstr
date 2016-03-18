@@ -1,0 +1,7 @@
+CAMBtag = fid    #string labeling set of parameters for CAMB
+w0      = -1.           #dark energy equation of state param
+Och2      =  0.1188         #Omega_cdm h^2
+Obh2      = .02230      #omega_baryon h^2 = 
+Onh2      = 0.            #Omega_neutrino
+h0      = 0.6774           #present day hubble param / 100 km/s/Mpc
+ns      = 0.9667          #scalar spectral index
