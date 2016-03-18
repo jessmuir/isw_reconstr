@@ -1026,6 +1026,7 @@ def get_shotnoise_formaps(glmdat,noisedatlist=[],overwrite=False,NSIDE=32,Nreal=
                 #only bother generating map if overwrite or file nonexistant
                 if overwrite or not os.path.isfile(thisoutdir+outname):
                     clnoise=np.ones(Nell)*1./nbar
+                    clnoise[0]=0 #so total map has zero monopole still
                     cmap = hp.sphtfunc.synfast(clnoise,NSIDE,verbose=False)
                     #print '***nbar, clnoise, cmap rms = ',nbar,clnoise[4],np.std(cmap)
                     #write to file
@@ -1207,8 +1208,8 @@ def apply_caliberror_tomap(inmap,cmap,innbar,justaddnoise=False):
     else:
         Nin=innbar*(inmap+1.) #total number count in each direction
         Nobs=(1.+cmap)*Nin #this is how the calibration error map is defined
-        outnbar=np.average(Nobs)
         outmap=Nobs/outnbar - 1.
+        outnbar=np.average(Nobs)
     return outmap,outnbar
 
 #------------------------------------------------------------------------
@@ -1417,6 +1418,8 @@ def apply_caliberror_to_manymaps(inglmdat,mapmodcombos=[],saveplots=False,rlzns=
             #    os.mkdir(cmapdir)
             calibmapf=cmapdir+'{0:s}.r{1:05d}.fits'.format(cmapbase,r)
             calibmap=calmap_scaling*hp.read_map(calibmapf,verbose=False)
+            #print '   ',calibmapf
+            #print '   >>scaling^2',calmap_scaling**2,'Cl[4]=',hp.anafast(calibmap)[4]
             newmap,newnbar=apply_caliberror_tomap(startmap,calibmap,startnbar,justaddnoise=justaddnoise)
             #save the maps' .fits files
             newmapf= inglmdat.get_mapfile_fortags_unchecked(r,newmaptags[c],newmodtags[c],newmasktags[c])

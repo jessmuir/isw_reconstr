@@ -510,7 +510,7 @@ if __name__=="__main__":
     #lmintest_plot_rhoexp(lminlist=np.arange(1,20),varname='rho',dodata=True,datlmin=np.array([1,2,3,4,5]),plotdir='output/plots_forpaper/')
 
     # #shot noise tests
-    shortnbarlist=np.array([1.e-4,1.e-3,.01,.1,1.,10.])#in arcmin^-2
+    shortnbarlist=np.array([1.e-4,1.e-3,.01,.1,1.,10.,100])#in arcmin^-2
     shortnbarsr=shortnbarlist*((180.*60./np.pi)**2)
     scaletovar=shortnbarsr[0]
     nbarlist=caltest_get_logspaced_varlist(1.e-6,1.e3)

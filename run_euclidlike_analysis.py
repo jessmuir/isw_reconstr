@@ -3258,7 +3258,9 @@ def shottest_getrhoexp(nbarlist=np.array([1.e5,1.e7,1.e9]),varname='rho'): #assu
     cldat=depthtest_get_Cl(z0vals=np.array([0.7]))
     rhovals=[]
     for n in nbarlist:
+        #print 'n=',n
         cldat.changenbar(mapname,n)
+        #print '  cldat.nbar[1]=',cldat.nbar[1]*(np.pi/180./60.)**2,cldat.noisecl[cldat.crossinds[1,1],4]
         includeglm=[mapname+'_bin0']
         recdat=RecData(includeglm=includeglm,inmaptag=mapname)
         rhopred=compute_rho_fromcl(cldat,recdat,varname=varname)
@@ -3275,23 +3277,26 @@ def shottest_get_fidCl(): #with no shot noise
 #when generating data maps, basically treating shot noise as modeled calib error
 # asumes nbarlist in inverse steradians
 def shottest_apply_noisetomap(nbarlist=[1.e4],Nreal=0,overwritecalibmap=False,scaletovar=False,redofits=True):
+    #print '====applying shot noise to map'
     cldat=shottest_get_fidCl()
     refvar,refind=caltest_get_scaleinfo(nbarlist,scaletovar)
+    #print '>refvar,refind',refvar,refind
     fidbins=caltest_get_fidbins()
     lssbin=fidbins[1].tag #just the fiducial depthtest binmap
     glmdat=caltest_get_fidglm()
 
     #set up noise maps
     noiseinfolist=[(lssbin,refvar)] #only for max var
+    print 'noiseinfolist',noiseinfolist
     if Nreal and overwritecalibmap:
         print 'Generating shot noise maps.'
     dothesemods=get_shotnoise_formaps(glmdat,noiseinfolist,overwrite=overwritecalibmap,Nreal=Nreal) #generates calibration error maps, returns [(maptag,modtag,masktag)]list
-    print 'dothesemods',dothesemods
+    #print 'dothesemods',dothesemods
 
     #apply calibration errors
     outglmdatlist=[]
     for n in nbarlist:
-        scaling =refvar/n #to multiply noise maps
+        scaling =np.sqrt(refvar/n) #to multiply noise maps
         newcaltag=get_modtag_shotnbar(n)
         print 'Applying shot noise to map, newcaltag',newcaltag
         outglmdatlist.append(apply_caliberror_to_manymaps(glmdat,dothesemods,Nreal=Nreal,calmap_scaling=scaling,newmodtags=[newcaltag],overwritefits=redofits,justaddnoise=True))
@@ -3310,6 +3315,7 @@ def shottest_get_reclist(nbarlist):
     noiseinfolist=[(lssbin,nbar) for nbar in nbarlist]
     fidglm=caltest_get_fidglm()
     dothesemods=get_shotnoise_formaps(fidglm,noiseinfolist,overwrite=False,Nreal=0)
+    print '****',dothesemods
     #put fidicual in
     includecl=[lssbin]
     inmaptype=lsstype
@@ -3345,7 +3351,9 @@ def shottest_getrhodat_fromfiles(nbarlist,varname='rho'):
 
 def shottest_get_rhodat(datnbar,varname='rho'):
     #get 2d Nnbar x Nreal array of rho data, assumign it has already been calc'd
+    print 'datnbar =',datnbar*(np.pi/180./60.)**2
     rhodat=shottest_getrhodat_fromfiles(datnbar,varname) #nbar in steradians
+    print 'rhodat.shape',rhodat.shape
     Nnbar=rhodat.shape[0]
     Nreal=rhodat.shape[1]
     rhomean=np.zeros(Nnbar)
@@ -3395,8 +3403,8 @@ def shottest_plot_rhoexp(nbarlist=np.array([1.e5,1.e6,1.e7,1.e8,1.e9]),varname='
             toplot=1.
             fidnbar*=(np.pi/180./60.)**2
 
-    print 'to plot=',toplot
-    print 'to sr = ',tosr
+    #print 'to plot=',toplot
+    #print 'to sr = ',tosr
     rhogrid=shottest_getrhoexp(nbarlist*tosr,varname)#assumes steradian
     plt.figure(0)
     plt.subplots_adjust(bottom=.23)
@@ -3438,7 +3446,7 @@ def shottest_plot_rhoexp(nbarlist=np.array([1.e5,1.e6,1.e7,1.e8,1.e9]),varname='
             label=''
         else:
             label='Results from sim.'
-        plt.errorbar(datnbar,rhomean,yerr=rhostd,linestyle='None',marker='o',color=colors[0],label=label)
+        plt.errorbar(datnbar*toplot,rhomean,yerr=rhostd,linestyle='None',marker='o',color=colors[0],label=label)
         datlabel='Results from sim.'
         #plot dummy point for legend
         if dummylegpt:
@@ -3912,14 +3920,14 @@ if __name__=="__main__":
         lmintest_plot_rhoexp(overwrite=0,lminlist=np.arange(1,20),lmaxlist=inlmaxlist,varname='rho',dodata=True,datlmin=inlminlist)
         
     # shot noise tests; assumes depthtest maps have already been generated
-    if 0:
-        shortnbarlist=np.array([1.e-4,1.e-3,.01,.1,1.,10.,100.])#in arcmin^-2
+    if 1:
+        shortnbarlist=np.array([1.e-4,.01,.1])#np.array([1.e-4,1.e-3,.01,.1,1.,10.,100.])#in arcmin^-2
         shortnbarsr=shortnbarlist*((180.*60./np.pi)**2)
         scaletovar=shortnbarsr[0]
         nbarlist=caltest_get_logspaced_varlist(1.e-6,1.e3)
-        if 0: #gen many maps
+        if 1: #gen many maps
             Nreal=10000
-            #shottest_apply_noisetomap(nbarlist=shortnbarsr,Nreal=Nreal,overwritecalibmap=1,scaletovar=scaletovar) #only need to do this once
+            shottest_apply_noisetomap(nbarlist=shortnbarsr,Nreal=Nreal,overwritecalibmap=1,scaletovar=scaletovar) #only need to do this once
             shottest_iswrec(Nreal,nbarlist=shortnbarsr,scaletovar=scaletovar,domaps=True)
             
         shottest_plot_rhoexp(nbarlist=nbarlist,varname='rho',passnbarunit='amin2',overwrite=0,dodata=True,datnbar=shortnbarlist)

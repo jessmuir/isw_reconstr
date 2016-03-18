@@ -169,7 +169,7 @@ def get_Dl_matrix(cldat,includelist=[],zerotag='isw_bin0'):
             cxij = cldat.crossinds[ci,cj] #crossind of ij pair in clbasis
             D[:,i,j]=cldat.cl[cxij,:]+cldat.noisecl[cxij,:]
             if i!=j: D[:,j,i]=cldat.cl[cxij,:]+cldat.noisecl[cxij,:] #matrix is symmetric
-
+    #print '    D[00][01][11]=',D[4,0,0],D[4,0,1],D[4,1,1]
     #print 'det(D)=',np.linalg.det(D)
     return D,dtags
 

@@ -59,6 +59,7 @@ class ClData(object):
             if self.nbar[i]!=-1: #assumes -1 for no noise or isw
                 diagind=self.crossinds[i,i]
                 self.noisecl[diagind,:]=1/self.nbar[i]
+                self.noisecl[diagind,0]=0
 
 
     def hasClvals(self):
