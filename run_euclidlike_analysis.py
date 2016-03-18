@@ -3863,7 +3863,7 @@ if __name__=="__main__":
             depthtest_iswrec(Nreal,z0vals=z0vals,minreal=0,dorho=1,dos=1,domaps=True)
             #note, if you just want t compute rho but don't want to redo isw recs
             # change domaps to False
-    if 1: #plot info about depthtest maps, assumes you've already done isw recs
+    if 0: #plot info about depthtest maps, assumes you've already done isw recs
         for r in xrange(10,20):
              #depthtest_TTscatter(r,depthtestz0,savepngmaps=False)
              pass
@@ -3921,15 +3921,15 @@ if __name__=="__main__":
         
     # shot noise tests; assumes depthtest maps have already been generated
     if 1:
-        shortnbarlist=np.array([1.e-4,.01,.1])#np.array([1.e-4,1.e-3,.01,.1,1.,10.,100.])#in arcmin^-2
+        shortnbarlist=np.array([1.e-4,1.e-3,1.,10.,100.])#np.array([1.e-4,1.e-3,.01,.1,1.,10.,100.])#in arcmin^-2
         shortnbarsr=shortnbarlist*((180.*60./np.pi)**2)
         scaletovar=shortnbarsr[0]
         nbarlist=caltest_get_logspaced_varlist(1.e-6,1.e3)
-        if 1: #gen many maps
+        if 0: #gen many maps
             Nreal=10000
             shottest_apply_noisetomap(nbarlist=shortnbarsr,Nreal=Nreal,overwritecalibmap=1,scaletovar=scaletovar) #only need to do this once
             shottest_iswrec(Nreal,nbarlist=shortnbarsr,scaletovar=scaletovar,domaps=True)
-            
+        shortnbarlist=np.array([1.e-4,1.e-3,.01,.1,1,10.,100.])
         shottest_plot_rhoexp(nbarlist=nbarlist,varname='rho',passnbarunit='amin2',overwrite=0,dodata=True,datnbar=shortnbarlist)
         shottest_plot_rhoexp(nbarlist=nbarlist,varname='s',passnbarunit='amin2',overwrite=0,dodata=True,datnbar=shortnbarlist)
 
