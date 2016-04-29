@@ -1,7 +1,7 @@
 #This file contains functions that will generate maps using existing
 # data of angular power spectra generated with genCrossCor.py
 # It will also contain functions which can postprocesses maps by
-#  applying masks or calibration error "screens." to do: add cmb lensing
+#  applying masks or calibration error "screens."
 
 import numpy as np
 import healpy as hp
