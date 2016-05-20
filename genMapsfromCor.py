@@ -86,7 +86,9 @@ class glmData(object):
         self.Nmap=self.glm.shape[1]
         if len(maptaglist)!=self.Nmap:
             print "WARNING! mismatch: len(maptaglist)!=Nmaps. Setting all='?'"
-            self.maptaglist=['?']*self.Nmap
+            self.maptaglist=['?']*self.Nmap #ex. maptag:
+            # maptag.modtag.masktag.runtag: "eucz07.g10_var1.00e-02_0l30.fullsky.depthtest"
+            # euclid type, z0 at 7, gaussian mean 1, variance 1e-2, lmin30, fullsky (no mask), depthtest
         else:
             self.maptaglist=maptaglist
         #nbar is avg density/str for map. used to apply noise and needed for
@@ -566,13 +568,15 @@ def generate_glmdat_fromcl(cldata,rlz=0,savedat=True,filetag='',retglmData=True,
         
     #need match between Ncross and Nmaps
     Ncross=cldata.cl.shape[0]
-    Nmaps = len(bintaglist)
-    if Ncross!=Nmaps*(Nmaps+1)/2:
+    Nmaps = len(bintaglist) #just gests number of maps
+    if Ncross!=Nmaps*(Nmaps+1)/2: #verify # maps matches number cl
         print "***STOPPING! # of C_l not consistant with # of maps."
         return
+    #call healpy, pass Cl data + Cl noise added, new is healpy function that tells order of Cl vs Cl cross correlations
     glmgrid=np.array(hp.synalm(cldata.cl+cldata.noisecl,new=True))#[map,lm]
     if retglmData or savedat:
         #modtag and masktag are defaults 'nomod' and 'fullsky'
+    #glm data is class that stores info on the maps that generated it as well as the glm data itself
         glmdat=glmData(glm=glmgrid,lmax=rundat.lmax,maptaglist=bintaglist,runtag=runtag,rundir=rundat.rundir,rlzns=np.array([rlz]),filetags=[filetag],nbarlist=cldata.nbar)
     #save the data
     if savedat:

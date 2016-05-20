@@ -384,4 +384,6 @@ class Cosmology(object):
         f.close()
         print "  ...Calling CAMB."
         p =subprocess.call(''.join(['camb ' , inifile,' > ',outdir,cosm.CAMBtag,'.log']), shell=True)
+        print p
+        print cosm.CAMBtag
     #----------------------------------------------------------

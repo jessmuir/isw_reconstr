@@ -448,8 +448,10 @@ def domany_isw_recs(cldatlist,glmdatlist,reclist,outfiletag='iswREC',outruntag='
     #assign consistent runtag and filetag
     outalmdat.filetag=[outfiletag]
     outalmdat.runtag=outruntag
+    print 'nw test'
     if writetofile:
         write_glm_to_files(outalmdat,setnewfiletag=True,newfiletag=outfiletag)
+    print 'n_test 2'
     return outalmdat
 #-------------------------------------------------------------------------   
 # get_dummy_recalmdat - returns dummy glmdat object with nreal=0
@@ -719,12 +721,14 @@ def doiswrec_formaps(dummyglm,cldat,Nreal=1,rlzns=np.array([]),reclist=[],Nglm=0
             print "Getting glm from maps for rlzns {0:d}-{1:d}".format(nrlzns[0],nrlzns[-1])
             #glmdat=generate_many_glm_fromcl(cldat,rlzns=nrlzns,savedat=False)
             glmdat=getglm_frommaps(dummyglm,rlzns=nrlzns)
+            print 'have glm, now compute alm'
             almdat=domany_isw_recs(cldat,glmdat,reclist,writetofile=False,getmaps=True,makeplots=False,outruntag=glmdat.runtag,dorho=False,fitbias=fitbias)
             if thisNglm:
+                print 'thisNglm in doiswrec_formaps'
                 saveglm=glmdat.copy(Nreal=thisNglm) #save glm for these
                 saveglm= write_glm_to_files(saveglm,setnewfiletag=True,newfiletag=glmfiletag)
                 get_maps_from_glm(saveglm,redofits=False,makeplots=True)
-
+                print 'glms saved, now save alm'
                 savealm=almdat.copy(Nreal=thisNglm)
                 savealm=write_glm_to_files(savealm,setnewfiletag=True,newfiletag=almfiletag)
                 get_maps_from_glm(savealm,redofits=False,makeplots=True)
@@ -734,9 +738,10 @@ def doiswrec_formaps(dummyglm,cldat,Nreal=1,rlzns=np.array([]),reclist=[],Nglm=0
             glmdat=dummyglm
             almdat=get_dummy_recalmdat(glmdat,reclist,outruntag=glmdat.runtag)
         #for each list, get rho
-        #print "   Computing and saving rho and s statistics"
+        print "   Computing and saving rho and s statistics"
         calc_rho_forreclist(glmdat,almdat,reclist,nrlzns,filetag=rhofiletag,overwrite=NEWRHOFILE,varname='rho') #start new file for first block, then add to it
         if dos:
+            print 'dos true'
             calc_rho_forreclist(glmdat,almdat,reclist,nrlzns,filetag=rhofiletag,overwrite=NEWRHOFILE,varname='s') #start new file for first block, then add to it
         if dorell: #this is slow
             print "  Computing and saving r_ell statistics."
@@ -804,7 +809,7 @@ def remove_lowell_frommap(hpmap,lmin,reclmax=-1):
     if reclmax>0 and reclmax<lmax:
         keepell*=l<=reclmax
     alm*=keepell
-    outmap=hp.alm2map(alm,nside)
+    outmap=hp.alm2map(alm,nside,verbose=False)
     return outmap
 
 #------------------------------------------------------------------------
@@ -940,8 +945,8 @@ def save_rhodat(rhovals,rlzns,truefilebase,recfilebase,overwrite=False,filetag='
     else:
         f=open(outf,'a') #just add data to end
 
-    bodystr=''.join(['{0:05d} {1:0.3f}\n'.format(int(rlzns[i]),rhovals[i])\
-                         for i in xrange(Nreal)])
+    bodystr=''.join(['{0:05d} {1:0.4f}\n'.format(int(rlzns[i]),rhovals[i])\
+                         for i in xrange(Nreal)]) ###160516 NJW changed from .3f to .4f for more precision
     f.write(bodystr)
     f.close()
 #------------------------------------------------------------------------------

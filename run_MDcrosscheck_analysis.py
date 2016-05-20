@@ -34,6 +34,7 @@ def get_NVSSlike_SurveyType(tag=''):
     biasargs=[]
     dndzargs=[.32,0.36]
     return SurveyType(tag,zedges,sigz,nbar,dndz,bias,dndzargs=dndzargs,longtag=longtag)
+    ### see MapParams for SurveyType
 
 def get_MDDESlike_SurveyType(tag='',nbins=2):
     if not tag:
@@ -72,17 +73,22 @@ def MDtest_get_binmaps(includeisw=True,Ndesbins=[2,3],nvss=True):
         bins=iswbins+bins
     return bins
 
-def MDtest_get_Cl(justread=True,Ndesbins=[2,3],nvss=True):
-    surveys=MDtest_get_maptypelist(Ndesbins=Ndesbins,nvss=nvss)
-    bins=MDtest_get_binmaps(Ndesbins=Ndesbins,nvss=nvss)
-    zmax=max(m.zmax for m in bins)
+
+#
+def MDtest_get_Cl(justread=True,Ndesbins=[2,3],nvss=True): #do a survey splitting DES into 2 bins and one splitting into 3 bins. NVSS is just one bin
+    surveys=MDtest_get_maptypelist(Ndesbins=Ndesbins,nvss=nvss) #each 
+    bins=MDtest_get_binmaps(Ndesbins=Ndesbins,nvss=nvss) #each redshift bin for each bin is its own map
+    zmax=max(m.zmax for m in bins) #make sure integrate out to highest z of all the maps
     rundat = ClRunData(tag='MDtest',rundir='output/MDchecks/',lmax=95,zmax=zmax,iswilktag='fidisw',noilktag=True)
+    #this object holds a bunch of info needed to do the integrals ^^
     pairs=['all']
     #pair up isw and each LSS maps, but not lss maps together 
     # for s in surveys:
     #     pairs.append((s.tag,'isw'))
     #     pairs.append((s.tag,s.tag))
     cldat=getCl(bins,rundat,dopairs=pairs,DoNotOverwrite=justread)
+    #pass binobjject, rundata object, computer all crosspairs, if already have Cls, best to have DNO = True. Rundata will tell it where the output file is.
+    #can pass specific bins (which must be in the output). So don't need to recompute all the time. So this function mostly gets used to just read them in.
     return cldat
 
 def MDtest_boostNVSSnoise(cldat):
@@ -136,7 +142,7 @@ def MDtest_get_glm(Nreal=1,minreal=0,Ndesbins=[2,3],nvss=True):
 #assuming maps already generated, do reconstructions
 def MDtest_iswrec(Nreal,minreal=0,justgetrho=0,dorho=1,Ndesbins=[2,3],lmin=3,lmax=80,rhofiletag='',nvss=True,fitbias=True):
     rlzns=np.arange(minreal,minreal+Nreal)
-    cldat=MDtest_get_Cl(justread=True,Ndesbins=Ndesbins,nvss=nvss)
+    cldat=MDtest_get_Cl(justread=False,Ndesbins=Ndesbins,nvss=nvss)
     reclist=MDtest_get_reclist(Ndesbins=Ndesbins,lmin=lmin,lmax=lmax,nvss=nvss)
     dummyglm=get_glm(cldat,Nreal=0,runtag=cldat.rundat.tag)
     doiswrec_formaps(dummyglm,cldat,rlzns=rlzns,reclist=reclist,rhofiletag=rhofiletag,dos=False,fitbias=fitbias)
@@ -210,7 +216,7 @@ def MDtest_plot_zwindowfuncs(desNbins=[3],nvss=True,plotdir='output/MDchecks/plo
             labels.append('DES 3 bin')
     colors=['#ff7f00','#377eb8','#e7298a']#'#d95f02''#1b9e77'
     zmax=3.
-    nperz=100
+    nperz=100 ### resolution for grid
     zgrid=np.arange(nperz*zmax)/float(nperz)
     plt.figure(0)
     ax=plt.subplot()
@@ -228,14 +234,14 @@ def MDtest_plot_zwindowfuncs(desNbins=[3],nvss=True,plotdir='output/MDchecks/plo
     plt.xlim(0,zmax)
     ax.tick_params(axis='x')
     ax.set_yticklabels([])
-    for n in xrange(Nrecs):
+    for n in xrange(Nrecs): ### for each recon
         colstr=colors[n%len(colors)]
         ntot=0
         for i in xrange(len(binsetlist[n])):
             ntot+=binsetlist[n][i].nbar
         for i in xrange(len(binsetlist[n])):#loop through individual bins
             m=binsetlist[n][i]
-            if maptypes[n].tag=='nvss':
+            if maptypes[n].tag=='nvss': ### WHY NVSS DIFFERENT?
                 wgrid=m.window(zgrid)
             else:
                 wgrid=m.window(zgrid)*m.nbar/ntot
@@ -365,17 +371,21 @@ def MDtest_plot_clvals(Ndesbins=[2,3],nvss=True,tag='check'):
 if __name__=="__main__":
     MDtest_plot_zwindowfuncs([2,3])
     Ndesbins=[2,3]
-    lmin=3
+    lmin=17 #3
     lmax=80
     
-    Nreal=10000
+    Nreal=1000 #10000
     if 1:
         #rhofiletag='nob0fit'
         rhofiletag=''
-        #MDtest_get_glm(Nreal,Ndesbins=[2,3],nvss=1)
+        #given Cls, create the true ISW and LSS maps
+        MDtest_get_glm(Nreal,Ndesbins=[2,3],nvss=1)
+        # do reconsruction for each map
         MDtest_iswrec(Nreal,Ndesbins=[2,3],nvss=1,lmin=lmin,lmax=lmax,rhofiletag=rhofiletag,fitbias=True) 
+        #plot the test statistics
         MDtest_plot_rhohist('rho',Ndesbins=[2,3],nvss=1,lmin=lmin,lmax=lmax,firstNreal=Nreal,rhofiletag=rhofiletag,plottag=rhofiletag)
         
+        #for debugging
     if 0: #Looking at Cl to test that they look reasonable
         MDtest_plot_clvals(Ndesbins=[2,3],nvss=True,tag='all')
         MDtest_plot_clvals(Ndesbins=[3],nvss=0,tag='just3')
