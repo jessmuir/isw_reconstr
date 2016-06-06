@@ -7,13 +7,16 @@ from mpl_toolkits.axes_grid1 import host_subplot #to have two axis labels
 import mpl_toolkits.axisartist as AA #to have two axis labels
 from itertools import permutations
 from scipy.optimize import leastsq
-from MapParams import *
-from ClRunUtils import *
-from genCrossCor import *
-from genMapsfromCor import *
-from AnalysisUtils import *
-from mapdef_utils import *
+import MapParams as mp
+import CosmParams as cp #[NJW 160606]
+import ClRunUtils as clu
+import genCrossCor as gcc
+import genMapsfromCor as gmc
+import AnalysisUtils as au
+import mapdef_utils as mdu
 import time
+import healpy as hp
+import os
 
 #################################################################
 # misc studies
@@ -21,7 +24,7 @@ import time
 def plot_isw_kernel(zmax=5):
     plotdir='output/plots/'
     cosmparamfile='testparam.cosm'
-    cosm=Cosmology(cosmparamfile)
+    cosm=cp.Cosmology(cosmparamfile)
     cosm.tabulateZdep(zmax,nperz=100)
     z=cosm.z_array
     kernel=(1.-cosm.f_array)*cosm.g_array #isw kernel, stripped of prefactor
@@ -51,10 +54,10 @@ def plot_isw_kernel(zmax=5):
 # Generate Cl
 #----------------------------------------------------------------
 def depthtest_get_binmaps(z0vals=np.array([.3,.6,.7,.8]),includeisw=True):
-    surveys=[get_Euclidlike_SurveyType(z0=z0,onebin=True,tag='eucz{0:02d}'.format(int(10*z0))) for z0 in z0vals]
+    surveys=[mdu.get_Euclidlike_SurveyType(z0=z0,onebin=True,tag='eucz{0:02d}'.format(int(10*z0))) for z0 in z0vals]
     bins=[s.binmaps[0] for s in surveys] #all surveys have only one bin
     if includeisw:
-        iswmaptype=get_fullISW_MapType(zmax=15)
+        iswmaptype=mdu.get_fullISW_MapType(zmax=15)
         iswbins=iswmaptype.binmaps
         bins=iswbins+bins
     return bins
@@ -62,8 +65,8 @@ def depthtest_get_binmaps(z0vals=np.array([.3,.6,.7,.8]),includeisw=True):
 def depthtest_get_Cl(justread=True,z0vals = np.array([.3,.6,.7,.8])):
     bins=depthtest_get_binmaps(z0vals)
     zmax=max(m.zmax for m in bins)
-    rundat = ClRunData(tag='depthtest',rundir='output/depthtest/',lmax=95,zmax=zmax)
-    return getCl(bins,rundat,dopairs=['all'],DoNotOverwrite=justread)
+    rundat = clu.ClRunData(tag='depthtest',rundir='output/depthtest/',lmax=95,zmax=zmax)
+    return gcc.getCl(bins,rundat,dopairs=['all'],DoNotOverwrite=justread)
 
 #----------------------------------------------------------------
 # Make maps and run reconstructions
@@ -77,7 +80,7 @@ def depthtest_get_reclist(z0vals=np.array([.3,.6,.7,.8])):
         if bintag!='isw_bin0':
             includeglm=[bintag]
             inmaptag=bintag[:bintag.rfind('_bin0')]
-            recdat=RecData(includeglm=includeglm,inmaptag=inmaptag)
+            recdat = au.RecData(includeglm=includeglm,inmaptag=inmaptag)
             reclist.append(recdat)
     return reclist
 
@@ -89,7 +92,7 @@ def depthtest_get_glm_and_rec(Nreal=1,z0vals=np.array([.3,.6,.7,.8]),minreal=0,j
     makeplots=Nreal==1
     rlzns=np.arange(minreal,minreal+Nreal)
     reclist=depthtest_get_reclist(z0vals)
-    getmaps_fromCl(cldat,rlzns=rlzns,reclist=reclist,justgetrho=justgetrho,dorell=dorell,dorho=dorho,dos=dos,dochisq=dochisq,dochisqell=dochisqell)
+    au.getmaps_fromCl(cldat,rlzns=rlzns,reclist=reclist,justgetrho=justgetrho,dorell=dorell,dorho=dorho,dos=dos,dochisq=dochisq,dochisqell=dochisqell)
     t1=time.time()
     print "total time for Nreal",Nreal,": ",t1-t0,'sec'
 
@@ -99,22 +102,22 @@ def depthtest_iswrec(Nreal,z0vals=np.array([.3,.6,.7,.8]),minreal=0,dorell=0,dor
     cldat=depthtest_get_Cl(z0vals=z0vals)
     rlzns=np.arange(minreal,minreal+Nreal)
     reclist=depthtest_get_reclist(z0vals)
-    dummyglm=get_glm(cldat,Nreal=0,matchClruntag=True)
-    doiswrec_formaps(dummyglm,cldat,rlzns=rlzns,reclist=reclist,domaps=domaps,dorell=dorell,dos=dos)
+    dummyglm=au.get_glm(cldat,Nreal=0,matchClruntag=True)
+    au.doiswrec_formaps(dummyglm,cldat,rlzns=rlzns,reclist=reclist,domaps=domaps,dorell=dorell,dos=dos)
     
 
 #get arrays of rho saved in .rho.dat files or .s.dat
 def depthtest_read_rho_wfiles(z0vals=np.array([.3,.6,.7,.8]),varname='rho'):
     mapdir='output/depthtest/map_output/'
     files=['iswREC.eucz{0:02d}.fid.fullsky-lmin02.depthtest.{1:s}.dat'.format(int(10*z0),varname) for z0 in z0vals]
-    rhogrid=np.array([read_rhodat_wfile(mapdir+f) for f in files])
+    rhogrid=np.array([au.read_rhodat_wfile(mapdir+f) for f in files])
     return rhogrid
 
 #get arrays of rho saved in .rell.dat files
 def depthtest_read_rell_wfiles(z0vals=np.array([.3,.6,.7,.8]),varname='rell'):
     mapdir='output/depthtest/map_output/'
     files=['iswREC.eucz{0:02d}.fid.fullsky-lmin02.depthtest.{1:s}.dat'.format(int(10*z0),varname) for z0 in z0vals]
-    rellgrid=np.array([read_relldat_wfile(mapdir+f) for f in files])
+    rellgrid=np.array([au.read_relldat_wfile(mapdir+f) for f in files])
     return rellgrid #[reconstruction,realization,ell]
 
 #----------------------------------------------------------------
@@ -175,11 +178,11 @@ def depthtest_plot_rhohist(z0vals=np.array([.3,.6,.7,.8]),getrhopred=True,varnam
     reclabels=['$z_0={0:0.1f}$'.format(z0) for z0 in z0vals]
 
     if varname=='rho':
-        plot_rhohist(rhogrid,reclabels,testname,plotdir,plotname,rhopred)
+        au.plot_rhohist(rhogrid,reclabels,testname,plotdir,plotname,rhopred)
     elif varname=='s':
-        plot_shist(rhogrid,reclabels,testname,plotdir,plotname,rhopred)
+        au.plot_shist(rhogrid,reclabels,testname,plotdir,plotname,rhopred)
     elif varname=='chisq':
-        plot_chisqhist(rhogrid,reclabels,testname,plotdir,plotname,rhopred)
+        au.plot_chisqhist(rhogrid,reclabels,testname,plotdir,plotname,rhopred)
 
 #--------------------------------
 # plot r_ell values
@@ -196,7 +199,7 @@ def depthtest_plot_relldat(z0vals=np.array([.3,.6,.7,.8]),getpred=True,varname='
     plotname ='depthtest_{1:s}dat_r{0:05d}'.format(Nreal,varname)
     reclabels=['$z_0={0:0.1f}$'.format(z0) for z0 in z0vals]
 
-    plot_relldat(reclabels,testname,plotdir,plotname,rellgrid,rellpred,varname=varname)
+    au.plot_relldat(reclabels,testname,plotdir,plotname,rellgrid,rellpred,varname=varname)
         
 #--------------------------------
 # get expectation values of rho or s, choose variable via varname
@@ -205,7 +208,7 @@ def depthtest_get_expected_rho(z0vals=np.array([0.3,0.6,0.7,0.8]),varname='rho')
     reclist=depthtest_get_reclist(z0vals)
     rhopred=np.zeros_like(z0vals)
     for i in xrange(len(z0vals)):
-        rhopred[i]=compute_rho_fromcl(cldat,reclist[i],varname=varname)
+        rhopred[i] = au.compute_rho_fromcl(cldat,reclist[i],varname=varname)
     return rhopred
 
 def depthtest_get_expected_rell(z0vals=np.array([0.3,0.6,0.7,0.8]),varname='rell'):
@@ -213,7 +216,7 @@ def depthtest_get_expected_rell(z0vals=np.array([0.3,0.6,0.7,0.8]),varname='rell
     reclist=depthtest_get_reclist(z0vals)
     rellpred=[]
     for i in xrange(z0vals.size):
-        rellpred.append(compute_rell_fromcl(cldat,reclist[i],varname=varname))
+        rellpred.append(au.compute_rell_fromcl(cldat,reclist[i],varname=varname))
     rellpred=np.array(rellpred)#[Nrec,Nell]
     #print rellpred
     return rellpred
@@ -231,22 +234,22 @@ def depthtest_TTscatter(r=0, z0vals=np.array([0.3,0.6,0.7,0.8]),savepngmaps=True
     #get dummy glm and alm for filenames
     cldat=depthtest_get_Cl(z0vals=z0vals)
     reclist=depthtest_get_reclist(z0vals)
-    glmdat=get_glm(cldat,Nreal=0,runtag=cldat.rundat.tag)
-    almdat=get_dummy_recalmdat(glmdat,reclist,outruntag=glmdat.runtag)
+    glmdat=au.get_glm(cldat,Nreal=0,runtag=cldat.rundat.tag)
+    almdat=au.get_dummy_recalmdat(glmdat,reclist,outruntag=glmdat.runtag)
     for i in xrange(Nrec):
         truemapf=glmdat.get_mapfile_fortags(r,reclist[i].zerotagstr)
-        truemap=hp.read_map(truemapf,verbose=False)
-        truemap=remove_lowell_frommap(truemap,lmin=2)
+        truemap= hp.read_map(truemapf,verbose=False)
+        truemap= au.remove_lowell_frommap(truemap,lmin=2)
         iswmapfiles.append(truemapf)
         iswmaps.append(truemap)
         recmapf=almdat.get_mapfile(r,i,'fits')
         recmap=hp.read_map(recmapf,verbose=False)
-        recmap=remove_lowell_frommap(recmap,lmin=2)
+        recmap=au.remove_lowell_frommap(recmap,lmin=2)
         recmapfiles.append(recmapf)
         recmaps.append(recmap)
         if savepngmaps:
             #set up color scheme for lss map
-            mono_cm=matplotlib.cm.Greys_r
+            mono_cm=cmx.Greys_r
             mono_cm.set_under("w") #set background to white
             lssmapfs=[]
             for glmstr in reclist[i].includeglm: #assumes default mod and mask
@@ -269,12 +272,12 @@ def depthtest_TTscatter(r=0, z0vals=np.array([0.3,0.6,0.7,0.8]),savepngmaps=True
 
             
     #compute rho (could also read from file but this seams simplest)
-    rhovals=[rho_onereal(iswmaps[n],recmaps[n]) for n in xrange(Nrec)]
+    rhovals=[au.rho_onereal(iswmaps[n],recmaps[n]) for n in xrange(Nrec)]
     reclabels=['z0={0:0.1f}'.format(z0) for z0 in z0vals]
 
     #set up plot
     plotname='TrecTisw_scatter_depthtest.r{0:05d}'.format(r)
-    plot_Tin_Trec(iswmapfiles,recmapfiles,reclabels,plotdir,plotname,colors)
+    au.plot_Tin_Trec(iswmapfiles,recmapfiles,reclabels,plotdir,plotname,colors)
     
     
 #================================================================
@@ -374,18 +377,18 @@ def bintest_get_zedgeslist(zedges,getdivs=['all'],returnstr=True):
 #----------------------------------------------------------------
 def bintest_get_maptypelist(finestN=6,getdivs=['all'],z0=0.7,sigz=0.05,includeisw=True):
     #get zedges
-    zedges0=bintest_get_finest_zedges(finestN,z0) #for finest division
+    zedges0 = bintest_get_finest_zedges(finestN,z0) #for finest division
     zedges,divstr=bintest_get_zedgeslist(zedges0,getdivs,True) 
-    Ntypes=len(zedges)
+    Ntypes = len(zedges)
     maptypes=[] #list of maptype objects, put finest div first
     maintag='euc{0:d}bins{1:03d}div'.format(finestN,int(1000*sigz))
     if includeisw:
-        iswmaptype=get_fullISW_MapType(zmax=15)
+        iswmaptype = mdu.get_fullISW_MapType(zmax=15)
         maptypes.append(iswmaptype)
     for i in xrange(Ntypes):
         #print 'getting survey for zedges=',zedges[i]
         tag=maintag+divstr[i]
-        survey=get_Euclidlike_SurveyType(sigz=sigz,z0=0.7,tag=tag,zedges=zedges[i])
+        survey = mdu.get_Euclidlike_SurveyType(sigz=sigz,z0=0.7,tag=tag,zedges=zedges[i])
         maptypes.append(survey)
     return maptypes
 
@@ -393,7 +396,7 @@ def bintest_get_binmaps(finestN=6,getdivs=['all'],z0=0.7,sigz=0.05,includeisw=Tr
     if justfinest:
         getdivs=['1'*finestN]
     maptypes=bintest_get_maptypelist(finestN,getdivs,z0,sigz,includeisw)
-    binmaps,bintags=get_binmaplist(maptypes)
+    binmaps,bintags = mp.get_binmaplist(maptypes)
     return binmaps
 
 #given surveytype tag or binmap tag, extract the XXX part of the divXXX label
@@ -422,8 +425,8 @@ def bintest_combinewhich(divstr,baseN=6):
 def bintest_get_baseClvals(finestN=6,z0=0.7,sigz=0.05,justread=True):
     binmaps=bintest_get_binmaps(finestN,z0=z0,sigz=sigz,justfinest=True)
     zmax=max(m.zmax for m in binmaps)
-    rundat = ClRunData(tag='eucbintest{0:d}s{1:03d}'.format(finestN,int(1000*sigz)),iswilktag='eucbintest',rundir='output/eucbintest/',lmax=95,zmax=zmax)
-    return getCl(binmaps,rundat,dopairs=['all'],DoNotOverwrite=justread)
+    rundat = clu.ClRunData(tag='eucbintest{0:d}s{1:03d}'.format(finestN,int(1000*sigz)),iswilktag='eucbintest',rundir='output/eucbintest/',lmax=95,zmax=zmax)
+    return gcc.getCl(binmaps,rundat,dopairs=['all'],DoNotOverwrite=justread)
 
 # if base cls are calcualted (the ones for finest bin divisions)
 #      iterate through divisions, combining bins and save results
@@ -453,20 +456,20 @@ def bintest_get_Clvals(finestN=6,z0=0.7,sigz=0.05,justread=True):
                     print '   combining',intags
                     print '      to get',outtag
                     if FIRST:
-                        nextcl=combineCl_binlist(basecl,intags,combotag=outtag,newruntag=basecl.rundat.tag+'all',renamesingle=True)
+                        nextcl=gcc.combineCl_binlist(basecl,intags,combotag=outtag,newruntag=basecl.rundat.tag+'all',renamesingle=True)
                         FIRST=False
                     else:
-                        nextcl=combineCl_binlist(nextcl,intags,combotag=outtag,renamesingle=True)
+                        nextcl=gcc.combineCl_binlist(nextcl,intags,combotag=outtag,renamesingle=True)
                     print '   nextcl.Nmap',nextcl.Nmap,'nextcl.Ncross',nextcl.Ncross
                     print '   len(nextcl.docross)',len(nextcl.docross)
         #write to file
-        writeCl_file(nextcl)
+        gcc.writeCl_file(nextcl)
     else:
         #read in data that has already been combined
         binmaps=bintest_get_binmaps(finestN,z0=z0,sigz=sigz)
         zmax=max(m.zmax for m in binmaps)
-        rundat = ClRunData(tag='eucbintest{0:d}s{1:03d}all'.format(finestN,int(1000*sigz)),iswilktag='eucbintest',rundir='output/eucbintest/',lmax=95,zmax=zmax)
-        nextcl= getCl(binmaps,rundat,dopairs=['all'],DoNotOverwrite=True)
+        rundat = clu.ClRunData(tag='eucbintest{0:d}s{1:03d}all'.format(finestN,int(1000*sigz)),iswilktag='eucbintest',rundir='output/eucbintest/',lmax=95,zmax=zmax)
+        nextcl= gcc.getCl(binmaps,rundat,dopairs=['all'],DoNotOverwrite=True)
         print 'nextcl.Ncross',nextcl.Ncross
         print 'nextcl.docross.size',len(nextcl.docross)
     return nextcl
@@ -483,7 +486,7 @@ def bintest_get_reclist(finestN=6,z0=0.7,sigz=0.05,getdivs=['all']):
         mtype=maptypes[i]
         inmaptag=mtype.tag #label in output glmdat
         includeglm=[b.tag for b in mtype.binmaps]
-        recdat=RecData(includeglm=includeglm,inmaptag=inmaptag)
+        recdat = au.RecData(includeglm=includeglm,inmaptag=inmaptag)
         reclist.append(recdat)
     return reclist
 
@@ -497,7 +500,7 @@ def bintest_get_rhoexp(finestN=6,z0=0.7,sigz=0.05,overwrite=False,doplot=True,ge
         datfile='eucbintest{0:03d}_{1:s}exp.dat'.format(int(1000*sigz),varname)
     
         print datfile
-        if not overwrite and os.path.isfile(outdir+datfile): #file exists
+        if not overwrite and os.path.isfile(outdir+datfile): #file exists #[added "import os" statement NJW 160606]
             x=np.loadtxt(outdir+datfile)
             divstr=[str(int(x[i,0])) for i in xrange(x.shape[0])]
             rhoarray=x[:,1]
@@ -515,7 +518,7 @@ def bintest_get_rhoexp(finestN=6,z0=0.7,sigz=0.05,overwrite=False,doplot=True,ge
             else:
                 divstr=getdivs
             for r in xrange(Nrec):
-                rhoarray[r]=compute_rho_fromcl(cldat,reclist[r],varname=varname)
+                rhoarray[r]=au.compute_rho_fromcl(cldat,reclist[r],varname=varname)
             #write rhoarray to file
             f=open(outdir+datfile,'w')
             f.write(''.join(['{0:8s} {1:8.3f}\n'.format(divstr[i],rhoarray[i]) for i in xrange(Nrec)]))
@@ -534,7 +537,7 @@ def bintest_get_rhoexp(finestN=6,z0=0.7,sigz=0.05,overwrite=False,doplot=True,ge
         Nrec=len(reclist)
         rhoarray=np.zeros(Nrec)
         for r in xrange(Nrec):
-            rhoarray[r]=compute_rho_fromcl(cldat,reclist[r],varname=varname)
+            rhoarray[r]=au.compute_rho_fromcl(cldat,reclist[r],varname=varname)
 
     if doplot:
         zedges0=bintest_get_finest_zedges(finestN,z0)
@@ -604,7 +607,7 @@ def bintest_test_rhoexp():
         recgrid.append(reclist)
         for r in xrange(Ndiv):
             print '  div:',divstrlist[r],'----------'
-            rhogrid[s,r]=compute_rho_fromcl(cldat,reclist[r])
+            rhogrid[s,r]=au.compute_rho_fromcl(cldat,reclist[r])
             print '    rho=',rhogrid[s,r]
 
 def bintest_get_expected_rell(divstr,varname='rell'):
@@ -613,7 +616,7 @@ def bintest_get_expected_rell(divstr,varname='rell'):
     rellpred=[]
     for i in xrange(len(reclist)):
         if varname=='rell':
-            rellpred.append(compute_rell_fromcl(cldat,reclist[i],varname=varname))
+            rellpred.append(au.compute_rell_fromcl(cldat,reclist[i],varname=varname))
     rellpred=np.array(rellpred)#[Nrec,Nell]
     return rellpred
     
@@ -636,9 +639,9 @@ def bintest_get_glm_and_rec(Nreal=1,divlist=['6','222','111111'],minreal=0,justg
     #get reduced cl with only desired divlist maps in it; 
     maptypes=bintest_get_maptypelist(finestN=6,getdivs=divlist,z0=0.7,sigz=0.05,includeisw=True)
     mapsfor=[mt.tag for mt in maptypes] #tags for maps we want to make
-    cldat=get_reduced_cldata(allcldat,dothesemaps=mapsfor)
+    cldat=gcc.get_reduced_cldata(allcldat,dothesemaps=mapsfor)
     
-    getmaps_fromCl(cldat,rlzns=rlzns,reclist=reclist,justgetrho=justgetrho,dorell=dorell)
+    au.getmaps_fromCl(cldat,rlzns=rlzns,reclist=reclist,justgetrho=justgetrho,dorell=dorell)
     t1=time.time()
     print "total time for Nreal",Nreal,": ",t1-t0,'sec'
 
@@ -650,12 +653,12 @@ def bintest_iswrec(Nreal,divlist=['6','222','111111'],minreal=0,dorell=0,dorho=1
     #get reduced cl with only desired divlist maps in it; 
     maptypes=bintest_get_maptypelist(finestN=6,getdivs=divlist,z0=0.7,sigz=0.05,includeisw=True)
     mapsfor=[mt.tag for mt in maptypes] #tags for maps we want to make
-    cldat=get_reduced_cldata(allcldat,dothesemaps=mapsfor)
+    cldat=gcc.get_reduced_cldata(allcldat,dothesemaps=mapsfor)
     
     rlzns=np.arange(minreal,minreal+Nreal)
     reclist=bintest_get_reclist(getdivs=divlist)
-    dummyglm=get_glm(cldat,Nreal=0,matchClruntag=True)
-    doiswrec_formaps(dummyglm,cldat,rlzns=rlzns,reclist=reclist,domaps=domaps,dorell=dorell,dos=dos)
+    dummyglm = gmc.get_glm(cldat,Nreal=0,matchClruntag=True)
+    au.doiswrec_formaps(dummyglm,cldat,rlzns=rlzns,reclist=reclist,domaps=domaps,dorell=dorell,dos=dos)
 
 #get arrays of rho saved in .rho.dat files, or .s.dat files
 def bintest_read_rho_wfiles(divlist=['6','222','111111'],sigz=0.05,varname='rho'):
@@ -663,14 +666,14 @@ def bintest_read_rho_wfiles(divlist=['6','222','111111'],sigz=0.05,varname='rho'
     mapdir='output/eucbintest/map_output/'
     files=['iswREC.euc6bins{0:03d}div{1:s}.fid.fullsky-lmin02.eucbintest6s{0:03d}all.{2:s}.dat'.format(int(1000*sigz),d,varname) for d in divlist]
     #print files
-    rhogrid=np.array([read_rhodat_wfile(mapdir+f) for f in files])
+    rhogrid=np.array([au.read_rhodat_wfile(mapdir+f) for f in files])
     return rhogrid
 
 #get arrays of rho saved in .rell.dat files
 def bintest_read_rell_wfiles(divlist=['6','222','111111'],sigz=0.05,varname='rell'):
     mapdir='output/eucbintest/map_output/'
     files=['iswREC.euc6bins{0:03d}div{1:s}.fid.fullsky-lmin02.eucbintest6s{0:03d}all.{2:s}.dat'.format(int(1000*sigz),d,varname) for d in divlist]
-    rellgrid=np.array([read_relldat_wfile(mapdir+f) for f in files])
+    rellgrid=np.array([au.read_relldat_wfile(mapdir+f) for f in files])
     return rellgrid
 
 #----------------------------------------------------------------
@@ -824,11 +827,11 @@ def bintest_plot_rhohist(divstr=['6','222','111111'],getrhopred=True,reclabels=[
     else:
         rhopred=[]
     if varname=='rho':
-        plot_rhohist(rhogrid,reclabels,testname,plotdir,plotname,rhopred)
+        au.plot_rhohist(rhogrid,reclabels,testname,plotdir,plotname,rhopred)
     elif varname=='s':
-        plot_shist(rhogrid,reclabels,testname,plotdir,plotname,rhopred)
+        au.plot_shist(rhogrid,reclabels,testname,plotdir,plotname,rhopred)
     elif varname=='chisq':
-        plot_chisqhist(rhogrid,reclabels,testname,plotdir,plotname,rhopred)
+        au.plot_chisqhist(rhogrid,reclabels,testname,plotdir,plotname,rhopred)
         
         
 #--------------------------------
@@ -846,7 +849,7 @@ def bintest_plot_relldat(divstr=['6','222','111111'],getpred=True,reclabels=['1 
     plotname ='eucbintest_{1:s}dat_r{0:05d}'.format(Nreal,varname)
 
     if varname=='rell':
-        plot_relldat(reclabels,testname,plotdir,plotname,rellgrid,rellpred)   
+        au.plot_relldat(reclabels,testname,plotdir,plotname,rellgrid,rellpred)   
 #----------------
 def bintest_plot_zwindowfuncs(finestN=6,z0=0.7,sigz=0.05,doiswkernel=True,plotdir='output/eucbintest/plots/'):
     bins=bintest_get_binmaps(finestN,z0=0.7,sigz=sigz,includeisw=False,justfinest=True)#just gal maps
@@ -860,7 +863,7 @@ def bintest_plot_zwindowfuncs(finestN=6,z0=0.7,sigz=0.05,doiswkernel=True,plotdi
     if doiswkernel:
         cosmparamfile='testparam.cosm'
         plotname=plotname+'_iswkernel'
-        cosm=Cosmology(cosmparamfile)
+        cosm=cp.Cosmology(cosmparamfile)
         cosm.tabulateZdep(zmax,nperz=nperz)
         cosmz=cosm.z_array
         kernel=(1.-cosm.f_array)*cosm.g_array #isw kernel, stripped of prefactor
@@ -1014,8 +1017,8 @@ def caltest_get_clfid():
     bins=caltest_get_fidbins()
     zmax=max(m.zmax for m in bins)
     #use depthtest tags since we'll read in those (already calculated) Cl
-    rundat = ClRunData(tag='depthtest',rundir='output/depthtest/',lmax=95,zmax=zmax)
-    fidcl=getCl(bins,rundat,dopairs=['all'],DoNotOverwrite=True)
+    rundat = clu.ClRunData(tag='depthtest',rundir='output/depthtest/',lmax=95,zmax=zmax)
+    fidcl=gcc.getCl(bins,rundat,dopairs=['all'],DoNotOverwrite=True)
     return fidcl
 
 # get glmdata object with fiducial (no calib error) bin and isw info
@@ -1026,7 +1029,7 @@ def caltest_get_fidglm(fidcl=0):
         fidcl=caltest_get_clfid()
 
     #get fid glmdat; no data needed, just mapnames, etc
-    glmdat=get_glm(fidcl,Nreal=0,matchClruntag=True)
+    glmdat=gmc.get_glm(fidcl,Nreal=0,matchClruntag=True)
     return glmdat
 
 #return Cl^cal list; return array of shape Nvariance x Nell, NOT ClData object
@@ -1036,9 +1039,9 @@ def caltest_get_clcallist(varlist=[1.e-1,1.e-2,1.e-3,1.e-4],lmax=30,lmin=0,shape
     maxvar=max(varlist)
     maxind=np.where(varlist==maxvar)[0][0]
     if shape=='g':
-        maxcl= gen_error_cl_fixedvar_gauss(maxvar,lmax,lmin,width)
+        maxcl= gmc.gen_error_cl_fixedvar_gauss(maxvar,lmax,lmin,width)
     elif shape=='l2':
-        maxcl = gen_error_cl_fixedvar_l2(maxvar,lmax,lmin)
+        maxcl = gmc.gen_error_cl_fixedvar_l2(maxvar,lmax,lmin)
 
     clgrid=np.zeros((Nvar,lmax+1))
     #since Clcal\propto variance, can just scale
@@ -1067,16 +1070,16 @@ def caltest_apply_caliberrors(varlist,Nreal=0,shape='g',width=10.,lmin=0,lmax=30
     calinfolist=[(lssbin,refvar,lmax,shape,width,lmin)] #only for max var
     if Nreal and overwritecalibmap:
         print 'Generating calibration error maps.'
-    dothesemods=get_fixedvar_errors_formaps(glmdat,calinfolist,overwrite=overwritecalibmap,Nreal=Nreal) #generates calibration error maps, returns [(maptag,modtag,masktag)]list
+    dothesemods=gmc.get_fixedvar_errors_formaps(glmdat,calinfolist,overwrite=overwritecalibmap,Nreal=Nreal) #generates calibration error maps, returns [(maptag,modtag,masktag)]list
 
     outglmdatlist=[]
     #apply calibration errors
     for v in varlist:
         scaling=np.sqrt(v/refvar)
         print 'scaling=',scaling
-        newcaltag=getmodtag_fixedvar(v,shape,lmin,lmax)
+        newcaltag=gmc.getmodtag_fixedvar(v,shape,lmin,lmax)
         print 'Applying calibration errors, newcaltag',newcaltag
-        outglmdatlist.append(apply_caliberror_to_manymaps(glmdat,dothesemods,Nreal=Nreal,calmap_scaling=scaling,newmodtags=[newcaltag],overwritefits=redofits)) #returns dummyglmdat
+        outglmdatlist.append(gmc.apply_caliberror_to_manymaps(glmdat,dothesemods,Nreal=Nreal,calmap_scaling=scaling,newmodtags=[newcaltag],overwritefits=redofits)) #returns dummyglmdat
 
     outglmdat=glmdat.copy(Nreal=0)
     for n in xrange(len(outglmdatlist)):
@@ -1108,17 +1111,17 @@ def caltest_get_reclist(varlist,shape='g',width=10.,lmin=0,lmax=30,recminelllist
     lsstype=fidbins[1].typetag
     calinfolist=[(lssbin,v,lmax,shape,width,lmin) for v in varlist]
     fidglm=caltest_get_fidglm()
-    dothesemods=get_fixedvar_errors_formaps(fidglm,calinfolist,overwrite=False,Nreal=0) #returns [(maptag,modtag,masktag)]list
+    dothesemods=gmc.get_fixedvar_errors_formaps(fidglm,calinfolist,overwrite=False,Nreal=0) #returns [(maptag,modtag,masktag)]list
     #put fidicual in
     includecl=[lssbin]
     inmaptype=lsstype
     for recminell in recminelllist:
-        reclist.append(RecData(includecl,includecl,inmaptype,'unmod',recminell))
+        reclist.append(au.RecData(includecl,includecl,inmaptype,'unmod',recminell))
     for m in dothesemods:
         includeglm=[m]
         rectag=m[1]#modtag
         for recminell in recminelllist:
-            reclist.append(RecData(includeglm,includecl,inmaptype,rectag,recminell))
+            reclist.append(au.RecData(includeglm,includecl,inmaptype,rectag,recminell))
     return reclist #includes fiducial case as first entry
 
 #having already generated maps for reconstructions with calib errors,
@@ -1128,7 +1131,7 @@ def caltest_iswrec(Nreal,varlist,shape='g',width=10.,callmin=0,callmax=30,overwr
     fidcl=caltest_get_clfid()
     dummyglm=caltest_apply_caliberrors(varlist,0,shape,width,callmin,callmax,overwritecalibmap,scaletovar,redofits=False)#includes fidicual case
     reclist=caltest_get_reclist(varlist,shape,width,callmin,callmax,recminelllist=recminelllist)
-    doiswrec_formaps(dummyglm,fidcl,Nreal,reclist=reclist,domaps=domaps)
+    au.doiswrec_formaps(dummyglm,fidcl,Nreal,reclist=reclist,domaps=domaps)
 
 #---------------------------------------------------------------
 # rhocalc utils
@@ -1149,7 +1152,7 @@ def caltest_get_logspaced_varlist(minvar=1.e-9,maxvar=.1,Nperlog=10):
 def caltest_getrhodat_fromfiles(varlist,shape='g',width=10.,lmin=0,lmax=30,recminelllist=np.array([2]),varname='rho',getunmod=True):
     Nvar=len(varlist)
     #read in rho values
-    modnames=[getmodtag_fixedvar(v,shape,lmin,lmax,width) for v in varlist]
+    modnames=[gmc.getmodtag_fixedvar(v,shape,lmin,lmax,width) for v in varlist]
     mapdir='output/depthtest/map_output/'
     outrho=[]
     counter=0
@@ -1159,7 +1162,7 @@ def caltest_getrhodat_fromfiles(varlist,shape='g',width=10.,lmin=0,lmax=30,recmi
         #append fiducial case (no cal error) for that lmin
         if getunmod:
             files.append('iswREC.eucz07.unmod.fullsky{1:s}.depthtest.{0:s}.dat'.format(varname,reclminstr))
-        rhogrid=np.array([read_rhodat_wfile(mapdir+f) for f in files])#filesxrho
+        rhogrid=np.array([au.read_rhodat_wfile(mapdir+f) for f in files])#filesxrho
         outrho.append(rhogrid)
     outrho=np.array(outrho)
     return outrho #[lmin,calerror,realization]
@@ -1350,7 +1353,7 @@ def caltest_get_rhoexp(varlist=[1.e-4],lmax=30,lmin=1,shape='g',width=10.,overwr
     clmodlist=[]
     for mm in mapmods:
         #print 'INRHOEXP---modding Cl---',mm
-        clmod=apply_additive_caliberror_tocl(fidcl,[mm])
+        clmod=gmc.apply_additive_caliberror_tocl(fidcl,[mm])
         clmodlist.append(clmod)
     # include fidicual cl as last entry
     if varlist[-1]!=0. and dofidrec:
@@ -1360,14 +1363,14 @@ def caltest_get_rhoexp(varlist=[1.e-4],lmax=30,lmin=1,shape='g',width=10.,overwr
 
     #get recdat; only need to pass maptags, not modtags, since cldata objects
     #  note that his means we can use the same recdat for all variances
-    recdat=RecData(includeglm=[lssbin],inmaptag=lssbin[:lssbin.rfind('_bin0')],minl_forrec=reclmin)
+    recdat=au.RecData(includeglm=[lssbin],inmaptag=lssbin[:lssbin.rfind('_bin0')],minl_forrec=reclmin)
     
     # return array of shape [Nvar,Nell]
     Nrec=len(varlist)
     rhoarray=np.zeros(Nrec)
     for r in xrange(Nrec):
         #print '--ON VAR=',varlist[r],'---------'
-        rhoarray[r]=compute_rho_fromcl(clmodlist[r],recdat,reccldat=fidcl,varname=varname)
+        rhoarray[r]=au.compute_rho_fromcl(clmodlist[r],recdat,reccldat=fidcl,varname=varname)
 
     #if save, write to file
     if saverho:
@@ -1385,9 +1388,9 @@ def caltest_get_rhoexp(varlist=[1.e-4],lmax=30,lmin=1,shape='g',width=10.,overwr
 def caltest_getmapmods_onebin(lssbintag,varlist=[1.e-1,1.e-2,1.e-3,1.e-4],lmax=30,lmin=0,shape='g',width=10.):
     #construct map-mod combos for the variances given
     if shape=='g':
-        mapmods=[(lssbintag,getmodtag_fixedvar_gauss(v,width,lmax,lmin)) for v in varlist]
+        mapmods=[(lssbintag,gmc.getmodtag_fixedvar_gauss(v,width,lmax,lmin)) for v in varlist]
     elif shape=='l2':
-        mapmods=[(lssbintag,getmodtag_fixedvar_l2(v,lmax,lmin)) for v in varlist]
+        mapmods=[(lssbintag,gmc.getmodtag_fixedvar_l2(v,lmax,lmin)) for v in varlist]
     return mapmods
 
 #---------------------------------------------------------------
@@ -1641,11 +1644,11 @@ def caltest_Clcomp(varlist=[1.e-7,1.e-6,1.e-5,1.e-4],shape='g',callmin=0,callmax
     for i in xrange(Nvar):
         ctag=mapmods[i][1]
         if ctag[:2]=='l2':#power law
-            var,maxl,minl=parsemodtag_fixedvar_l2(ctag)
-            thiscalcl=gen_error_cl_fixedvar_l2(var,maxl,minl)
+            var,maxl,minl=gmc.parsemodtag_fixedvar_l2(ctag)
+            thiscalcl=gmc.gen_error_cl_fixedvar_l2(var,maxl,minl)
         elif ctag[:1]=='g':#gaussian
-            var,maxl,minl,width=parsemodtag_fixedvar_gauss(ctag)
-            thiscalcl=gen_error_cl_fixedvar_gauss(var,maxl,minl,width=width)
+            var,maxl,minl,width=gmc.parsemodtag_fixedvar_gauss(ctag)
+            thiscalcl=gmc.gen_error_cl_fixedvar_gauss(var,maxl,minl,width=width)
         clcal[i,:callmax+1]=thiscalcl
         
     #plot Cl cal for various variance values in color gradient
@@ -1722,7 +1725,7 @@ def caltest_TTscatter(r=0,varlist=[1.e-7,1.e-6,1.e-5,1.e-4],savepngmaps=False):
     reclabels=[]
     reclist=caltest_get_reclist(varlist) #includes fiducial case
     dummyglm=caltest_apply_caliberrors(varlist)#includes true isw, fiducial case
-    dummyalm=get_dummy_recalmdat(dummyglm,reclist,outruntag=dummyglm.runtag)
+    dummyalm=au.get_dummy_recalmdat(dummyglm,reclist,outruntag=dummyglm.runtag)
 
     #all realizations have the same truemapf
     truemapf=dummyglm.get_mapfile_fortags(r,reclist[0].zerotagstr)
@@ -1736,7 +1739,7 @@ def caltest_TTscatter(r=0,varlist=[1.e-7,1.e-6,1.e-5,1.e-4],savepngmaps=False):
         recpngf=[]
     #get rec filenames, go from largest to smallest variance
     for i in reversed(xrange(Nvar)):
-        modtag=getmodtag_fixedvar(varlist[i],'g',lmin=0,lmax=30,width=10)
+        modtag=gmc.getmodtag_fixedvar(varlist[i],'g',lmin=0,lmax=30,width=10)
         masktag='fullsky-lmin02'
         recmapf=dummyalm.get_mapfile_fortags(r,maptag='iswREC.eucz07',modtag=modtag,masktag=masktag)
         recmapfiles.append(recmapf)
@@ -1744,7 +1747,7 @@ def caltest_TTscatter(r=0,varlist=[1.e-7,1.e-6,1.e-5,1.e-4],savepngmaps=False):
         if savepngmaps:
             recmap=hp.read_map(recmapf,verbose=False)
             #set up color scheme for lss map
-            mono_cm=matplotlib.cm.Greys_r
+            mono_cm=cmx.Greys_r
             mono_cm.set_under("w") #set background to white
             lssf=dummyglm.get_mapfile_fortags(r,'eucz07_bin0',modtag,masktag)
             lssm=hp.read_map(lssf,verbose=False)
@@ -1793,7 +1796,7 @@ def caltest_TTscatter(r=0,varlist=[1.e-7,1.e-6,1.e-5,1.e-4],savepngmaps=False):
     colors=['#a6611a','#08519c','#41b6c4','#78c679','#ffffb2']
 
     plotname='TrecTisw_scatter_caltest.r{0:05d}'.format(r)
-    plot_Tin_Trec(iswmapfiles,recmapfiles,reclabels,plotdir,plotname,colors)
+    au.plot_Tin_Trec(iswmapfiles,recmapfiles,reclabels,plotdir,plotname,colors)
 
 
 #================================================================
@@ -1910,10 +1913,10 @@ def z0test_getz0vals(percenterrors=np.array([1,10]),fid=0.7):
 def z0test_get_binmaps(perrors=np.array([1,10]),fid=0.7,includeisw=True):
     z0=z0test_getz0vals(perrors,fid)
     maptags=['eucz{0:04d}_b2{1:04d}'.format(int(np.rint(z*10000)),0) for z in z0]
-    surveys=[get_Euclidlike_SurveyType(z0=z0[i],onebin=True,tag=maptags[i]) for i in xrange(z0.size)]
+    surveys=[mdu.get_Euclidlike_SurveyType(z0=z0[i],onebin=True,tag=maptags[i]) for i in xrange(z0.size)]
     bins=[s.binmaps[0] for s in surveys] #surveys all just have one bin
     if includeisw:
-        iswmaptype=get_fullISW_MapType(zmax=15)
+        iswmaptype=mdu.get_fullISW_MapType(zmax=15)
         iswbins=iswmaptype.binmaps
         bins=iswbins+bins
     return bins
@@ -1927,8 +1930,8 @@ def z0test_get_Cl(justread=True,perrors=np.array([1,10]),fid=0.7):
             pairs.append((b.typetag,'isw'))
             
     zmax=max(m.zmax for m in bins)
-    rundat = ClRunData(tag='z0test',rundir='output/zdisttest/',lmax=95,zmax=zmax,iswilktag='fidisw',noilktag=True)
-    return getCl(bins,rundat,dopairs=pairs,DoNotOverwrite=justread)
+    rundat = clu.ClRunData(tag='z0test',rundir='output/zdisttest/',lmax=95,zmax=zmax,iswilktag='fidisw',noilktag=True)
+    return gcc.getCl(bins,rundat,dopairs=pairs,DoNotOverwrite=justread)
 #--------------------------------------------------------------------
 # simz0 are z0 values for which simulated maps were generated
 # recz0 are z0 values used in the Cl for estimator
@@ -1947,7 +1950,7 @@ def z0test_get_recgrid(simz0=np.array([]),recz0=np.array([]),perrors=np.array([1
         reclist=[]
         for nr in xrange(Nrec):
             #print 'SIM: '+simmaptags[ns]+'_bin0  REC: '+recmaptags[nr]+'_bin0'
-            recdat=RecData(includeglm=[simmaptags[ns]+'_bin0'],includecl=[recmaptags[nr]+'_bin0'],inmaptag=simmaptags[ns],rectag=recmaptags[nr])
+            recdat=au.RecData(includeglm=[simmaptags[ns]+'_bin0'],includecl=[recmaptags[nr]+'_bin0'],inmaptag=simmaptags[ns],rectag=recmaptags[nr])
             reclist.append(recdat)
         recgrid.append(reclist)
     return recgrid
@@ -1992,7 +1995,7 @@ def z0test_get_rhoexp(simz0=np.array([]),recz0=np.array([]),perrors=np.array([1,
     #print '***cldat.bintaglist',cldat.bintaglist
     for ns in xrange(Nsim):
         for nr in xrange(Nrec):
-            rhoarray[ns,nr]=compute_rho_fromcl(cldat,recgrid[ns][nr],reccldat=cldat,varname=varname,fitbias=fitbias)
+            rhoarray[ns,nr]=au.compute_rho_fromcl(cldat,recgrid[ns][nr],reccldat=cldat,varname=varname,fitbias=fitbias)
 
     if saverho:
         #write to file, 
@@ -2097,8 +2100,8 @@ def z0test_onesim_plot(fidz0=0.7,perrors=np.array([1,10,20,50]),varname='rho',co
         ax1.fill_between(x,-linthreshy,linthreshy,color='none',edgecolor='grey',hatch='/',linewidth=0)
     if outtag:
         outtag='_'+outtag
-    if not outname:
-        outname=varname+'test_'+statname+'_exp'+outtag+'.pdf'
+    if not outname: #[this will never occur unless outnames is specifically passed as "False", since default set to ''. NJW 160606]
+        outname=varname+'test_'+statname+'_exp'+outtag+'.pdf' #[statname undefined NJW 160606]
     print 'Saving plot to ',plotdir+outname
     plt.savefig(plotdir+outname)
     plt.close()
@@ -2258,13 +2261,13 @@ def z0test_Clcomp(perrors=np.array([1,10,20,30,50]),fidz0=.7,plotdir='output/zdi
 def bztest_get_binmaps(b2vals=np.array([0.,.01,.1,.5]),fid=0,z0=0.7,includeisw=True):
     addfid=fid not in b2vals
     maptags=['eucz{0:04d}_b2{1:04d}'.format(int(z0*10000),int(b2*1000)) for b2 in b2vals]
-    surveys=[get_Euclidlike_SurveyType(z0=z0,onebin=True,tag=maptags[i],b2=b2vals[i]) for i in xrange(b2vals.size)]
+    surveys=[mdu.get_Euclidlike_SurveyType(z0=z0,onebin=True,tag=maptags[i],b2=b2vals[i]) for i in xrange(b2vals.size)]
     if addfid:
         maptags.append('eucz{0:04d}_b2{1:04d}'.format(int(z0*10000),int(fid*1000)))
-        surveys.append(get_Euclidlike_SurveyType(z0=z0,onebin=True,tag=maptags[-1],b2=fid) )
+        surveys.append(mdu.get_Euclidlike_SurveyType(z0=z0,onebin=True,tag=maptags[-1],b2=fid) )
     bins=[s.binmaps[0] for s in surveys] #surveys all just have one bin
     if includeisw:
-        iswmaptype=get_fullISW_MapType(zmax=15)
+        iswmaptype=mdu.get_fullISW_MapType(zmax=15)
         iswbins=iswmaptype.binmaps
         bins=iswbins+bins
     return bins
@@ -2278,8 +2281,8 @@ def bztest_get_Cl(justread=True,b2vals=np.array([0.,.01,.1,.5]),fid=0,z0=0.7):
             pairs.append((b.typetag,'isw'))
             
     zmax=max(m.zmax for m in bins)
-    rundat = ClRunData(tag='bztest',rundir='output/zdisttest/',lmax=95,zmax=zmax,iswilktag='fidisw',noilktag=True)
-    return getCl(bins,rundat,dopairs=pairs,DoNotOverwrite=justread)
+    rundat = clu.ClRunData(tag='bztest',rundir='output/zdisttest/',lmax=95,zmax=zmax,iswilktag='fidisw',noilktag=True)
+    return gcc.getCl(bins,rundat,dopairs=pairs,DoNotOverwrite=justread)
 
 #--------------------------------------------------------------------
 # simz0 are z0 values for which simulated maps were generated
@@ -2296,7 +2299,7 @@ def bztest_get_recgrid(simb2=np.array([0.,.01,.1,.5]),recb2=np.array([0.,.01,.1,
         reclist=[]
         for nr in xrange(Nrec):
             #print 'SIM: '+simmaptags[ns]+'_bin0  REC: '+recmaptags[nr]+'_bin0'
-            recdat=RecData(includeglm=[simmaptags[ns]+'_bin0'],includecl=[recmaptags[nr]+'_bin0'],inmaptag=simmaptags[ns],rectag=recmaptags[nr])
+            recdat=au.RecData(includeglm=[simmaptags[ns]+'_bin0'],includecl=[recmaptags[nr]+'_bin0'],inmaptag=simmaptags[ns],rectag=recmaptags[nr])
             reclist.append(recdat)
         recgrid.append(reclist)
     return recgrid
@@ -2333,7 +2336,7 @@ def bztest_get_rhoexp(simb2=np.array([0.,.01,.1,.5]),recb2=np.array([0.,.01,.1,.
     rhoarray=np.zeros((Nsim,Nrec))
     for ns in xrange(Nsim):
         for nr in xrange(Nrec):
-            rhoarray[ns,nr]=compute_rho_fromcl(simcldat,recgrid[ns][nr],reccldat=reccldat,varname=varname,fitbias=fitbias)
+            rhoarray[ns,nr]=au.compute_rho_fromcl(simcldat,recgrid[ns][nr],reccldat=reccldat,varname=varname,fitbias=fitbias)
 
     #print rhoarray
     if saverho:
@@ -2445,7 +2448,7 @@ def bztest_onesim_plot(fidb2=0.5,recb2=np.array([0.,.01,.1,.5,1.,2.,5.,10.]),var
     if outtag:
         outtag='_'+outtag
     if not outname:
-        outname=varname+'test_'+statname+'_exp'+outtag+'.pdf'
+        outname=varname+'test_'+statname+'_exp'+outtag+'.pdf' #[statname undefined; Though outname won't be "False" unless specifically passed as such. NJW 160606]
     print 'Saving plot to ',plotdir+outname
     plt.savefig(plotdir+outname)
     plt.close()
@@ -2609,29 +2612,29 @@ def catz_get_maptypes(badfracs=np.array([1.e-3,1.e-2,.1]),Nbins=3,z0=.7,sigz=.05
     zedges=bintest_get_finest_zedges(finestN=Nbins,z0=z0)
     maptypes=[]
     if includeISW:
-        iswmaptype=get_fullISW_MapType(zmax=15)
+        iswmaptype=mdu.get_fullISW_MapType(zmax=15)
         maptypes.append(iswmaptype)
     for x in badfracs:
         tag=maintag+'{0:.0e}'.format(x)
-        eucmapx=get_Euclidlike_SurveyType(sigz=sigz,z0=z0,tag=tag,zedges=zedges,b0=1.,b2=0,fracbadz=x)
+        eucmapx=mdu.get_Euclidlike_SurveyType(sigz=sigz,z0=z0,tag=tag,zedges=zedges,b0=1.,b2=0,fracbadz=x)
         maptypes.append(eucmapx)
     return maptypes
 
 def catz_get_binmaps(badfracs=np.array([1.e-3,1.e-2,.1]),Nbins=3,z0=.7,sigz=.05,includeISW=True):
     maptypes=catz_get_maptypes(badfracs,Nbins,z0,sigz,includeISW)
-    binmaps,bintags=get_binmaplist(maptypes)
+    binmaps,bintags=mp.get_binmaplist(maptypes)
     return binmaps
 
 def catz_get_Cl(badfracs=np.array([1.e-3,1.e-2,.1]),Nbins=3,z0=.7,sigz=.05,justread=True):
     maptypes=catz_get_maptypes(badfracs,Nbins,z0,sigz,includeISW=True)
-    binmaps,bintags=get_binmaplist(maptypes)
+    binmaps,bintags=mp.get_binmaplist(maptypes)
     pairs=[]
     for mt in maptypes:
         if mt.isGal:
             pairs.append((mt.tag,'isw'))
     zmax=max(m.zmax for m in binmaps)
-    rundat = ClRunData(tag='catztest_{0:d}bins'.format(Nbins),rundir='output/zdisttest/',lmax=95,zmax=zmax,iswilktag='fidisw',noilktag=True)
-    return getCl(binmaps,rundat,dopairs=pairs,DoNotOverwrite=justread)
+    rundat = clu.ClRunData(tag='catztest_{0:d}bins'.format(Nbins),rundir='output/zdisttest/',lmax=95,zmax=zmax,iswilktag='fidisw',noilktag=True)
+    return gcc.getCl(binmaps,rundat,dopairs=pairs,DoNotOverwrite=justread)
 #------------------------------------------------
 def catz_get_recgrid(simfracs,recfracs,Nbins=3,z0=.7,sigz=.05):
     maintag='euc{0:d}bincatz'.format(Nbins)
@@ -2650,7 +2653,7 @@ def catz_get_recgrid(simfracs,recfracs,Nbins=3,z0=.7,sigz=.05):
             incl=[rectypetags[nr]+'_bin{0:d}'.format(i) for i in xrange(Nbins)]
             #print 'inglm',inglm
             #print 'incl',incl
-            recdat=RecData(includeglm=inglm,includecl=incl,inmaptag=simtypetags[ns],rectag=rectypetags[nr])
+            recdat=au.RecData(includeglm=inglm,includecl=incl,inmaptag=simtypetags[ns],rectag=rectypetags[nr])
             #print 'recdat.Nmap',recdat.Nmap
             reclist.append(recdat)
         recgrid.append(reclist)
@@ -2731,7 +2734,7 @@ def catz_get_rhoexp(simfracs=np.array([]),recfracs=np.array([]),badfracs=np.arra
     for ns in xrange(Nsim):
         for nr in xrange(Nrec):
             #print 'simfrac ',simfracs[ns],'; recfrac ',recfracs[nr]
-            rhoarray[ns,nr]=compute_rho_fromcl(cldat,recgrid[ns][nr],reccldat=cldat,varname=varname,fitbias=fitbias)
+            rhoarray[ns,nr]=au.compute_rho_fromcl(cldat,recgrid[ns][nr],reccldat=cldat,varname=varname,fitbias=fitbias)
 
     if saverho:
         #write to file, 
@@ -3016,7 +3019,7 @@ def lmintest_get_cl(includeISW=True,z0=.7):
 def lmintest_get_dummyglm(cldat=0,z0=.7):
     if not cldat:
         cldat=lmintest_get_cl(z0=z0)
-    glmdat=get_glm(cldat,Nreal=0,matchClruntag=True)
+    glmdat=gmc.get_glm(cldat,Nreal=0,matchClruntag=True)
     return glmdat
 
 #given two arrays, one of unique lmin values, one of lmax,
@@ -3054,7 +3057,7 @@ def lmintest_get_reclist(lminlist=np.arange(1,20),lmaxlist=-1,z0=.7):
         bintag=galbin.tag
         includeglm=[bintag]
         inmaptag=bintag[:bintag.rfind('_bin0')]
-        recdat=RecData(includeglm=includeglm,inmaptag=inmaptag,minl_forrec=lminlist[l],maxl_forrec=lmaxlist[l])
+        recdat=au.RecData(includeglm=includeglm,inmaptag=inmaptag,minl_forrec=lminlist[l],maxl_forrec=lmaxlist[l])
         reclist.append(recdat)
     return reclist
 
@@ -3096,7 +3099,7 @@ def lmintest_get_rhoexp(lminlist=np.arange(1,20),lmaxlist=-1,z0=.7,overwrite=Fal
     cldat=lmintest_get_cl(z0=z0)
     rhoarray=np.zeros(Nlmin)
     for l in xrange(Nlmin):
-        rhoarray[l]=compute_rho_fromcl(cldat,reclist[l],reccldat=cldat,varname=varname)
+        rhoarray[l]=au.compute_rho_fromcl(cldat,reclist[l],reccldat=cldat,varname=varname)
     if saverho:
         #write to file, 
         f=open(outdir+datfile,'w')
@@ -3115,7 +3118,7 @@ def lmintest_iswrec(Nreal,lminlist=np.arange(1,20),lmaxlist=-1,domaps=True,z0=0.
     cldat=lmintest_get_cl(z0=z0)
     reclist=lmintest_get_reclist(lminlist,lmaxlist,z0)
     dummyglm=lmintest_get_dummyglm(cldat=cldat,z0=z0)
-    doiswrec_formaps(dummyglm,cldat,Nreal,reclist=reclist,domaps=domaps)
+    au.doiswrec_formaps(dummyglm,cldat,Nreal,reclist=reclist,domaps=domaps)
 
 # assuming reconstructions have already been done, along with rho or s calc,
 # and assuming all lmin,lmax combos have the same number of realizations
@@ -3136,7 +3139,7 @@ def lmintest_getrhodat_fromfiles(lminlist=np.arange(1,20),lmaxlist=-1,varname='r
         if lmaxlist[i]>0:
             lmaxstr="-lmax{0:02d}".format(lmaxlist[i])
         files.append('iswREC.eucz07.fid.fullsky{0:s}{1:s}.depthtest.{2:s}.dat'.format(lminstr,lmaxstr,varname))
-    rhogrid=np.array([read_rhodat_wfile(mapdir+f) for f in files])
+    rhogrid=np.array([au.read_rhodat_wfile(mapdir+f) for f in files])
     return rhogrid
 
 # get rho data for many lmin values
@@ -3262,8 +3265,8 @@ def shottest_getrhoexp(nbarlist=np.array([1.e5,1.e7,1.e9]),varname='rho'): #assu
         cldat.changenbar(mapname,n)
         #print '  cldat.nbar[1]=',cldat.nbar[1]*(np.pi/180./60.)**2,cldat.noisecl[cldat.crossinds[1,1],4]
         includeglm=[mapname+'_bin0']
-        recdat=RecData(includeglm=includeglm,inmaptag=mapname)
-        rhopred=compute_rho_fromcl(cldat,recdat,varname=varname)
+        recdat=au.RecData(includeglm=includeglm,inmaptag=mapname)
+        rhopred=au.compute_rho_fromcl(cldat,recdat,varname=varname)
         rhovals.append(rhopred)
     rhovals=np.array(rhovals)
     return rhovals
@@ -3290,7 +3293,7 @@ def shottest_apply_noisetomap(nbarlist=[1.e4],Nreal=0,overwritecalibmap=False,sc
     print 'noiseinfolist',noiseinfolist
     if Nreal and overwritecalibmap:
         print 'Generating shot noise maps.'
-    dothesemods=get_shotnoise_formaps(glmdat,noiseinfolist,overwrite=overwritecalibmap,Nreal=Nreal) #generates calibration error maps, returns [(maptag,modtag,masktag)]list
+    dothesemods=gmc.get_shotnoise_formaps(glmdat,noiseinfolist,overwrite=overwritecalibmap,Nreal=Nreal) #generates calibration error maps, returns [(maptag,modtag,masktag)]list
     #print 'dothesemods',dothesemods
 
     #apply calibration errors
@@ -3299,7 +3302,7 @@ def shottest_apply_noisetomap(nbarlist=[1.e4],Nreal=0,overwritecalibmap=False,sc
         scaling =np.sqrt(refvar/n) #to multiply noise maps
         newcaltag=get_modtag_shotnbar(n)
         print 'Applying shot noise to map, newcaltag',newcaltag
-        outglmdatlist.append(apply_caliberror_to_manymaps(glmdat,dothesemods,Nreal=Nreal,calmap_scaling=scaling,newmodtags=[newcaltag],overwritefits=redofits,justaddnoise=True))
+        outglmdatlist.append(gmc.apply_caliberror_to_manymaps(glmdat,dothesemods,Nreal=Nreal,calmap_scaling=scaling,newmodtags=[newcaltag],overwritefits=redofits,justaddnoise=True))
 
     outglmdat=glmdat.copy(Nreal=0)
     for n in xrange(len(outglmdatlist)):
@@ -3314,16 +3317,16 @@ def shottest_get_reclist(nbarlist):
     lsstype=fidbins[1].typetag
     noiseinfolist=[(lssbin,nbar) for nbar in nbarlist]
     fidglm=caltest_get_fidglm()
-    dothesemods=get_shotnoise_formaps(fidglm,noiseinfolist,overwrite=False,Nreal=0)
+    dothesemods=gmc.get_shotnoise_formaps(fidglm,noiseinfolist,overwrite=False,Nreal=0)
     print '****',dothesemods
     #put fidicual in
     includecl=[lssbin]
     inmaptype=lsstype
-    #reclist.append(RecData(includecl,includecl,inmaptype,'unmod'))
+    #reclist.append(au.RecData(includecl,includecl,inmaptype,'unmod'))
     for m in dothesemods:
         includeglm=[m]
         rectag=m[1]#modtag
-        reclist.append(RecData(includeglm,includecl,inmaptype,rectag))
+        reclist.append(au.RecData(includeglm,includecl,inmaptype,rectag))
     return reclist #includes fiducial case as first entry
     
 def shottest_iswrec(Nreal,nbarlist=[1.e4],overwritecalibmap=False,scaletovar=1.e4,domaps=True):
@@ -3333,7 +3336,7 @@ def shottest_iswrec(Nreal,nbarlist=[1.e4],overwritecalibmap=False,scaletovar=1.e
     for n in nbarlist:
         reclist=shottest_get_reclist([n])
         fidcl.changenbar('eucz07',n)
-        doiswrec_formaps(dummyglm,fidcl,Nreal,reclist=reclist,domaps=domaps)
+        au.doiswrec_formaps(dummyglm,fidcl,Nreal,reclist=reclist,domaps=domaps)
 
 # [work in progress, no code yet to do these reconstructions]
 # assuming reconstructions have already been done, along with rho or s calc,
@@ -3346,7 +3349,7 @@ def shottest_getrhodat_fromfiles(nbarlist,varname='rho'):
     files=[]
     for n in nbarlist: #nbar in steradiancs
         files.append('iswREC.eucz07.shotnbar{0:0.1e}.fullsky-lmin02.depthtest.{1:s}.dat'.format(n,varname))
-    rhogrid=np.array([read_rhodat_wfile(mapdir+f) for f in files])
+    rhogrid=np.array([au.read_rhodat_wfile(mapdir+f) for f in files])
     return rhogrid
 
 def shottest_get_rhodat(datnbar,varname='rho'):
@@ -3517,7 +3520,7 @@ def angmomtest_Lvsrho_plot(plotdat='change',Lfile='Lmax_true_Lmax_rec.dat',plotd
         note+='\n'+r'$L_{\rm rec}$ randomized'
     
     NL=Ltrue.size #assume first NL of the rho match w provided L vals
-    rhodat=read_rhodat_wfile(plotdir+rhofile)[:NL]
+    rhodat=au.read_rhodat_wfile(plotdir+rhofile)[:NL]
     
     plt.figure(0)
     ax=plt.subplot()
@@ -3691,8 +3694,8 @@ def angmomtest_rhovsrho_plot(plotdir='output/angmom_study/',dofit=True,note=r'$\
     meancolor='#ca0020'
     #read in data
 
-    rhodat=read_rhodat_wfile(plotdir+nofilterfile)
-    rhofiltdat=read_rhodat_wfile(plotdir+filterfile)
+    rhodat=au.read_rhodat_wfile(plotdir+nofilterfile)
+    rhofiltdat=au.read_rhodat_wfile(plotdir+filterfile)
     if shufflerhofilt:
         np.random.shuffle(rhofiltdat)
         note+='\n'+r'$rho_{\rm filtered}$ randomized'
@@ -3762,7 +3765,7 @@ def angmomtest_checkrho_plot(plotdir='output/angmom_study/',dofit=True,fileprefi
     meancolor='#ca0020'
 
     #read in data
-    myrhodat=read_rhodat_wfile(plotdir+rhofile)
+    myrhodat=au.read_rhodat_wfile(plotdir+rhofile)
     dhrhodat=np.loadtxt(plotdir+draganrhofile)
     if shuffle:
         np.random.shuffle(myrhodat)
