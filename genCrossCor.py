@@ -531,7 +531,7 @@ def getCl(binmaplist,rundata,dopairs=[],redoAllCl=False,redoTheseCl=False,redoAu
         crosspairs=cldat.crosspairs
         crossinds=cldat.crossinds
         Ncross = cldat.Ncross
-        docross=cldat.docross
+        docross=cldat.docross #list of pair indices want to compute
         
         #old = follow indices for maplist in prev existing file
         oldind=-1*np.ones(Nmap) #for each binmap, its index in oldbinmaplist

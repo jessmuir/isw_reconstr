@@ -64,8 +64,8 @@ def depthtest_get_binmaps(z0vals=np.array([.3,.6,.7,.8]),includeisw=True):
 
 def depthtest_get_Cl(justread=True,z0vals = np.array([.3,.6,.7,.8])):
     bins=depthtest_get_binmaps(z0vals)
-    zmax=max(m.zmax for m in bins)
-    rundat = clu.ClRunData(tag='depthtest',rundir='output/depthtest/',lmax=95,zmax=zmax)
+    zmax=max(m.zmax for m in bins) #get max z for all maps
+    rundat = clu.ClRunData(tag='depthtest',rundir='output/depthtest/',lmax=95,zmax=zmax) #keep info like lmax, output dir, tag, zmax, etc. and other general cl information we'll need for all maps
     return gcc.getCl(bins,rundat,dopairs=['all'],DoNotOverwrite=justread)
 
 #----------------------------------------------------------------
