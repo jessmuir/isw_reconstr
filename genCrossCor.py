@@ -160,6 +160,7 @@ class ClData(object):
 # so cl[newNmap,newNmap] == cl[newNmap-1,newNmap] == cl[newNmap-1, newNmap-1], and cl[newNmap,:] = cl[newNmap-1,:]
 
         newcrosspairs,newcrossinds = get_index_pairs(newNmap)
+        newdox = []
 #        print "newNmap:",newNmap
         for w in xrange(newNmap):
             for v in xrange(newNmap): 
@@ -176,8 +177,10 @@ class ClData(object):
                         xind_old=self.crossinds[oldmapind,oldmapind]
 #                        print "Map1={0}, map2={1},xind_old={2},xind_new={3}".format(w,v,xind_old,xind_new)
                     newcl[xind_new, :] = self.cl[xind_old,:]
+                    newdox.append(xind_new) #new cross correlations we've calc'd
 #                    print xind_new
         #set up new values
+        self.docross.extend(newdox) #indicate we've calculated the cross correlations
         self.Nmap=newNmap
         self.bintaglist.append(tag)
         self.tagdict={self.bintaglist[m]:m for m in xrange(self.Nmap)}

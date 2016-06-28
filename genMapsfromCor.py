@@ -827,7 +827,10 @@ def getglm_frommaps(dummyglm,rlzns=np.array([]),Nreal=1):
     
     #go get data
     for r in xrange(Nreal):
+#        print r
+#        print dummyglm.get_mapfile()
         for n in xrange(Nmap):
+#            print n
             mapfile=dummyglm.get_mapfile(rlzns[r],n) #filename of .fits file
             #read in map, extract glm
             mapdat=hp.read_map(mapfile,verbose=False)

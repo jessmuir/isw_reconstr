@@ -1105,15 +1105,20 @@ def compute_rho_fromcl(cldat,recdat,reccldat=0,varname='rho',fitbias=True):
     lmax=recdat.lmax
 #    print cldat.noisecl[:,4]
 #should we add these dupetags to both Sim and Rec? Just Rec?? NJW 160627
-    if len(recdat.includeglm) != set(recdat.includeglm): #check for duplicates in includecl
+    if type(recdat.includeglm)==str:  #added 6/28/16 NJW
+        #recdat.includeglm = [recdat.includeglm]
+        print "WARNING: given recdat.includeglm is string, not list! (in compute_rho)"
+        glm_to_check=[recdat.includeglm] #did it this way so as to not enforce that it be a list in recdat, lest mess up something of JM'S.
+    else: glm_to_check = recdat.includeglm
+    if len(recdat.includeglm) != set(glm_to_check): #check for duplicates in includecl
         for loc,dupetag in getDupes(recdat.includeglm, loc=True):
             newtag = cldat.add_dupemap(dupetag) #update Cldat with a copy of duplicate maptype
             recdat.includeglm[loc]=newtag #change the duplicate tag to the newtag
 
     # These are the Cl used for simulating maps (hence the recdat.includeglm)
     Dl,dtags=get_Dl_matrix(cldat,recdat.includeglm,recdat.zerotagstr)
-    print
-    print Dl[4,:,:]
+#    print '\nMaps ',dtags
+#    print Dl[4,:,:]
     Dinv=invert_Dl(Dl)
     Nell=Dinv.shape[0]
     lvals=np.arange(Nell)

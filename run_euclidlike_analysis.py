@@ -62,10 +62,10 @@ def depthtest_get_binmaps(z0vals=np.array([.3,.6,.7,.8]),includeisw=True):
         bins=iswbins+bins
     return bins
 
-def depthtest_get_Cl(justread=True,z0vals = np.array([.3,.6,.7,.8])):
+def depthtest_get_Cl(justread=True,z0vals = np.array([.3,.6,.7,.8]), outtag=''): #[added outtag to allow easy spec of different output directory]
     bins=depthtest_get_binmaps(z0vals)
-    zmax=max(m.zmax for m in bins) #get max z for all maps
-    rundat = clu.ClRunData(tag='depthtest',rundir='output/depthtest/',lmax=95,zmax=zmax) #keep info like lmax, output dir, tag, zmax, etc. and other general cl information we'll need for all maps
+    zmax=max(m.zmax for m in bins) #get highest max z of all the binmaps
+    rundat = clu.ClRunData(tag='depthtest',rundir='output/depthtest'+outtag+'/',lmax=95,zmax=zmax) #keep info like lmax, output dir, tag, zmax, etc. and other general cl information we'll need for all maps
     return gcc.getCl(bins,rundat,dopairs=['all'],DoNotOverwrite=justread)
 
 #----------------------------------------------------------------
@@ -84,25 +84,58 @@ def depthtest_get_reclist(z0vals=np.array([.3,.6,.7,.8])):
             reclist.append(recdat)
     return reclist
 
+# same as depthtest_get_reclist, but don't define includeglm so uses all bins instead of limiting to the current bin (i.e. multisurvey)
+def multi_depthtest_get_reclist(z0vals=np.array([.3,.6,.7,.8]), multi = False):
+    if multi == False:
+        multi = range(z0vals) + [(0,1)]
+    bins=depthtest_get_binmaps(z0vals) #list of bins, since each map is only one bin for depth test
+    binlist=[] #bins but without isw_bin0, so corresponds to input z0vals
+    for b in bins:
+        if b.tag!='isw_bin0':
+            binlist.append([b])
+        print b.tag   #make list of lists, with each sublist a list of the bins in the map to use for recreation (only 1 each for now)
+    Nrec = len(multi)
+    reclist = [0]* Nrec
+    for i,irec in enumerate(multi):
+        includeglm=[]
+        inmaptag = ''
+        if type(irec) == int:
+            irec = (irec,) #set to tuple so we can reuse upcoming for loop code
+            mtag = ''
+        else: mtag = '+'
+        for m in irec: #for each survey in the list of surveys to use for recon
+            for b in binlist[m]: #for each bin in the survey
+                bintag=b.tag
+                includeglm.append(bintag)
+            inmaptag += mtag + bintag[:bintag.rfind('_bin')] #if single map, will be the standard bintag (without '_bin[X]'), if multi will be 'bintag0+bintag1'
+        reclist[i] = au.RecData(includeglm=includeglm, inmaptag=inmaptag)
+        print (irec,includeglm, inmaptag)
+    return reclist
+
 #use cldat to generate glm, alm, and maps; saves maps but not alm
 #   does isw reconstruction automatically
-def depthtest_get_glm_and_rec(Nreal=1,z0vals=np.array([.3,.6,.7,.8]),minreal=0,justgetrho=0,dorell=0,dorho=1,dos=1,dochisq=1,dochisqell=0):
+def depthtest_get_glm_and_rec(Nreal=1,z0vals=np.array([.3,.6,.7,.8]),minreal=0,justgetrho=0,dorell=0,dorho=1,dos=1,dochisq=1,dochisqell=0, multi=False, outtag=''):
     t0=time.time()
-    cldat=depthtest_get_Cl(justread=True,z0vals=z0vals)
+    cldat=depthtest_get_Cl(justread=True,z0vals=z0vals,outtag=outtag)
     makeplots=Nreal==1
     rlzns=np.arange(minreal,minreal+Nreal)
-    reclist=depthtest_get_reclist(z0vals)
+    if multi:
+        reclist = multi_depthtest_get_reclist(z0vals, multi=multi) #try to use all the depth tests in recon
+    else: reclist=depthtest_get_reclist(z0vals)
     au.getmaps_fromCl(cldat,rlzns=rlzns,reclist=reclist,justgetrho=justgetrho,dorell=dorell,dorho=dorho,dos=dos,dochisq=dochisq,dochisqell=dochisqell)
     t1=time.time()
     print "total time for Nreal",Nreal,": ",t1-t0,'sec'
 
 #do reconstructions based on exisitng LSS maps
 # if domaps=False, just computes rho, s, etc without generating maps
-def depthtest_iswrec(Nreal,z0vals=np.array([.3,.6,.7,.8]),minreal=0,dorell=0,dorho=1,dos=1,domaps=True):
-    cldat=depthtest_get_Cl(z0vals=z0vals)
-    rlzns=np.arange(minreal,minreal+Nreal)
-    reclist=depthtest_get_reclist(z0vals)
-    dummyglm=au.get_glm(cldat,Nreal=0,matchClruntag=True)
+def depthtest_iswrec(Nreal, cldat=False, z0vals=np.array([.3,.6,.7,.8]),minreal=0,dorell=0,dorho=1,dos=1,domaps=True, multi=False, outtag=''):#[160620=_NJW add option to pass cldat]
+    if cldat==False:
+        cldat=depthtest_get_Cl(z0vals=z0vals, outtag=outtag)
+    rlzns=np.arange(minreal,minreal+Nreal)    
+    if multi != False:
+        reclist = multi_depthtest_get_reclist(z0vals, multi=multi) #try to use all the depth tests in recon
+    else: reclist=depthtest_get_reclist(z0vals)
+    dummyglm=gmc.get_glm(cldat,Nreal=0,matchClruntag=True)
     au.doiswrec_formaps(dummyglm,cldat,rlzns=rlzns,reclist=reclist,domaps=domaps,dorell=dorell,dos=dos)
     
 
@@ -234,7 +267,7 @@ def depthtest_TTscatter(r=0, z0vals=np.array([0.3,0.6,0.7,0.8]),savepngmaps=True
     #get dummy glm and alm for filenames
     cldat=depthtest_get_Cl(z0vals=z0vals)
     reclist=depthtest_get_reclist(z0vals)
-    glmdat=au.get_glm(cldat,Nreal=0,runtag=cldat.rundat.tag)
+    glmdat=gmc.get_glm(cldat,Nreal=0,runtag=cldat.rundat.tag)
     almdat=au.get_dummy_recalmdat(glmdat,reclist,outruntag=glmdat.runtag)
     for i in xrange(Nrec):
         truemapf=glmdat.get_mapfile_fortags(r,reclist[i].zerotagstr)
@@ -3849,15 +3882,17 @@ if __name__=="__main__":
     #   but note that they may not generate the same plots. for some plots
     #   i rewrote the functions in 'genplots_forpaper.py' so taht I could adjust
     #   formatting in more detail. 
-    
-    depthtestz0=np.array([.3,.5,.6,.7,.8])
+    st = time.time()
+    depthtestz0=np.array([.7,.7,1.1]) #np.array([.3,.5,.6,.7,.8])
     if 0: #compute Cl # this takes a while;
         depthtest_get_Cl(justread=False,z0vals=depthtestz0)
+
     if 0: #for testing
         depthtest_plot_zwindowfuncs(depthtestz0)
+#---SINGLE---
     if 0: #generate depthhtest maps
-        Nreal=10000
-        simmaps=False #do you want to simulate maps, or just do reconstructions?
+        Nreal=1000
+        simmaps=False #do you want to simulate maps, or just do reconstructions (on maps that already exist?
         z0vals=depthtestz0
         #z0vals=np.array([0.7])
         if simmaps: #generate maps and do reconstructions
@@ -3866,6 +3901,25 @@ if __name__=="__main__":
             depthtest_iswrec(Nreal,z0vals=z0vals,minreal=0,dorho=1,dos=1,domaps=True)
             #note, if you just want t compute rho but don't want to redo isw recs
             # change domaps to False
+#----- MULTI ------        
+    outtag = '_multi_same'
+    if 1: #compute Cl # this takes a while;
+        depthtest_get_Cl(justread=False,z0vals=depthtestz0, outtag=outtag)
+    if 1: #generate MULTI depthhtest maps (don't want togr)
+        Nreal=100
+        simmaps=True #do you want to simulate maps, or just do reconstructions (on maps that already exist?
+        z0vals=depthtestz0
+        
+        doMulti = range(len(depthtestz0)) + [(0,1),(0,2),(1,2),(0,1,2)] #list of z0val maps to combine for reconstruction.
+        
+        #z0vals=np.array([0.7])
+        if simmaps: #generate maps and do reconstructions
+            depthtest_get_glm_and_rec(Nreal=Nreal,z0vals=z0vals,justgetrho=False,minreal=0,dorho=1,dos=True,dochisq=False,dorell=0,dochisqell=False, multi=doMulti, outtag=outtag)
+        else: #do recs based on existing galaxy maps
+            depthtest_iswrec(Nreal,z0vals=z0vals,minreal=0,dorho=1,dos=1,domaps=True, multi=doMulti, outtag=outtag)
+            #note, if you just want t compute rho but don't want to redo isw recs
+            # change domaps to False
+
     if 0: #plot info about depthtest maps, assumes you've already done isw recs
         for r in xrange(10,20):
              #depthtest_TTscatter(r,depthtestz0,savepngmaps=False)
@@ -3923,7 +3977,7 @@ if __name__=="__main__":
         lmintest_plot_rhoexp(overwrite=0,lminlist=np.arange(1,20),lmaxlist=inlmaxlist,varname='rho',dodata=True,datlmin=inlminlist)
         
     # shot noise tests; assumes depthtest maps have already been generated
-    if 1:
+    if 0:
         shortnbarlist=np.array([1.e-4,1.e-3,1.,10.,100.])#np.array([1.e-4,1.e-3,.01,.1,1.,10.,100.])#in arcmin^-2
         shortnbarsr=shortnbarlist*((180.*60./np.pi)**2)
         scaletovar=shortnbarsr[0]
@@ -4049,3 +4103,5 @@ if __name__=="__main__":
             angmomtest_rhovsrho_plot(note=n,fileprefix=p,shufflerhofilt=shuffle,ellfilter=llims[i])
     if 0: #correlation coefs for Lmax numbers taht dragan emailed on 3/10/16
         angmomtest_LrecLtrue_corrcoef()
+    
+    print "Time to Run: {0:0f} mins".format((time.time() - st)/60.,)
