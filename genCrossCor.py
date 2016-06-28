@@ -21,7 +21,7 @@ from ClRunUtils import *
 #          plus indices relevant for 
 ###########################################################################
 class ClData(object):
-    def __init__(self,rundata,bintags,dopairs=[],clgrid=np.array([]),addauto=True,docrossind=[],nbarlist=[]):
+    def __init__(self,rundata,bintags,dopairs=[],clgrid=np.array([]),addauto=True,docrossind=[],nbarlist=[],dupesuf='_1'):
         if rundata.tag: runtag = '_'+rundata.tag
         else: runtag=''
         self.clfile= ''.join([rundata.cldir,'Cl',runtag,'.dat'])
@@ -44,7 +44,8 @@ class ClData(object):
 
         self.Nell=rundata.lvals.size
         self.cl=clgrid #[crossind, ell]
-
+        self.dupesuf=dupesuf #suffix to add for duplicate rec_glm tags
+        
         #when adding shot noise and/or applying calibration errors
         # need to know the average number density per steradian per map
         nbarlist=np.array(nbarlist)
@@ -65,11 +66,21 @@ class ClData(object):
     def hasClvals(self):
         return bool(self.cl.size)
 
-    def clcomputed_forpair(self,tag1,tag2):
+    def clcomputed_forpair(self,tag1,tag2): #returns true/false depending on if has computed cl for this pair
         mapind1=self.tagdict[tag1]
-        mapind2=self.tagdict[tag1]
+        mapind2=self.tagdict[tag2]
         xind=self.crossinds[mapind1,mapind2]
         return xind in self.docross
+    
+    def get_cl_from_pair(self,tag1,tag2,ell): 
+        """return cl for pair of maptags (autopower if same tag)"""
+        if not self.clcomputed_forpair(tag1,tag2):
+            print "No Cl data for {0:s} with {1:s}".format(tag1, tag2)
+            return float('NaN')
+        mapind1=self.tagdict[tag1]
+        mapind2=self.tagdict[tag2]#tagdict[tag1] #this was erroneously [tag1] instead of 2. Corrected 160621 NJW. Not called anywhere, so should be ok.
+        xind=self.crossinds[mapind1,mapind2]
+        return self.cl[xind, ell]
 
     #pass string, for all binmaps with that string in their tag, change nbar
     def changenbar(self,mapstr,newnbar):
@@ -118,9 +129,75 @@ class ClData(object):
         self.noisecl = np.zeros((self.Ncross,self.Nell)) 
         for i in xrange(self.Nmap):
             if self.nbar[i]!=-1: #assumes -1 for no noise or isw
-                self.noisecl[i,i]=1/self.nbar[i]
+                diagind=self.crossinds[i,i]
+                #self.noisecl[i,i]=1/self.nbar[i] #THIS INDEXING IS WRONG - fixed 160628 NJW. Function not referenced anywhere in analysis, so no impact on results. 
+                self.noisecl[diagind,:]=1/self.nbar[i]
+                self.noisecl[diagind,0]=0
         return True
+        
+    def add_dupemap(self, tag):
+        """Duplicate already existing binmap in Cldata"""
+        oldtag = tag
+        if oldtag not in self.bintaglist:
+            raise KeyError("Error! {0} not in taglist - don't know which map to duplicate.")
+        while tag in self.bintaglist:
+            tag += self.dupesuf
+        print 'Duplicating {0}: naming new bintag "{1}"'.format(oldtag,tag)
+        newNmap=self.Nmap+1
+        newNcross=newNmap*(newNmap+1)/2
+        oldmapind=self.tagdict[oldtag]
+        newmapind= newNmap-1 #put new map at end
+        new_nbar = self.nbar[oldmapind]
+        newcl=np.zeros((newNcross,self.Nell))
+        #delxinds=self.crossinds[oldmapind,:]
+        ##newdocross=np.setdiff1d(self.docross,delxinds)#unique elements of docross not in delxinds
+     
+        #this isn't really necessary for adding a map since we're keeping all the old Cl, but keeping to minimize changes from original deletemap method
 
+#NOPE, BELOW IS WRONG, NOT ORDERED THAT WAY -- AUTOPOWERS ARE FIRST, PER THE "NEW" ORDERING IN HEALPY.SYNALM
+#http://healpy.readthedocs.io/en/latest/generated/healpy.sphtfunc.synalm.html
+#assuming the order goes as I think it does... first entries will all agree, then just duplicate last row, and again duplicate last element
+# so cl[newNmap,newNmap] == cl[newNmap-1,newNmap] == cl[newNmap-1, newNmap-1], and cl[newNmap,:] = cl[newNmap-1,:]
+
+        newcrosspairs,newcrossinds = get_index_pairs(newNmap)
+#        print "newNmap:",newNmap
+        for w in xrange(newNmap):
+            for v in xrange(newNmap): 
+                if v<= w: #symmetric matrix
+                    xind_new = newcrossinds[w,v]
+                    if w < self.Nmap: #not looking at any pairs involving new map
+                        xind_old=self.crossinds[w,v]
+#                        tag1 = bintaglist[w]
+#                        tag2 = bintaglist[v]
+                    elif v<self.Nmap: #  know w==self.Nmap. use the old xind from the original map for the new Cl[xind] of the duplicate map
+                        xind_old=self.crossinds[oldmapind,v]
+#                        print "map1={0}, map2={1},xind_old={2},xind_new={3}".format(w,v,xind_old,xind_new)
+                    else: #both v,w == self.Nmap
+                        xind_old=self.crossinds[oldmapind,oldmapind]
+#                        print "Map1={0}, map2={1},xind_old={2},xind_new={3}".format(w,v,xind_old,xind_new)
+                    newcl[xind_new, :] = self.cl[xind_old,:]
+#                    print xind_new
+        #set up new values
+        self.Nmap=newNmap
+        self.bintaglist.append(tag)
+        self.tagdict={self.bintaglist[m]:m for m in xrange(self.Nmap)}
+        self.Ncross=newNcross
+        self.crosspairs=newcrosspairs #[crossind,mapinds] (NCross x2)
+        self.crossinds=newcrossinds #[mapind,mapind] (Nmap x Nmap)
+        #THIS IS A TEMPORARY HACK
+        self.pairs=consolidate_dotags(['all'],self.bintaglist) #IS THIS STILL LEGITIMATE GIVEN THE "HACK" COMMENT ABOVE? [NJW 160627]
+        #self.docross=['all'] 
+        #self.pairs=get_pairs_fromcrossind(self.bintaglist,newdocross,self.crosspairs,self.crossinds)
+        self.cl=newcl
+        self.nbar=np.append(self.nbar,new_nbar)
+        #just set up noisecl again
+        self.noisecl = np.zeros((self.Ncross,self.Nell)) 
+        for i in xrange(self.Nmap):
+            if self.nbar[i]!=-1: #assumes -1 for no noise or isw
+                diagind=self.crossinds[i,i]
+                self.noisecl[diagind,:]=1/self.nbar[i]
+                self.noisecl[diagind,0]=0
+        return tag #return the new (now uniqe) tag
 
 ###########################################################################
 def sphericalBesselj(n,x):

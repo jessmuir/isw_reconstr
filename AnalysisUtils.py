@@ -69,7 +69,8 @@ class RecData(object):
             self.includecl=[self.zerotagstr]+includecl #now len is +1 vs incglm
 
     def set_includeglm(self,newglmlist):
-        newglmlist.remove(self.zerotagstr)
+        if newglmlist[0] == self.zerotagstr:  #[zerotag wasn't present when I was running multi tests, resulting in error. NJW 160609]      
+            newglmlist.remove(self.zerotagstr)
         self.includeglm=newglmlist
         if not self.includecl:
             self.set_fidreccl()
@@ -140,13 +141,16 @@ def get_Dl_matrix(cldat,includelist=[],zerotag='isw_bin0'):
     for x in includelist:
         if isinstance(x,str):
             if x in cldat.bintaglist:
-                if x not in dtags: dtags.append(x)
+                if x not in dtags: #allow adding second "map" copy with same properties and name [NJW 160627]
+                    dtags.append(x)
+                else: print 'Repeat tag {0} ignored for Dl'.format(x,)
             else:
                 print x," not in C_l data; disregarding."
         elif isinstance(x,MapType): #this part has not been tested
             for b in x.bintags:
                 if b in cldat.bintaglist:
-                    if bintag not in dtags: dtags.append(b)
+#                    if bintag not in dtags: #allow adding second "map" copy with same properties and name [NJW 160627]
+                    dtags.append(b)
                 else: print b," not in C_l data; disregarding."
         elif isinstance(x,BinMap):#this part has not been tested
             if x.tag in cldat.bintaglist:
@@ -158,18 +162,30 @@ def get_Dl_matrix(cldat,includelist=[],zerotag='isw_bin0'):
     clind=-1*np.ones(Nmap,int)
     for t in xrange(Nmap):
         clind[t]=cldat.tagdict[dtags[t]]
+#    print clind
+#    print 'dtags:',dtags
 
     #set up D matrix
     Nell=cldat.Nell
     D=np.zeros((Nell,Nmap,Nmap))
+    cl=np.zeros((Nell,Nmap,Nmap))
+    noise=np.zeros((Nell,Nmap,Nmap))
     for i in xrange(Nmap):
         for j in xrange(i,Nmap): #i<=j
             ci=clind[i] #mapind of i in cl basis
             cj=clind[j] #mapind of j in cl basis
             cxij = cldat.crossinds[ci,cj] #crossind of ij pair in clbasis
             D[:,i,j]=cldat.cl[cxij,:]+cldat.noisecl[cxij,:]
-            if i!=j: D[:,j,i]=cldat.cl[cxij,:]+cldat.noisecl[cxij,:] #matrix is symmetric
-    #print '    D[00][01][11]=',D[4,0,0],D[4,0,1],D[4,1,1]
+            cl[:,i,j]=cldat.cl[cxij,:]
+            noise[:,i,j]=cldat.noisecl[cxij,:]
+            if i!=j:
+                D[:,j,i]=cldat.cl[cxij,:]+cldat.noisecl[cxij,:] #matrix is symmetric
+                cl[:,j,i]=cldat.cl[cxij,:] #matrix is symmetric
+                noise[:,j,i]=cldat.noisecl[cxij,:] #matrix is symmetric
+#    print '    \n cl[0,:] = \n',cl[4,:,:]
+#    print '    \n noise[0,:] = \n',noise[4,:,:]
+#    print '    D[00][01][11]=',D[4,0,0],D[4,0,1],D[4,1,1]
+    
     #print 'det(D)=',np.linalg.det(D)
     return D,dtags
 
@@ -288,7 +304,9 @@ def calc_isw_est(cldat,glmdat,recdat,writetofile=True,getmaps=True,redofits=True
     print "Computing ISW estimator maptag,rectag:",maptag,rectag
     if not recdat.includeglm:
         useglm=cldat.bintaglist
-        rectag.set_includeglm(useglm)
+        print useglm
+        print recdat.zerotag
+        recdat.set_includeglm(useglm) # rectag.set_includeglm(useglm) [rectag is string, no set_.. func, changed to recdat NJW 160609]
     
     #get D matrix dim Nellx(NLSS+1)x(NLSS+1) 
     #   where NLSS is number of LSS maps being used for rec, 
@@ -411,11 +429,12 @@ def calc_isw_est(cldat,glmdat,recdat,writetofile=True,getmaps=True,redofits=True
 #    makeplots - if getmaps and True, also make png files
 #  Assumes all recs have same Nlm and Nreal
 def domany_isw_recs(cldatlist,glmdatlist,reclist,outfiletag='iswREC',outruntag='',writetofile=True,getmaps=True,redofits=True,makeplots=False,dorho=True,fitbias=True):
+    print "In domany_isw_recs func"    
     SameCl=False
     Sameglm=False
     if type(cldatlist)!=list:#if a clData object is passed
         cldatlist=[cldatlist]
-    if type(glmdatlist)!=list: #if a glmData object is passed
+    if type(glmdatlist)!=list: #if a glmData object is passedo
         glmdatlist=[glmdatlist]
     if len(cldatlist)==1:
         SameCl=True
@@ -448,10 +467,8 @@ def domany_isw_recs(cldatlist,glmdatlist,reclist,outfiletag='iswREC',outruntag='
     #assign consistent runtag and filetag
     outalmdat.filetag=[outfiletag]
     outalmdat.runtag=outruntag
-    print 'nw test'
     if writetofile:
         write_glm_to_files(outalmdat,setnewfiletag=True,newfiletag=outfiletag)
-    print 'n_test 2'
     return outalmdat
 #-------------------------------------------------------------------------   
 # get_dummy_recalmdat - returns dummy glmdat object with nreal=0
@@ -669,6 +686,7 @@ def getmaps_fromCl(cldat,Nreal=1,rlzns=np.array([]),reclist=[],Nglm=1,block=100,
 #  dummyglm - glmData object with Nreal=0, but containing input map names, lmax, etc
 #  cldat - clData object containing info for maps to be used in reconstruction
 #  Nreal, rlzns; tell what or how many realizations to do reconstruction for
+#  reclist - list of recdat objects, containing reconstruction parameters, such as which glm of cldat to us
 #  Nglm - if nonzero, number of realizations for which to save glm data
 #  block - number of realizations to include in each reconstruction; set in order
 #          to avoid manipulating extremely large arrays
@@ -1085,10 +1103,17 @@ def compute_rho_fromcl(cldat,recdat,reccldat=0,varname='rho',fitbias=True):
 
     lmin=recdat.lmin
     lmax=recdat.lmax
-    
+#    print cldat.noisecl[:,4]
+#should we add these dupetags to both Sim and Rec? Just Rec?? NJW 160627
+    if len(recdat.includeglm) != set(recdat.includeglm): #check for duplicates in includecl
+        for loc,dupetag in getDupes(recdat.includeglm, loc=True):
+            newtag = cldat.add_dupemap(dupetag) #update Cldat with a copy of duplicate maptype
+            recdat.includeglm[loc]=newtag #change the duplicate tag to the newtag
+
     # These are the Cl used for simulating maps (hence the recdat.includeglm)
     Dl,dtags=get_Dl_matrix(cldat,recdat.includeglm,recdat.zerotagstr)
-    #print Dl[5,:,:]
+    print
+    print Dl[4,:,:]
     Dinv=invert_Dl(Dl)
     Nell=Dinv.shape[0]
     lvals=np.arange(Nell)
@@ -1103,6 +1128,13 @@ def compute_rho_fromcl(cldat,recdat,reccldat=0,varname='rho',fitbias=True):
 
     #if DIFFREC, get Dl data for those Cl, these are Cl for making estimator
     if DIFFREC: #assumes cldat and reccldat have same ell info
+        
+        #should we add these dupetags to both Sim and Rec? Just Rec?? NJW 160627
+        if len(recdat.includecl) != set(recdat.includecl): #check for duplicates in includecl
+            for loc,dupetag in getDupes(recdat.includecl, loc=True):
+                newtag = reccldat.add_dupemap(dupetag) #update Cldat with a copy of duplicate maptype
+                recdat.includecl[loc]=newtag #change the duplicate tag to the newtag
+                
         recDl,recdtags=get_Dl_matrix(reccldat,recdat.includecl,recdat.zerotagstr)
         #fit for b0 for each LSS map by compareing Dl Cl to recDl
         b0=np.ones(NLSS)
@@ -1121,7 +1153,8 @@ def compute_rho_fromcl(cldat,recdat,reccldat=0,varname='rho',fitbias=True):
         recDinv=Dinv
         recNl=Nl
 
-    #print 'Are rec and sim Dl different?',np.any(recDl-Dl)
+#    print 'recDinv shape:',recDinv.shape
+#    print 'Are rec and sim Dl different?',np.any(recDl-Dl)
     # construct estimator operators
     estop=np.zeros((NLSS,Nell))#"estimator operator"
     for i in xrange(NLSS): #estop set to zero outside ell range
@@ -1189,6 +1222,53 @@ def compute_rho_fromcl(cldat,recdat,reccldat=0,varname='rho',fitbias=True):
                 chisqell[l]=(2*lvals[l]+1.)*(1+(-2.*crossnum[l]+recnum[l])/denom[l])
         result =np.sum(chisqell)#sum over ell
     return result
+    
+
+#compute the expected value of r_galgal between two maps, given theoretical Cl
+# cldat is the Cl representing the Cl's used for simulation
+
+def get_r_for_maps(cldat,maptagA,maptagB,lmin,lmax):
+    """return (r_tot, r_ell) - correlation coefficient between two galaxy maps, total and by l-mode"""
+#    lmin=recdat.lmin
+#    lmax=recdat.lmax
+    N_l = lmax - lmin + 1 #note NOT THE SMAE AS Nell, WHICH JM I THINK USES AS LMAX+1
+#    Dl_gal = np.zeros(Nell,2,2) #like Dl matrix but no ISW
+    #auto and cross power arrays
+    cl_AA = np.zeros(N_l)
+    cl_AB = np.zeros(N_l)
+    cl_BB = np.zeros(N_l)    
+    rell_gal = np.zeros(N_l)#correlation coeff of each mode
+    
+    for i in xrange(N_l):
+        ell = i+lmin
+        cl_AA[i] = cldat.get_cl_from_pair(maptagA,maptagA,ell=ell)
+        cl_AB[i] = cldat.get_cl_from_pair(maptagA,maptagB,ell=ell)
+        cl_BB[i] = cldat.get_cl_from_pair(maptagB,maptagB,ell=ell)
+#        Dl_gal[i,0,0] = cl_AA
+#        Dl_gal[i,1,1] = cl_BB
+#        Dl_gal[i,1,0] = cl_AB
+#        Dl_gal[i,0,1] = cl_AB
+        rell_gal[i] = cl_AB[i]/np.sqrt(cl_AA[i]*cl_BB[i])
+    two_l_plus1 = 2*np.arange(lmin, lmax+1) + 1
+    r_gal = np.sum(two_l_plus1*cl_AB) / np.sqrt(np.sum(two_l_plus1*cl_AA)*np.sum(two_l_plus1*cl_BB))
+    return (r_gal, rell_gal)
+
+def get_r3_for_maps(cldat, ABmaptag_tuple,maptagC, lmin,lmax, tot_or_ell='tot'):
+    """return (r[AB+c], [r_AB, r_AC, r_BC]) - multiple correlation coefficient of map C with maps A and B; [pairwise map correlations]
+    by default return r_tot; if tot_or_ell=='ell': r[AB+C] etc. are themselves arrays of length (lmax-lmin+1)"""
+#    lmin=recdat.lmin
+#    lmax=recdat.lmax
+    (maptagA,maptagB) = ABmaptag_tuple
+    (r_ab, rell_ab) = get_r_for_maps(cldat, maptagA, maptagB, lmin, lmax)
+    (r_ac, rell_ac) = get_r_for_maps(cldat, maptagA, maptagC, lmin, lmax)
+    (r_bc, rell_bc) = get_r_for_maps(cldat, maptagB, maptagC, lmin, lmax)
+    if tot_or_ell == 'tot':
+        r_ab_c = np.sqrt((r_bc**2 + r_ac**2 - 2*r_ab*r_ac*r_bc)/(1-r_ab**2))
+        return (r_ab_c, [r_ab, r_bc, r_ac])
+    elif tot_or_ell == 'ell':
+        rell_ab_c = np.sqrt((rell_bc**2 + rell_ac**2 - 2*rell_ab*rell_ac*rell_bc)/(1-rell_ab**2))
+        return (rell_ab_c, [rell_ab, rell_bc, rell_ac])
+    
     
 def rho_sampledist(r,rho,NSIDE=32,Nsample=0): #here rho is the expected mean
     # doesn't integrate to 1 and Nsample=NSIDE seems way too big
@@ -1551,3 +1631,33 @@ def plot_relldat(reclabels,testname,plotdir,plotname,rellgrid=[],rellpred=[],var
     print 'saving',outname
     plt.savefig(outname)
     plt.close()
+
+
+def getDupes(ls, loc = True):
+    """get list of duplicates in the list. If loc = False, return [dupe0, dupe1,...,dupeN] instead of [(index, dupe0),...,]
+    e.g.: getDupes([1,1,3,5,5,5]) --> [(1,1),(4,5),(5,5)])"""
+    seen = set()
+    dupes = []
+    for i,elem in enumerate(ls):
+        if elem not in seen:
+            seen.add(elem)
+        elif loc: #incldue location of duplicate in array
+            dupes.append((i,elem))
+        else:
+            dupes.append(elem)
+    return dupes
+                
+#from https://stackoverflow.com/questions/6527641/speed-up-python-code-for-computing-matrix-cofactors
+def matrix_adjoint(M):
+    """returns adj(M), where M^-1 = adj(M) / det(M).
+    This avoids the singularity from det(M)==0 when two sets of same LSS Cls, since det(M) cancels out in estimator, AS LONG AS NO CMB CONTRIBUTION"""
+    C = np.zeros(M.shape)
+    nrows, ncols = C.shape
+    minor = np.zeros([nrows-1, ncols-1])
+    for row in xrange(nrows):
+        for col in xrange(ncols):
+            minor[:row,:col] = M[:row,:col]
+            minor[row:,:col] = M[row+1:,:col]
+            minor[:row,col:] = M[:row,col+1:]
+            minor[row:,col:] = M[row+1:,col+1:]
+    return C.T #transpose to get adjoint (though should be symmetric anyways, yes?)
