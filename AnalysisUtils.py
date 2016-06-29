@@ -1232,8 +1232,9 @@ def compute_rho_fromcl(cldat,recdat,reccldat=0,varname='rho',fitbias=True):
 #compute the expected value of r_galgal between two maps, given theoretical Cl
 # cldat is the Cl representing the Cl's used for simulation
 
-def get_r_for_maps(cldat,maptagA,maptagB,lmin,lmax):
-    """return (r_tot, r_ell) - correlation coefficient between two galaxy maps, total and by l-mode"""
+def get_r_for_maps(cldat,maptagA,maptagB,lmin,lmax, varname='r'):
+    """return (r_tot, r_ell) - correlation coefficient between two galaxy maps, total and by l-mode.
+    varname={'r', 's', 'ssym'}, where ssym is an s symmetric between maps (denom = sqrt(sigmaA*sigmaB) instead of sigmaA)"""
 #    lmin=recdat.lmin
 #    lmax=recdat.lmax
     N_l = lmax - lmin + 1 #note NOT THE SMAE AS Nell, WHICH JM I THINK USES AS LMAX+1
@@ -1242,21 +1243,34 @@ def get_r_for_maps(cldat,maptagA,maptagB,lmin,lmax):
     cl_AA = np.zeros(N_l)
     cl_AB = np.zeros(N_l)
     cl_BB = np.zeros(N_l)    
-    rell_gal = np.zeros(N_l)#correlation coeff of each mode
+    rell_gal = np.zeros(N_l)#correlation coeff of each mode    
+    sell_gal = np.zeros(N_l)#sse of each mode ([1,inf))
+    ssymell_gal = np.zeros(N_l)#map-symmetric form of s ([0, inf))
     
+    two_l_plus1 = 2*np.arange(lmin, lmax+1) + 1
     for i in xrange(N_l):
         ell = i+lmin
         cl_AA[i] = cldat.get_cl_from_pair(maptagA,maptagA,ell=ell)
         cl_AB[i] = cldat.get_cl_from_pair(maptagA,maptagB,ell=ell)
         cl_BB[i] = cldat.get_cl_from_pair(maptagB,maptagB,ell=ell)
-#        Dl_gal[i,0,0] = cl_AA
-#        Dl_gal[i,1,1] = cl_BB
-#        Dl_gal[i,1,0] = cl_AB
-#        Dl_gal[i,0,1] = cl_AB
+
         rell_gal[i] = cl_AB[i]/np.sqrt(cl_AA[i]*cl_BB[i])
-    two_l_plus1 = 2*np.arange(lmin, lmax+1) + 1
+        sell_gal[i] = (cl_AA[i] + cl_BB[i] - 2*cl_AB[i]) / cl_AA[i]
+        ssymell_gal[i] = (cl_AA[i] + cl_BB[i] - 2*cl_AB[i]) / np.sqrt(cl_AA[i]*cl_BB[i])
+
     r_gal = np.sum(two_l_plus1*cl_AB) / np.sqrt(np.sum(two_l_plus1*cl_AA)*np.sum(two_l_plus1*cl_BB))
-    return (r_gal, rell_gal)
+    s_gal = np.sqrt((np.sum(two_l_plus1*cl_AA) + np.sum(two_l_plus1*cl_BB) - 2.*np.sum(two_l_plus1*cl_AB)) / np.sum(two_l_plus1*cl_AA))
+    ssym_gal = np.sqrt((np.sum(two_l_plus1*cl_AA) + np.sum(two_l_plus1*cl_BB) - 2.*np.sum(two_l_plus1*cl_AB)) / np.sqrt(np.sum(two_l_plus1*cl_AA)*np.sum(two_l_plus1*cl_AA))) #note the sqrt encompasses the full expression
+
+    if varname=='r':
+        return (r_gal, rell_gal)
+    elif varname=='s':
+        return (s_gal, sell_gal)
+    elif varname=='ssym':
+        return (ssym_gal, ssymell_gal)
+    else:
+        print "enter valid varname in r_map function"
+        return
 
 def get_r3_for_maps(cldat, ABmaptag_tuple,maptagC, lmin,lmax, tot_or_ell='tot'):
     """return (r[AB+c], [r_AB, r_AC, r_BC]) - multiple correlation coefficient of map C with maps A and B; [pairwise map correlations]
