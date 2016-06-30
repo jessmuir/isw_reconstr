@@ -1039,15 +1039,15 @@ def bintest_plot_cl_vals(finestN=6,z0=0.7,sigz=0.05):
 # caltest - Overlay calibration error maps on depthtest fiducial map
 #   varying variance of calibration error and lmin used in reconstruction 
 #================================================================
-def caltest_get_fidbins():
-    z0=0.7
+def caltest_get_fidbins(z0=0.7):
+#    z0=0.7 #moved to input NJW 160630
     fidbins=depthtest_get_binmaps(z0vals=np.array([z0])) #isw+one galbin
     if len(fidbins)!=2:
         print 'more items in fidbins than expected:',fidbins
     return fidbins
 
-def caltest_get_clfid():
-    bins=caltest_get_fidbins()
+def caltest_get_clfid(z0=0.7): #input added 160630 NJW
+    bins=caltest_get_fidbins(z0)
     zmax=max(m.zmax for m in bins)
     #use depthtest tags since we'll read in those (already calculated) Cl
     rundat = clu.ClRunData(tag='depthtest',rundir='output/depthtest/',lmax=95,zmax=zmax)

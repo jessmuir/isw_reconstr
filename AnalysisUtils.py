@@ -141,7 +141,7 @@ def get_Dl_matrix(cldat,includelist=[],zerotag='isw_bin0'):
     for x in includelist:
         if isinstance(x,str):
             if x in cldat.bintaglist:
-                if x not in dtags: #allow adding second "map" copy with same properties and name [NJW 160627]
+                if x not in dtags: 
                     dtags.append(x)
                 else: print 'Repeat tag {0} ignored for Dl'.format(x,)
             else:
@@ -1221,7 +1221,7 @@ def compute_rho_fromcl(cldat,recdat,reccldat=0,varname='rho',fitbias=True):
 #compute the expected value of r_galgal between two maps, given theoretical Cl
 # cldat is the Cl representing the Cl's used for simulation
 
-def get_r_for_maps(cldat,maptagA,maptagB,lmin,lmax, varname='r'):
+def get_r_for_maps(cldat,maptagA,maptagB,lmin,lmax, varname='r', include_nbar=True):
     """return (r_tot, r_ell) - correlation coefficient between two galaxy maps, total and by l-mode.
     varname={'r', 's', 'ssym'}, where ssym is an s symmetric between maps (denom = sqrt(sigmaA*sigmaB) instead of sigmaA)"""
 #    lmin=recdat.lmin
@@ -1239,9 +1239,9 @@ def get_r_for_maps(cldat,maptagA,maptagB,lmin,lmax, varname='r'):
     two_l_plus1 = 2*np.arange(lmin, lmax+1) + 1
     for i in xrange(N_l):
         ell = i+lmin
-        cl_AA[i] = cldat.get_cl_from_pair(maptagA,maptagA,ell=ell)
-        cl_AB[i] = cldat.get_cl_from_pair(maptagA,maptagB,ell=ell)
-        cl_BB[i] = cldat.get_cl_from_pair(maptagB,maptagB,ell=ell)
+        cl_AA[i] = cldat.get_cl_from_pair(maptagA,maptagA,ell=ell,include_nbar=include_nbar)
+        cl_AB[i] = cldat.get_cl_from_pair(maptagA,maptagB,ell=ell,include_nbar=include_nbar)
+        cl_BB[i] = cldat.get_cl_from_pair(maptagB,maptagB,ell=ell,include_nbar=include_nbar)
 
         rell_gal[i] = cl_AB[i]/np.sqrt(cl_AA[i]*cl_BB[i])
         sell_gal[i] = (cl_AA[i] + cl_BB[i] - 2*cl_AB[i]) / cl_AA[i]
@@ -1261,15 +1261,15 @@ def get_r_for_maps(cldat,maptagA,maptagB,lmin,lmax, varname='r'):
         print "enter valid varname in r_map function"
         return
 
-def get_r3_for_maps(cldat, ABmaptag_tuple,maptagC, lmin,lmax, tot_or_ell='tot'):
+def get_r3_for_maps(cldat, ABmaptag_tuple,maptagC, lmin,lmax, include_nbar=True, tot_or_ell='tot'):
     """return (r[AB+c], [r_AB, r_AC, r_BC]) - multiple correlation coefficient of map C with maps A and B; [pairwise map correlations]
     by default return r_tot; if tot_or_ell=='ell': r[AB+C] etc. are themselves arrays of length (lmax-lmin+1)"""
 #    lmin=recdat.lmin
 #    lmax=recdat.lmax
     (maptagA,maptagB) = ABmaptag_tuple
-    (r_ab, rell_ab) = get_r_for_maps(cldat, maptagA, maptagB, lmin, lmax)
-    (r_ac, rell_ac) = get_r_for_maps(cldat, maptagA, maptagC, lmin, lmax)
-    (r_bc, rell_bc) = get_r_for_maps(cldat, maptagB, maptagC, lmin, lmax)
+    (r_ab, rell_ab) = get_r_for_maps(cldat, maptagA, maptagB, lmin, lmax,include_nbar=include_nbar)
+    (r_ac, rell_ac) = get_r_for_maps(cldat, maptagA, maptagC, lmin, lmax,include_nbar=include_nbar)
+    (r_bc, rell_bc) = get_r_for_maps(cldat, maptagB, maptagC, lmin, lmax,include_nbar=include_nbar)
     if tot_or_ell == 'tot':
         r_ab_c = np.sqrt((r_bc**2 + r_ac**2 - 2*r_ab*r_ac*r_bc)/(1-r_ab**2))
         return (r_ab_c, [r_ab, r_bc, r_ac])
