@@ -8,6 +8,7 @@ import matplotlib.ticker as mtick
 import matplotlib
 import itertools
 from scipy.optimize import fmin_slsqp,leastsq
+import copy
 
 from MapParams import * #Classes w info about map properties
 from CosmParams import Cosmology #class w/info about cosm params P(k), etc
@@ -143,7 +144,7 @@ def get_Dl_matrix(cldat,includelist=[],zerotag='isw_bin0'):
             if x in cldat.bintaglist:
                 if x not in dtags: 
                     dtags.append(x)
-                else: print 'Repeat tag {0} ignored for Dl'.format(x,)
+                elif x!='isw_bin0': print 'Repeat tag {0} ignored for Dl'.format(x,)
             else:
                 print x," not in C_l data; disregarding."
         elif isinstance(x,MapType): #this part has not been tested
@@ -1104,12 +1105,15 @@ def compute_rho_fromcl(cldat,recdat,reccldat=0,varname='rho',fitbias=True):
     lmin=recdat.lmin
     lmax=recdat.lmax
 #    print cldat.noisecl[:,4]
-
-    (cldat, recdat) = handle_dupes(cldat, recdat, var='includeglm') #check rec maps to see if duplicate tagnames and create another set of cls for it if so
+#    print '\ncldat bintaglist:',cldat.bintaglist
+#    print 'recdat includglm:',recdat.includeglm
+    (cldat, recdat_true) = handle_dupes(cldat, recdat)#, var='includeglm') #check rec maps to see if duplicate tagnames and create another set of cls for it if so
 
     # These are the Cl used for simulating maps (hence the recdat.includeglm)
-    Dl,dtags=get_Dl_matrix(cldat,recdat.includeglm,recdat.zerotagstr)
+    Dl,dtags=get_Dl_matrix(cldat,recdat_true.includeglm,recdat.zerotagstr)
 #    print '\nMaps ',dtags
+#    print '\ncldat bintaglist:',cldat.bintaglist
+#    print 'recdat includglm:',recdat.includeglm
 #    print Dl[4,:,:]
     Dinv=invert_Dl(Dl)
     Nell=Dinv.shape[0]
@@ -1127,9 +1131,11 @@ def compute_rho_fromcl(cldat,recdat,reccldat=0,varname='rho',fitbias=True):
     if DIFFREC: #assumes cldat and reccldat have same ell info
         
         #should we add these dupetags to both Sim and Rec? Just Rec?? NJW 160627
-        (cldat, recdat) = handle_dupes(cldat, recdat, var='includeglm') #check rec maps to see if duplicate tagnames and create another set of cls for it if so
+        (reccldat, recdat_rec) = handle_dupes(reccldat, recdat)#, var='includecl') #check rec maps to see if duplicate tagnames and create another set of cls for it if so
                 
-        recDl,recdtags=get_Dl_matrix(reccldat,recdat.includecl,recdat.zerotagstr)
+        recDl,recdtags=get_Dl_matrix(reccldat,recdat_rec.includecl,recdat_rec.zerotagstr)
+#        print '\n RecMaps ',recdtags
+#        print recDl[4,:,:]
         #fit for b0 for each LSS map by compareing Dl Cl to recDl
         b0=np.ones(NLSS)
         if fitbias:
@@ -1670,25 +1676,53 @@ def matrix_adjoint(M):
             minor[row:,col:] = M[row+1:,col+1:]
     return C.T #transpose to get adjoint (though should be symmetric anyways, yes?)
 
-def handle_dupes(cldat, recdat, var):
+def handle_dupes(cldat, recdat, dupesuf='_1'):
     """take in a recdat object and if include_glm or include_cl lists contain duplicates (e.g. using two datasets from same survey with same props and cls)
     add a copy of those cls to the dataset under new mapname with auto-append dupe_suffix."""
     #should we add these dupetags to both Sim and Rec? Just Rec?? NJW 160627
-    if var=='includeglm':
-        include_list = recdat.includeglm
-    elif var=='includecl':
-        include_list = recdat.includecl
-    else: raise TypeError('Please set var="includeglm" or "includecl". Recieved var= {0}'.format(var,))
-
-    if type(include_list)==str:  #added 6/28/16 NJW
-        #recdat.includeglm = [recdat.includeglm]
-        print "WARNING: given include_list is string, not list!"
-        include_list=[include_list] #did it this way so as to not enforce that it be a list in recdat, lest mess up something of JM'S.
-    if len(include_list) != set(include_list): #check for duplicates in includecl
-        for loc,dupetag in getDupes(include_list, getloc=True):
-            newtag = cldat.add_dupemap(dupetag) #update Cldat with a copy of duplicate maptype
-            if var=='includeglm':
-                recdat.includeglm[loc]=newtag #change the duplicate tag to the newtag
-            elif var=='includecl':
-                recdat.includecl[loc]=newtag #change the duplicate tag to the newtag
+    cldat = copy.deepcopy(cldat) #make copies of these objects so as to not overwrite the original cldat and recdat objects
+    recdat = copy.deepcopy(recdat)
+    assert(type(recdat.includeglm) != str)
+    assert(type(recdat.includecl) != str)
+    
+    incl_dupes_running = getDupes(recdat.includecl, getloc=True)
+    incl_dupes_done = []
+    for loc,dupemap in getDupes(recdat.includeglm, getloc=True):
+        cldat,newtag = cldat.add_dupemap(dupemap, dupesuf=dupesuf) #update Cldat with a copy of duplicate maptype
+        recdat.includeglm[loc]=newtag #change the duplicate tag to the newtag
+        for i,(cl_loc, dm) in enumerate(incl_dupes_running):
+            if dm == dupemap: #if the same dupemap is in includecl, update it as well
+                recdat.includecl[cl_loc]=newtag#change the duplicate tag to the newtag
+                incl_dupes_running.pop(i)
+                break
+    if len(incl_dupes_running)>0:
+        for loc,dupemap in getDupes(recdat.includeclm, getloc=True):
+            cldat,newtag = cldat.add_dupemap(dupemap, dupesuf=dupesuf) #update Cldat with a copy of duplicate maptype
+            recdat.includecl[cl_loc]=newtag
     return (cldat, recdat)
+
+    
+#    if var == 'includeglm':
+#        include_list = recdat.includeglm
+#    if var == 'includecl':
+#        include_list = recdat.includecl
+#    else: raise TypeError('Please set var="includeglm" or "includecl". Recieved var= {0}'.format(var,))
+
+#    for v in var:
+#        if v=='includeglm':
+#            include_list = recdat.includeglm
+#        if type(include_list)==str:  #added 6/28/16 NJW
+#            #recdat.includeglm = [recdat.includeglm]
+#            print "WARNING: given include_list is string, not list!"
+#            include_list=[include_list] #did it this way so as to not enforce that it be a list in recdat, lest mess up something of JM'S.
+#        if len(include_list) != len(set(include_list)): #check for duplicates in includecl
+#            print 'includ_list = ',include_list
+#            for loc,dupemap in getDupes(include_list, getloc=True):
+#                cldat,newtag = cldat.add_dupemap(dupemap, dupesuf=dupesuf) #update Cldat with a copy of duplicate maptype
+#    #            print '\nin HANDLE DUPES. CLDAT BINTAGLIST:',cldat.bintaglist
+#                if dupemap in 
+#                if var=='includeglm':
+#                    recdat.includeglm[loc]=newtag #change the duplicate tag to the newtag
+#                elif var=='includecl':
+#                    recdat.includecl[loc]=newtag #change the duplicate tag to the newtag
+#    return (cldat, recdat)

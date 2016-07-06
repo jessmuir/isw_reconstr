@@ -1282,7 +1282,7 @@ def caltest_compare_clcal_shapes(varlist,shapelist=['g','l2'],varname='rho',lmax
     labels=[]
     if not justdat:
         for s in xrange(Nshapes):
-            rhoexplist.append(caltest_get_rhoexp(varlist,lmax=lmaxlist[s],lmin=lminlist[s],shape=shapelist[s],width=widthlist[s],overwrite=False,doplot=False,saverho=True,varname=varname,reclmin=reclmin)) 
+            rhoexplist.append(caltest_get_rhoexp(varlist=varlist,lmax=lmaxlist[s],lmin=lminlist[s],shape=shapelist[s],width=widthlist[s],overwrite=False,doplot=False,saverho=True,varname=varname,reclmin=reclmin)) 
             
             if shapelist[s]=='g':
                 shapestr=r'$C_{{\ell}}^{{\rm cal}}\propto e^{{-(\ell/{0:.0f})^2}}$'.format(widthlist[s],lminlist[s],lmaxlist[s])
@@ -1325,7 +1325,7 @@ def caltest_compare_lmin(varlist,shapecal='g',varname='rho',lmaxcal=30,lmincal=0
     labels=[]
     if not justdat:
         for i in xrange(Nlmin):
-            rhoexplist.append(caltest_get_rhoexp(varlist,lmax=lmaxcal,lmin=lmincal,shape=shapecal,width=widthcal,overwrite=False,doplot=False,saverho=True,varname=varname,reclmin=recminelllist[i]))
+            rhoexplist.append(caltest_get_rhoexp(varlist=varlist,lmax=lmaxcal,lmin=lmincal,shape=shapecal,width=widthcal,overwrite=False,doplot=False,saverho=True,varname=varname,reclmin=recminelllist[i]))
             labels.append(r'$\ell_{{\rm min}}={0:d}$'.format(recminelllist[i]))
             
     if dodataplot:
@@ -1344,7 +1344,8 @@ def caltest_compare_lmin(varlist,shapecal='g',varname='rho',lmaxcal=30,lmincal=0
 #                     assuming no calib error
 #         inserts fiducial (no calib error) as last entry
 #         returns grid of rho or s values of size Nrec=Nvar
-def caltest_get_rhoexp(varlist=[1.e-4],lmax=30,lmin=1,shape='g',width=10.,overwrite=False,doplot=True,saverho=True,varname='rho',filetag='',reclmin=1,plotdir='output/caltest_plots/',nolmintag=False,dofidrec=True):
+def caltest_get_rhoexp(z0=0.7,varlist=[1.e-4],lmax=30,lmin=1,shape='g',width=10.,overwrite=False,doplot=True,saverho=True,
+                       varname='rho',filetag='',reclmin=1,plotdir='output/caltest_plots/',nolmintag=False,dofidrec=True):
     print 'varlist'
     if shape=='g':
         shapestr='g{2:d}_{0:d}l{1:d}'.format(lmin,lmax,int(width))
@@ -1374,9 +1375,9 @@ def caltest_get_rhoexp(varlist=[1.e-4],lmax=30,lmin=1,shape='g',width=10.,overwr
             print 'Writing to data file:',datfile
 
     #get fiducial cl, with no calibration error
-    fidbins=caltest_get_fidbins()
+    fidbins=caltest_get_fidbins(z0=0.7)
     lssbin=fidbins[1].tag #will just be the depthtest bin map
-    fidcl=caltest_get_clfid()
+    fidcl=caltest_get_clfid(z0=0.7)
 
     #construct map-mod combos for the variances given
     mapmods=caltest_getmapmods_onebin(lssbin,varlist,lmax,lmin,shape,width)
@@ -1424,6 +1425,15 @@ def caltest_getmapmods_onebin(lssbintag,varlist=[1.e-1,1.e-2,1.e-3,1.e-4],lmax=3
         mapmods=[(lssbintag,gmc.getmodtag_fixedvar_gauss(v,width,lmax,lmin)) for v in varlist]
     elif shape=='l2':
         mapmods=[(lssbintag,gmc.getmodtag_fixedvar_l2(v,lmax,lmin)) for v in varlist]
+    return mapmods
+
+def caltest_getmapmods_multibin(lssbintag_list,varlist=[1.e-1,1.e-2,1.e-3,1.e-4],lmax=30,lmin=0,shape='g',width=10.):
+    #construct map-mod combos for the lss bins and variances given. Return as
+    #[[(bintagA, modtag0),(bintagB,modtag0)], [(bintagA,modtag1),(bintagB,modtag1),...]]
+    if shape=='g':
+        mapmods=[[(lssbintag,gmc.getmodtag_fixedvar_gauss(v,width,lmax,lmin)) for lssbintag in lssbintag_list] for v in varlist]
+    elif shape=='l2':
+        mapmods=[[(lssbintag,gmc.getmodtag_fixedvar_l2(v,lmax,lmin)) for lssbintag in lssbintag_list] for v in varlist]
     return mapmods
 
 #---------------------------------------------------------------

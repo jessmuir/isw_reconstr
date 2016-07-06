@@ -21,7 +21,7 @@ from ClRunUtils import *
 #          plus indices relevant for 
 ###########################################################################
 class ClData(object):
-    def __init__(self,rundata,bintags,dopairs=[],clgrid=np.array([]),addauto=True,docrossind=[],nbarlist=[],dupesuf='_1'):
+    def __init__(self,rundata,bintags,dopairs=[],clgrid=np.array([]),addauto=True,docrossind=[],nbarlist=[]):
         if rundata.tag: runtag = '_'+rundata.tag
         else: runtag=''
         self.clfile= ''.join([rundata.cldir,'Cl',runtag,'.dat'])
@@ -44,8 +44,7 @@ class ClData(object):
 
         self.Nell=rundata.lvals.size
         self.cl=clgrid #[crossind, ell]
-        self.dupesuf=dupesuf #suffix to add for duplicate rec_glm tags
-        
+        self.dupesuf=False #set to false if haven't created duplicates. this gets modified by add_dupmape function
         #when adding shot noise and/or applying calibration errors
         # need to know the average number density per steradian per map
         nbarlist=np.array(nbarlist)
@@ -137,14 +136,18 @@ class ClData(object):
                 self.noisecl[diagind,0]=0
         return True
         
-    def add_dupemap(self, tag):
+    def add_dupemap(self, tag, dupesuf='_1',verbose=False):
         """Duplicate already existing binmap in Cldata"""
+        if (self.dupesuf != False and self.dupesuf != dupesuf): #suffix to add for duplicate rec_glm tags
+            print 'Duplicate map already created with dupe_suf "{0}" - cannot change dupesuf to {1}'.format(self.dupesuf,dupesuf)
+        else: self.dupesuf = dupesuf
+
         oldtag = tag
         if oldtag not in self.bintaglist:
             raise KeyError("Error! {0} not in taglist - don't know which map to duplicate.")
         while tag in self.bintaglist:
             tag += self.dupesuf
-        print 'Duplicating {0}: naming new bintag "{1}"'.format(oldtag,tag)
+        if verbose:print 'Duplicating {0}: naming new bintag "{1}"'.format(oldtag,tag)
         newNmap=self.Nmap+1
         newNcross=newNmap*(newNmap+1)/2
         oldmapind=self.tagdict[oldtag]
@@ -202,7 +205,7 @@ class ClData(object):
                 diagind=self.crossinds[i,i]
                 self.noisecl[diagind,:]=1/self.nbar[i]
                 self.noisecl[diagind,0]=0
-        return tag #return the new (now uniqe) tag
+        return (self,tag) #return the new (now uniqe) tag
 
 ###########################################################################
 def sphericalBesselj(n,x):
