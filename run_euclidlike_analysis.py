@@ -1375,9 +1375,9 @@ def caltest_get_rhoexp(z0=0.7,varlist=[1.e-4],lmax=30,lmin=1,shape='g',width=10.
             print 'Writing to data file:',datfile
 
     #get fiducial cl, with no calibration error
-    fidbins=caltest_get_fidbins(z0=0.7)
+    fidbins=caltest_get_fidbins(z0=z0)
     lssbin=fidbins[1].tag #will just be the depthtest bin map
-    fidcl=caltest_get_clfid(z0=0.7)
+    fidcl=caltest_get_clfid(z0=z0)
 
     #construct map-mod combos for the variances given
     mapmods=caltest_getmapmods_onebin(lssbin,varlist,lmax,lmin,shape,width)

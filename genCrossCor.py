@@ -660,7 +660,8 @@ def getCl(binmaplist,rundata,dopairs=[],redoAllCl=False,redoTheseCl=False,redoAu
             # just get dummy ClData object
             if newdocross:
                 print "***WARNING. Need new Cl data have set READONLY."
-                #print newdocross
+                print newdocross
+                print crosspairs[newdocross]
             newcl= computeCl(binmaplist,rundata,docrossind=np.array([]),redoIlk=False)
         
         if np.any(newcl.cl!=0):
