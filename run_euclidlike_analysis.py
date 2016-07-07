@@ -1046,12 +1046,12 @@ def caltest_get_fidbins(z0=0.7):
         print 'more items in fidbins than expected:',fidbins
     return fidbins
 
-def caltest_get_clfid(z0=0.7): #input added 160630 NJW
+def caltest_get_clfid(z0=0.7, DoNotOverwrite=False): #input added 160630 NJW
     bins=caltest_get_fidbins(z0)
     zmax=max(m.zmax for m in bins)
     #use depthtest tags since we'll read in those (already calculated) Cl
     rundat = clu.ClRunData(tag='depthtest',rundir='output/depthtest/',lmax=95,zmax=zmax)
-    fidcl=gcc.getCl(bins,rundat,dopairs=['all'],DoNotOverwrite=True)
+    fidcl=gcc.getCl(bins,rundat,dopairs=['all'],DoNotOverwrite=DoNotOverwrite)
     return fidcl
 
 # get glmdata object with fiducial (no calib error) bin and isw info

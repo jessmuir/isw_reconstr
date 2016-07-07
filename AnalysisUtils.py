@@ -1106,10 +1106,14 @@ def compute_rho_fromcl(cldat,recdat,reccldat=0,varname='rho',fitbias=True):
     lmax=recdat.lmax
 #    print cldat.noisecl[:,4]
 #    print '\ncldat bintaglist:',cldat.bintaglist
-#    print 'recdat includglm:',recdat.includeglm
+#    print 'recdat includeglm:',recdat.includeglm
+#    print 'recdat includecl:',recdat.includecl
     (cldat, recdat_true) = handle_dupes(cldat, recdat)#, var='includeglm') #check rec maps to see if duplicate tagnames and create another set of cls for it if so
-
-    # These are the Cl used for simulating maps (hence the recdat.includeglm)
+#    print 'handling dupes'    
+#    print '\ncldat bintaglist:',cldat.bintaglist
+#    print 'recdat includeglm:',recdat.includeglm
+#    print 'recdat includecl:',recdat.includecl
+#    # These are the Cl used for simulating maps (hence the recdat.includeglm)
     Dl,dtags=get_Dl_matrix(cldat,recdat_true.includeglm,recdat.zerotagstr)
 #    print '\nMaps ',dtags
 #    print '\ncldat bintaglist:',cldat.bintaglist
@@ -1128,12 +1132,18 @@ def compute_rho_fromcl(cldat,recdat,reccldat=0,varname='rho',fitbias=True):
     NLSS=recdat.Nmap
 
     #if DIFFREC, get Dl data for those Cl, these are Cl for making estimator
-    if DIFFREC: #assumes cldat and reccldat have same ell info
-        
+    if DIFFREC: #assumes cldat and reccldat have same ell info  
+#        print '\nrecldat bintaglist:',reccldat.bintaglist
+#        print 'recdat_rec includeglm:',recdat.includeglm
+#        print 'recdat_rec includecl:',recdat.includecl        
         #should we add these dupetags to both Sim and Rec? Just Rec?? NJW 160627
         (reccldat, recdat_rec) = handle_dupes(reccldat, recdat)#, var='includecl') #check rec maps to see if duplicate tagnames and create another set of cls for it if so
-                
+#        print 'handling dupes'    
+#        print '\nrecldat bintaglist:',reccldat.bintaglist
+#        print 'recdat_rec includeglm:',recdat_rec.includeglm
+#        print 'recdat_rec includecl:',recdat_rec.includecl                
         recDl,recdtags=get_Dl_matrix(reccldat,recdat_rec.includecl,recdat_rec.zerotagstr)
+#        print 'verify that rec and sim Dl different:',np.any(recDl-Dl)
 #        print '\n RecMaps ',recdtags
 #        print recDl[4,:,:]
         #fit for b0 for each LSS map by compareing Dl Cl to recDl
@@ -1145,6 +1155,7 @@ def compute_rho_fromcl(cldat,recdat,reccldat=0,varname='rho',fitbias=True):
         recDl=scale_Dl_byb0(recDl,b0)
         recDinv=invert_Dl(recDl)
         recNl=np.zeros(Nell)
+
         for l in xrange(Nell):
             if recDinv[l,0,0]!=0:
                 recNl[l]=1/recDinv[l,0,0]

@@ -1148,7 +1148,8 @@ def apply_additive_caliberror_tocl(cldat,mapmodcombos=[]):
     #initialize
     calcl=np.zeros((Nmap,Nell))#should have same number of entries as maps in cldat
     newnbarlist=cldat.nbar[:]
-    
+#    print 'cl bintags',cldat.bintaglist
+#    print 'mm',mapmodcombos
     #go through mapmod combos, generate Clcal and put it in the appropriate place in calcl
     for c in mapmodcombos:
         mtag=c[0]#maptag
@@ -1168,23 +1169,25 @@ def apply_additive_caliberror_tocl(cldat,mapmodcombos=[]):
             elif ctag[:1]=='g':#gaussian
                 var,maxl,minl,width=parsemodtag_fixedvar_gauss(ctag)
                 thiscalcl=gen_error_cl_fixedvar_gauss(var,maxl,minl,width=width)
+#                print
+#                print (mtag,thiscalcl[:2])
             else:
                 print "modtag not recognized:",ctag
             #put this cal cl into clcal grid
             thisNell=thiscalcl.size
-            calcl[i,:thisNell]=thiscalcl
+            calcl[i,:thisNell]=thiscalcl #calcl for l = [0,thisNell] of the ith map
             #print '    calcl[l=4]=',calcl[i,4]
 
     #epsilon parameter tells us how nbar changes; includign only c00 contrib
-    epsilon=calcl[:,0]/np.sqrt(4*np.pi) #is zero if no Clcal input
+    epsilon=np.sqrt(calcl[:,0]/(4*np.pi))#calcl[:,0]/np.sqrt(4*np.pi) #is zero if no Clcal input #<--- [NJW 160707] shouldn't this be sqrt[calcl] since epsilon=1+c00/sqrt[4pi] and c00 = sqrt[calcl]
     newnbarlist=cldat.nbar*(1.+epsilon) #if not gal, eps=0, so nbar=-1 still
-    
+#    print 'epsilon=',epsilon
     #make copy of cl data
     outcl=np.copy(cldat.cl)
     crosspairs=cldat.crosspairs #[crossind,mapinds] 
     crossinds=cldat.crossinds #[mapind,mapind]
     Ncross=cldat.Ncross
-    
+#    print 'cal cl(l=0) for all maps:',calcl[:,0]
     #go through all cross pairs and add appropriate calib error modifications
     for n in xrange(Ncross):
         #print 'n=',n
@@ -1193,13 +1196,14 @@ def apply_additive_caliberror_tocl(cldat,mapmodcombos=[]):
             outcl[n,:]+=calcl[i,:] #additive power from calib error auto power
         outcl[n,0]+=-1*np.sqrt(calcl[i,0]*calcl[j,0]) #from some of the epsilon terms 
         outcl[n,:]/=(1.+epsilon[i])*(1.+epsilon[j]) #no mod if epsilon small
+#        print 'mapA,mapB, Cl00: {0}, {1}, {2}'.format(i,j,outcl[n,0])
         #print '  changed?',np.any(outcl[n,:]==cldat.cl[n,:])
         #print '      ij=',i,j,', outcl[ij,4]=',outcl[n,4],'  prev',cldat.cl[n,4]
         
     #creat outcldata object with new outcl and nbar
     #print 'HAS CL changed? ',np.any(cldat.cl-outcl)
     outcldat=ClData(copy.deepcopy(cldat.rundat),cldat.bintaglist,clgrid=outcl,docrossind=cldat.docross,nbarlist=newnbarlist)
-
+#    print outcl[:,0]
     return outcldat
 
 #------------------------------------------------------------------------
