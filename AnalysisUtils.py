@@ -1117,9 +1117,10 @@ def compute_rho_fromcl(cldat,recdat,reccldat=0,varname='rho',fitbias=True):
     Dl,dtags=get_Dl_matrix(cldat,recdat_true.includeglm,recdat.zerotagstr)
 #    print '\nMaps ',dtags
 #    print '\ncldat bintaglist:',cldat.bintaglist
-#    print 'recdat includglm:',recdat.includeglm
+#    print 'recdat includglm:',recdat_true.includeglm
 #    print Dl[4,:,:]
     Dinv=invert_Dl(Dl)
+#    print Dinv[4,:,:]
     Nell=Dinv.shape[0]
     lvals=np.arange(Nell)
     Nl=np.zeros(Nell)
@@ -1129,7 +1130,8 @@ def compute_rho_fromcl(cldat,recdat,reccldat=0,varname='rho',fitbias=True):
 
     if lmax<0 or  (lmax>(Nell-1)):
         lmax=Nell-1
-    NLSS=recdat.Nmap
+#    print 'N[l=4]=',Nl[4]
+    NLSS=recdat_true.Nmap
 
     #if DIFFREC, get Dl data for those Cl, these are Cl for making estimator
     if DIFFREC: #assumes cldat and reccldat have same ell info  
@@ -1163,14 +1165,22 @@ def compute_rho_fromcl(cldat,recdat,reccldat=0,varname='rho',fitbias=True):
         recDl=Dl
         recDinv=Dinv
         recNl=Nl
-
+        recdtags=dtags
+    print '\n      Rec:'
+    print 'Maps ',recdtags
+    print 'recdat_true includeglm:',recdat_true.includeglm
+    if DIFFREC: print '      recdat_rec includecl:',recdat_rec.includecl
+    print recDl[4,:,:]
+    print recDinv[4,:,:]
+    print 'recN[l=4]=',recNl[4]
 #    print 'recDinv shape:',recDinv.shape
 #    print 'Are rec and sim Dl different?',np.any(recDl-Dl)
     # construct estimator operators
-    estop=np.zeros((NLSS,Nell))#"estimator operator"
+    estop=np.zeros((NLSS,Nell))#"estimator operator" (R^i_l in eq. 11)
+    print 'Recon Map Weights:'
     for i in xrange(NLSS): #estop set to zero outside ell range
         estop[i,lmin:lmax+1]=-1*recNl[lmin:lmax+1]*recDinv[lmin:lmax+1,0,i+1]
-
+        print (dtags[i+1], estop[i,4])
     #for sigisw, just sum over l
     sig2iswl=(2.*lvals[lmin:lmax+1]+1)*Dl[lmin:lmax+1,0,0]
     sig2isw=np.sum(sig2iswl)

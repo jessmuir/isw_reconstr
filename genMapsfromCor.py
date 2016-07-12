@@ -1175,8 +1175,8 @@ def apply_additive_caliberror_tocl(cldat,mapmodcombos=[]):
                 print "modtag not recognized:",ctag
             #put this cal cl into clcal grid
             thisNell=thiscalcl.size
-            calcl[i,:thisNell]=thiscalcl #calcl for l = [0,thisNell] of the ith map
-            #print '    calcl[l=4]=',calcl[i,4]
+            calcl[mapind,:thisNell]=thiscalcl#(calcl[i,:thisNell]=thiscalcl #changed i-->mapind 160712) #calcl for l = [0,thisNell] of the ith map
+#            print '    calcl[l=4]=',calcl[i,4]
 
     #epsilon parameter tells us how nbar changes; includign only c00 contrib
     epsilon=np.sqrt(calcl[:,0]/(4*np.pi))#calcl[:,0]/np.sqrt(4*np.pi) #is zero if no Clcal input #<--- [NJW 160707] shouldn't this be sqrt[calcl] since epsilon=1+c00/sqrt[4pi] and c00 = sqrt[calcl]
@@ -1195,15 +1195,18 @@ def apply_additive_caliberror_tocl(cldat,mapmodcombos=[]):
         if i==j:
             outcl[n,:]+=calcl[i,:] #additive power from calib error auto power
         outcl[n,0]+=-1*np.sqrt(calcl[i,0]*calcl[j,0]) #from some of the epsilon terms 
+#        print outcl[n,4]
         outcl[n,:]/=(1.+epsilon[i])*(1.+epsilon[j]) #no mod if epsilon small
+#        print outcl[n,4]
 #        print 'mapA,mapB, Cl00: {0}, {1}, {2}'.format(i,j,outcl[n,0])
         #print '  changed?',np.any(outcl[n,:]==cldat.cl[n,:])
-        #print '      ij=',i,j,', outcl[ij,4]=',outcl[n,4],'  prev',cldat.cl[n,4]
+        print '      ij=',i,j,', outcl[ij,4]=',outcl[n,4],'  prev',cldat.cl[n,4]
         
     #creat outcldata object with new outcl and nbar
     #print 'HAS CL changed? ',np.any(cldat.cl-outcl)
     outcldat=ClData(copy.deepcopy(cldat.rundat),cldat.bintaglist,clgrid=outcl,docrossind=cldat.docross,nbarlist=newnbarlist)
-#    print outcl[:,0]
+#    print 'outcldat'    
+#    print outcldat.cl[2,4]
     return outcldat
 
 #------------------------------------------------------------------------
