@@ -1200,7 +1200,7 @@ def apply_additive_caliberror_tocl(cldat,mapmodcombos=[]):
 #        print outcl[n,4]
 #        print 'mapA,mapB, Cl00: {0}, {1}, {2}'.format(i,j,outcl[n,0])
         #print '  changed?',np.any(outcl[n,:]==cldat.cl[n,:])
-        print '      ij=',i,j,', outcl[ij,4]=',outcl[n,4],'  prev',cldat.cl[n,4]
+#        print '      ij=',i,j,', outcl[ij,4]=',outcl[n,4],'  prev',cldat.cl[n,4]
         
     #creat outcldata object with new outcl and nbar
     #print 'HAS CL changed? ',np.any(cldat.cl-outcl)

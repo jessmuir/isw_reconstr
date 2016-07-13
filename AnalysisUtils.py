@@ -1115,11 +1115,14 @@ def compute_rho_fromcl(cldat,recdat,reccldat=0,varname='rho',fitbias=True):
 #    print 'recdat includecl:',recdat.includecl
 #    # These are the Cl used for simulating maps (hence the recdat.includeglm)
     Dl,dtags=get_Dl_matrix(cldat,recdat_true.includeglm,recdat.zerotagstr)
+#    print 'True Dl:'
 #    print '\nMaps ',dtags
 #    print '\ncldat bintaglist:',cldat.bintaglist
 #    print 'recdat includglm:',recdat_true.includeglm
 #    print Dl[4,:,:]
     Dinv=invert_Dl(Dl)
+#    print Dinv[4,:,:]
+
 #    print Dinv[4,:,:]
     Nell=Dinv.shape[0]
     lvals=np.arange(Nell)
@@ -1127,7 +1130,7 @@ def compute_rho_fromcl(cldat,recdat,reccldat=0,varname='rho',fitbias=True):
     for l in xrange(Nell):
         if Dinv[l,0,0]!=0:
             Nl[l]=1/Dinv[l,0,0]
-
+#    print 'N[l=4]=',Nl[4]
     if lmax<0 or  (lmax>(Nell-1)):
         lmax=Nell-1
 #    print 'N[l=4]=',Nl[4]
@@ -1147,7 +1150,10 @@ def compute_rho_fromcl(cldat,recdat,reccldat=0,varname='rho',fitbias=True):
         recDl,recdtags=get_Dl_matrix(reccldat,recdat_rec.includecl,recdat_rec.zerotagstr)
 #        print 'verify that rec and sim Dl different:',np.any(recDl-Dl)
 #        print '\n RecMaps ',recdtags
+#        print 'rec Dl BEFORE BIAS FIT:'
 #        print recDl[4,:,:]
+#        print
+#        print invert_Dl(recDl)[4,:,:]
         #fit for b0 for each LSS map by compareing Dl Cl to recDl
         b0=np.ones(NLSS)
         if fitbias:
@@ -1161,26 +1167,28 @@ def compute_rho_fromcl(cldat,recdat,reccldat=0,varname='rho',fitbias=True):
         for l in xrange(Nell):
             if recDinv[l,0,0]!=0:
                 recNl[l]=1/recDinv[l,0,0]
+            elif l!=0: print 'recDinv[0,0]=0 for l={0}! Cannot invert for recNl!!'.format(l,)
     else:
         recDl=Dl
         recDinv=Dinv
         recNl=Nl
         recdtags=dtags
-    print '\n      Rec:'
-    print 'Maps ',recdtags
-    print 'recdat_true includeglm:',recdat_true.includeglm
-    if DIFFREC: print '      recdat_rec includecl:',recdat_rec.includecl
-    print recDl[4,:,:]
-    print recDinv[4,:,:]
-    print 'recN[l=4]=',recNl[4]
+#    print '\n Rec Dl AFTER BIAS FIT:'
+#    print 'Maps ',recdtags
+#    print 'recdat_true includeglm:',recdat_true.includeglm
+#    if DIFFREC: print '      recdat_rec includecl:',recdat_rec.includecl
+#    print recDl[4,:,:]
+#    print recDinv[4,:,:]
+#    print 'recN[l=4]=',recNl[4]
 #    print 'recDinv shape:',recDinv.shape
 #    print 'Are rec and sim Dl different?',np.any(recDl-Dl)
     # construct estimator operators
     estop=np.zeros((NLSS,Nell))#"estimator operator" (R^i_l in eq. 11)
-    print 'Recon Map Weights:'
+#    print 'Recon Map Weights:'
     for i in xrange(NLSS): #estop set to zero outside ell range
         estop[i,lmin:lmax+1]=-1*recNl[lmin:lmax+1]*recDinv[lmin:lmax+1,0,i+1]
-        print (dtags[i+1], estop[i,4])
+#        print (dtags[i+1], estop[i,4])
+    print (dtags[1:], list(estop[:,4]))
     #for sigisw, just sum over l
     sig2iswl=(2.*lvals[lmin:lmax+1]+1)*Dl[lmin:lmax+1,0,0]
     sig2isw=np.sum(sig2iswl)
