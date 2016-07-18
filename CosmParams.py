@@ -29,7 +29,7 @@ class Cosmology(object):
     c =  299792. #speed of light in km/s. units chosen so c/H is in Mpc
     #-----------------------------------
     def __init__(self,paramfile,tabulateZ=False,needPk=False,zmax=1.,nperz=200.,cambdir='output/camb_output/',kmin=-1.,kmax=-1.,rerunCAMB=False,CAMBkmax=-1.,epsilon=1.e-10,bkgd_zrhgf_ext=np.array([]),pk_ext=np.array([])):
-        print " Initializing instance of Cosmology"
+#        print " Initializing instance of Cosmology"
         
         self.paramfile = paramfile
         self.importCosmParams(paramfile)
@@ -59,7 +59,7 @@ class Cosmology(object):
     #-----------------------------------
     # read in cosmological paramter files, set up instance params
     def importCosmParams(self,paramfile):
-        print "  Importing cosm params from:",paramfile
+#        print "  Importing cosm params from:",paramfile
         f = open(paramfile,'r')
         lines= f.read().split('\n')
         f.close()

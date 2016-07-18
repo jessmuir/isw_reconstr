@@ -577,7 +577,7 @@ def getCl(binmaplist,rundata,dopairs=[],redoAllCl=False,redoTheseCl=False,redoAu
     if redoIlk:
         #if we're recomputing Ilk, we need to recompute all the Cl
         redoAllCl=True
-    print "Getting C_l for auto-corr and requested pairs:",dopairs
+#    print "Getting C_l for auto-corr and requested pairs:",dopairs
     if 'all' in dopairs:
         dopairs=[p for p in itertools.combinations_with_replacement([m.tag for m in binmaplist],2)]
     
@@ -634,7 +634,7 @@ def getCl(binmaplist,rundata,dopairs=[],redoAllCl=False,redoTheseCl=False,redoAu
         newdocross = docross[:]
         crossfromold = []#crossinds of x corrs previously computed
         if not (redoTheseCl or redoAutoCl):
-            print "  Checking for previously computed C_l values."
+#            print "  Checking for previously computed C_l values."
             #Remove from newdocross for pairs already computed
             for t in xrange(Nmap):
                 if oldind[t]>=0: #tag in oldtags
@@ -713,7 +713,7 @@ def computeCl(binmaps,rundata,dopairs=[],docrossind=[],redoIlk=False,addauto=Fal
     Clvals = np.zeros((Ncross,Nell))
 
     if not len(docross):
-        print "    No new values needed."
+#        print "    No new values needed."
         cldat.cl=Clvals
         return cldat
     

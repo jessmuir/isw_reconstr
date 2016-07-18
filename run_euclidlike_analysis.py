@@ -3893,7 +3893,7 @@ if __name__=="__main__":
     #   i rewrote the functions in 'genplots_forpaper.py' so taht I could adjust
     #   formatting in more detail. 
     st = time.time()
-    depthtestz0=np.array([.7,.7,1.1]) #np.array([.3,.5,.6,.7,.8])
+    depthtestz0=np.array([.1,.2,.3,.4,.5,.6,.7,.8,.9,1.0,1.3,1.5]) #np.array([.3,.5,.6,.7,.8])
     if 0: #compute Cl # this takes a while;
         depthtest_get_Cl(justread=False,z0vals=depthtestz0)
 
@@ -3912,10 +3912,10 @@ if __name__=="__main__":
             #note, if you just want t compute rho but don't want to redo isw recs
             # change domaps to False
 #----- MULTI ------        
-    outtag = '_multi_same'
+    outtag = '_multi_same_cltimed_full'
     if 1: #compute Cl # this takes a while;
         depthtest_get_Cl(justread=False,z0vals=depthtestz0, outtag=outtag)
-    if 1: #generate MULTI depthhtest maps (don't want togr)
+    if 0: #generate MULTI depthhtest maps (don't want togr)
         Nreal=100
         simmaps=True #do you want to simulate maps, or just do reconstructions (on maps that already exist?
         z0vals=depthtestz0

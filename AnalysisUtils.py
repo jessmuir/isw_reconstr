@@ -1188,7 +1188,7 @@ def compute_rho_fromcl(cldat,recdat,reccldat=0,varname='rho',fitbias=True):
     for i in xrange(NLSS): #estop set to zero outside ell range
         estop[i,lmin:lmax+1]=-1*recNl[lmin:lmax+1]*recDinv[lmin:lmax+1,0,i+1]
 #        print (dtags[i+1], estop[i,4])
-    print (dtags[1:], list(estop[:,4]))
+#    print (dtags[1:], list(estop[:,4]))
     #for sigisw, just sum over l
     sig2iswl=(2.*lvals[lmin:lmax+1]+1)*Dl[lmin:lmax+1,0,0]
     sig2isw=np.sum(sig2iswl)
@@ -1250,6 +1250,8 @@ def compute_rho_fromcl(cldat,recdat,reccldat=0,varname='rho',fitbias=True):
             if nonzerodenom[l]:
                 chisqell[l]=(2*lvals[l]+1.)*(1+(-2.*crossnum[l]+recnum[l])/denom[l])
         result =np.sum(chisqell)#sum over ell
+    elif varname=='estop':
+        result = estop
     return result
     
 
