@@ -1162,6 +1162,7 @@ def apply_additive_caliberror_tocl(cldat,mapmodcombos=[]):
                 break
         if mapind==-1:
             print 'map tag not found:',mtag
+            print 'cldat.bintaglist:',cldat.bintaglist[i]
         else: #parse modtag and get calib error Cl
             if ctag[:2]=='l2':#power law
                 var,maxl,minl=parsemodtag_fixedvar_l2(ctag)

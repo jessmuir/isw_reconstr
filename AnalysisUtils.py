@@ -1226,6 +1226,15 @@ def compute_rho_fromcl(cldat,recdat,reccldat=0,varname='rho',fitbias=True):
         numerator=np.sqrt(sig2rec+sig2isw -2*np.sum(crosspowerell))
         denom=np.sqrt(sig2isw)
         result=numerator/denom
+    elif varname=='ssym':
+        #for each l sum over LSS maps for numerator, the sum over l
+        crosspowerell = np.zeros(lvals.size)
+        for i in xrange(NLSS):
+            crosspowerell+=estop[i,:]*Dl[:,0,i+1]
+        crosspowerell*=(2.*lvals+1)
+        numerator=np.sqrt(sig2rec+sig2isw -2*np.sum(crosspowerell))
+        denom=np.power(sig2isw*sig2rec,.25)
+        result=numerator/denom
         # print 's = ',result
         # print '      Dl[4,0,1]=',Dl[4,0,1]
         # print '      Dl[4,1,1]=',Dl[4,1,1]

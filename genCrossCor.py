@@ -71,17 +71,21 @@ class ClData(object):
         xind=self.crossinds[mapind1,mapind2]
         return xind in self.docross
     
-    def get_cl_from_pair(self,tag1,tag2,ell, include_nbar=False): 
-        """return cl for pair of maptags (autopower if same tag)"""
+    def get_cl_from_pair(self,tag1,tag2,ell=False, include_nbar=False): 
+        """return cl for pair of maptags (autopower if same tag). If no ell given, returns full ell array"""
         if not self.clcomputed_forpair(tag1,tag2):
             print "No Cl data for {0:s} with {1:s}".format(tag1, tag2)
             return float('NaN')
         mapind1=self.tagdict[tag1]
         mapind2=self.tagdict[tag2]#tagdict[tag1] #this was erroneously [tag1] instead of 2. Corrected 160621 NJW. Not called anywhere, so should be ok.
         xind=self.crossinds[mapind1,mapind2]
-        if include_nbar:
-            return self.cl[xind,ell]+self.noisecl[xind,ell]
-        else: return self.cl[xind, ell]
+        if ell:
+            if include_nbar: return self.cl[xind,ell]+self.noisecl[xind,ell]
+            else: return self.cl[xind, ell]
+        else: #return all ell as array
+            if include_nbar: return self.cl[xind,:]+self.noisecl[xind,:]
+            else: return self.cl[xind,:]
+            
 
     #pass string, for all binmaps with that string in their tag, change nbar
     def changenbar(self,mapstr,newnbar):

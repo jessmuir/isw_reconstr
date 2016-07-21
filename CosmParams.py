@@ -196,8 +196,8 @@ class Cosmology(object):
     def getPk(self,kmin=-1.,kmax=-1.,cambdir='',rerunCAMB=False,CAMBkmax=-1.,kperln=0,pk_ext=np.array([])):
         print "  In getPk"
         if not pk_ext.size:
-            print "  ...cambdir=",cambdir,"rerunCAMB=",rerunCAMB
-            print "  ...kmin=",kmin,"kmax=",kmax,"CAMBkmax=",CAMBkmax
+#            print "  ...cambdir=",cambdir,"rerunCAMB=",rerunCAMB
+#            print "  ...kmin=",kmin,"kmax=",kmax,"CAMBkmax=",CAMBkmax
             if CAMBkmax<0:
                 CAMBkmax=kmax
             self.havePk = 1 #use to check whether this has been run

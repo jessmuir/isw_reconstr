@@ -1743,11 +1743,11 @@ def caltest_Clcomp(varlist=[1.e-7,1.e-6,1.e-5,1.e-4],shape='g',callmin=0,callmax
     #cal_patch = mpatches.Patch( color='red',label='cal. error')
     plt.legend(handles=[line1,line2,line3])
 
-
+    plt.show()
     plotname='caltest_cl_compare'
     outname=plotdir+plotname+'.pdf'
-    print 'saving',outname
-    plt.savefig(outname)
+#    print 'saving',outname
+#    plt.savefig(outname)
     plt.close()
     
 
