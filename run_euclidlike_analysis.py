@@ -1427,13 +1427,22 @@ def caltest_getmapmods_onebin(lssbintag,varlist=[1.e-1,1.e-2,1.e-3,1.e-4],lmax=3
         mapmods=[(lssbintag,gmc.getmodtag_fixedvar_l2(v,lmax,lmin)) for v in varlist]
     return mapmods
 
-def caltest_getmapmods_multibin(lssbintag_list,varlist=[1.e-1,1.e-2,1.e-3,1.e-4],lmax=30,lmin=0,shape='g',width=10.):
+def caltest_getmapmods_multibin(lssbintag_list,varlist=[1.e-1,1.e-2,1.e-3,1.e-4],lmax=30,lmin=0,shape='g',width=10., diffvar=False):
     #construct map-mod combos for the lss bins and variances given. Return as
     #[[(bintagA, modtag0),(bintagB,modtag0)], [(bintagA,modtag1),(bintagB,modtag1),...]]
-    if shape=='g':
-        mapmods=[[(lssbintag,gmc.getmodtag_fixedvar_gauss(v,width,lmax,lmin)) for lssbintag in lssbintag_list] for v in varlist]
-    elif shape=='l2':
-        mapmods=[[(lssbintag,gmc.getmodtag_fixedvar_l2(v,lmax,lmin)) for lssbintag in lssbintag_list] for v in varlist]
+    #[160815 NW]  add diffvar to allow passing varlist as a list of sublists of length lssbintag_list.
+    if diffvar:
+        assert type(varlist[0])==list
+        if shape=='g':
+            mapmods=[[(lssbintag,gmc.getmodtag_fixedvar_gauss(v,width,lmax,lmin)) for (lssbintag,v) in zip(lssbintag_list,vl)] for vl in varlist]
+        elif shape=='l2':
+            mapmods=[[(lssbintag,gmc.getmodtag_fixedvar_l2(v,lmax,lmin)) for (lssbintag,v) in zip(lssbintag_list,vl)] for vl in varlist]
+    else:
+        assert type(varlist[0])!=list
+        if shape=='g':
+            mapmods=[[(lssbintag,gmc.getmodtag_fixedvar_gauss(v,width,lmax,lmin)) for lssbintag in lssbintag_list] for v in varlist]
+        elif shape=='l2':
+            mapmods=[[(lssbintag,gmc.getmodtag_fixedvar_l2(v,lmax,lmin)) for lssbintag in lssbintag_list] for v in varlist]
     return mapmods
 
 #---------------------------------------------------------------
