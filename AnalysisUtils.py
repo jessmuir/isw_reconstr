@@ -1363,7 +1363,7 @@ def rho_sampledist(r,rho,NSIDE=32,Nsample=0): #here rho is the expected mean
 
 # compute expectation value of r_ell, the correlation coefficient between true
 #  and rec alm from theoretical cl
-def compute_rell_fromcl(cldat,recdat,reccldat=0,varname='rell'):
+def compute_rell_fromcl(cldat,recdat,reccldat=0,varname='rell',fitbias=True):
     #Dl is a matrix of Cls, with isw at zero index
     #  and other maps in order specified by recdat.includecl
     if not reccldat:
@@ -1397,8 +1397,9 @@ def compute_rell_fromcl(cldat,recdat,reccldat=0,varname='rell'):
         recDl,recdtags=get_Dl_matrix(reccldat,recdat.includecl,recdat.zerotagstr)
         #fit for b0 for each LSS map by compareing Dl Cl to recDl
         b0=np.ones(NLSS)
-        for i in xrange(NLSS):
-            b0[i]=np.squeeze(fitcl_forb0_onereal(recDl[lmin:lmax+1,i+1,i+1],Dl[lmin:lmax+1,i+1,i+1]))
+        if fitbias:
+            for i in xrange(NLSS):
+                b0[i]=np.squeeze(fitcl_forb0_onereal(recDl[lmin:lmax+1,i+1,i+1],Dl[lmin:lmax+1,i+1,i+1]))
         recDl=scale_Dl_byb0(recDl,b0)
         recDinv=invert_Dl(recDl)
         recNl=np.zeros(Nell)
