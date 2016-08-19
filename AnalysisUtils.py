@@ -1114,7 +1114,8 @@ def compute_rho_fromcl(cldat,recdat,reccldat=0,varname='rho',fitbias=True):
 #    print 'recdat includeglm:',recdat.includeglm
 #    print 'recdat includecl:',recdat.includecl
 #    # These are the Cl used for simulating maps (hence the recdat.includeglm)
-    Dl,dtags=get_Dl_matrix(cldat,recdat_true.includeglm,recdat.zerotagstr)
+#    Dl,dtags=get_Dl_matrix(cldat,recdat_true.includeglm,recdat.zerotagstr)
+    Dl,dtags=get_Dl_matrix(cldat,recdat_true.includecl,recdat.zerotagstr) #i think this is supposed to be includecl, not includeglm -NJW[160819]
 #    print 'True Dl:'
 #    print '\nMaps ',dtags
 #    print '\ncldat bintaglist:',cldat.bintaglist
@@ -1374,8 +1375,10 @@ def compute_rell_fromcl(cldat,recdat,reccldat=0,varname='rell',fitbias=True):
     
     lmin=recdat.lmin
     lmax=recdat.lmax
-    Dl,dtags=get_Dl_matrix(cldat,recdat.includecl,recdat.zerotagstr)
-    #print Dl[5,:,:]
+    (cldat, recdat_true) = handle_dupes(cldat, recdat)#, var='includeglm') #check rec maps to see if duplicate tagnames and create another set of cls for it if so
+    Dl,dtags=get_Dl_matrix(cldat,recdat.includecl,recdat.zerotagstr) 
+#    Dl,dtags=get_Dl_matrix(cldat,recdat_true.includeglm,recdat.zerotagstr) #set to includeglm to match compute_rho_fromcl
+#    print Dl[5,:,:]
     Dinv=invert_Dl(Dl)
     Nell=Dinv.shape[0]
     lvals=np.arange(Nell)
@@ -1386,7 +1389,7 @@ def compute_rell_fromcl(cldat,recdat,reccldat=0,varname='rell',fitbias=True):
             
     if lmax<0 or  (lmax>(Nell-1)):
         lmax=Nell-1
-    NLSS=recdat.Nmap
+    NLSS=recdat_true.Nmap
 
     rell=np.zeros(Nell)
 
@@ -1394,7 +1397,8 @@ def compute_rell_fromcl(cldat,recdat,reccldat=0,varname='rell',fitbias=True):
 
     #if DIFFREC, get Dl data for those Cl, these are Cl for making estimator
     if DIFFREC: #assumes cldat and reccldat have same ell info
-        recDl,recdtags=get_Dl_matrix(reccldat,recdat.includecl,recdat.zerotagstr)
+        (reccldat, recdat_rec) = handle_dupes(reccldat, recdat)#, var='includecl') #check rec maps to see if duplicate tagnames and create another set of cls for it if so
+        recDl,recdtags=get_Dl_matrix(reccldat,recdat_rec.includecl,recdat.zerotagstr)
         #fit for b0 for each LSS map by compareing Dl Cl to recDl
         b0=np.ones(NLSS)
         if fitbias:
@@ -1406,10 +1410,12 @@ def compute_rell_fromcl(cldat,recdat,reccldat=0,varname='rell',fitbias=True):
         for l in xrange(Nell):
             if recDinv[l,0,0]!=0:
                 recNl[l]=1/recDinv[l,0,0]
+            elif l!=0: print 'recDinv[0,0]=0 for l={0}! Cannot invert for recNl!!'.format(l,)
     else:
         recDl=Dl
         recDinv=Dinv
         recNl=Nl
+        recdtags=dtags
 
     # construct estimator operators
     estop=np.zeros((NLSS,Nell))#"estimator operator"
@@ -1432,10 +1438,17 @@ def compute_rell_fromcl(cldat,recdat,reccldat=0,varname='rell',fitbias=True):
     if varname=='rell':
         result= clx
         for l in xrange(lvals.size):
-            if clisw[l]:
-                result[l]=result[l]/clisw[l]
+            denom = clisw[l]*clrec[l]
+            if denom!=0:
+                result[l]=result[l]/np.sqrt(denom)
             else:
-                result[l]*=0
+                result[l]=0
+    #below lines replaced with above since didn't include cl_rec -NJW[160819]
+#            if clisw[l]:
+#                result[l]=result[l]/clisw[l]
+#            else:
+#                result[l]*=0
+            
     elif varname=='chisqell':
         #result=1./(2.*lvals+1.) #once many real version is fixed
         result=np.ones(len(lvals))
