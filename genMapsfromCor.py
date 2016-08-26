@@ -1154,6 +1154,7 @@ def apply_additive_caliberror_tocl(cldat,mapmodcombos=[],f_xcorr=0):
     newnbarlist=cldat.nbar[:]
 #    print 'cl bintags',cldat.bintaglist
 #    print 'mm',mapmodcombos
+#    print 'f_xcorr= ',f_xcorr
     #go through mapmod combos, generate Clcal and put it in the appropriate place in calcl
     for c in mapmodcombos:
         mtag=c[0]#maptag
@@ -1175,7 +1176,7 @@ def apply_additive_caliberror_tocl(cldat,mapmodcombos=[],f_xcorr=0):
                 var,maxl,minl,width=parsemodtag_fixedvar_gauss(ctag)
                 thiscalcl=gen_error_cl_fixedvar_gauss(var,maxl,minl,width=width)
 #                print
-#                print (mtag,thiscalcl[:2])
+#                print (mtag,thiscalcl[:4])
             else:
                 print "modtag not recognized:",ctag
             #put this cal cl into clcal grid
@@ -1204,12 +1205,14 @@ def apply_additive_caliberror_tocl(cldat,mapmodcombos=[],f_xcorr=0):
             
         outcl[n,0]+=-1*np.sqrt(calcl[i,0]*calcl[j,0]) #from some of the epsilon terms 
 #        print outcl[n,4]
+#        if outcl[n,4]-cldat.cl[n,4]!=0:
+#            print ' (pre-eps)     ij=',i,j,', outcl[ij,4]=',outcl[n,4],'  prev',cldat.cl[n,4]
+#        else: print '  (pre eps)    ij=',i,j,', no change'
         outcl[n,:]/=(1.+epsilon[i])*(1.+epsilon[j]) #no mod if epsilon small
 #        print outcl[n,4]
 #        print 'mapA,mapB, Cl00: {0}, {1}, {2}'.format(i,j,outcl[n,0])
         #print '  changed?',np.any(outcl[n,:]==cldat.cl[n,:])
-#        print '      ij=',i,j,', outcl[ij,4]=',outcl[n,4],'  prev',cldat.cl[n,4]
-        
+
     #creat outcldata object with new outcl and nbar
     #print 'HAS CL changed? ',np.any(cldat.cl-outcl)
     outcldat=ClData(copy.deepcopy(cldat.rundat),cldat.bintaglist,clgrid=outcl,docrossind=cldat.docross,nbarlist=newnbarlist)

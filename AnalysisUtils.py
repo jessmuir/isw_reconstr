@@ -1131,6 +1131,7 @@ def compute_rho_fromcl(cldat,recdat,reccldat=0,varname='rho',fitbias=True):
     for l in xrange(Nell):
         if Dinv[l,0,0]!=0:
             Nl[l]=1/Dinv[l,0,0]
+#    print Nl[:50]
 #    print 'N[l=4]=',Nl[4]
     if lmax<0 or  (lmax>(Nell-1)):
         lmax=Nell-1
@@ -1216,7 +1217,7 @@ def compute_rho_fromcl(cldat,recdat,reccldat=0,varname='rho',fitbias=True):
         if denom==0:
             result=0
         else:
-            #print '   FINAL   num,demon:',numerator,denom
+#            print '   FINAL   num,demon:',numerator,denom
             result=numerator/denom
     elif varname=='s':
         #for each l sum over LSS maps for numerator, the sum over l

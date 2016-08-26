@@ -594,6 +594,7 @@ def getCl(binmaplist,rundata,dopairs=[],redoAllCl=False,redoTheseCl=False,redoAu
     if redoAllCl or not oldcl.hasClvals():
         if DoNotOverwrite:
             print "***In getCl: DoNotOverwrite=True but need C_l values."
+            print oldcl.bintaglist
         else:
             print "Computing new C_l for all requested cross corr, overwriting existing data."
             #compute and write new C_l file if one of the redo bool=True
@@ -689,6 +690,7 @@ def getCl(binmaplist,rundata,dopairs=[],redoAllCl=False,redoTheseCl=False,redoAu
                 writeCl_file(comboCl)
             else:
                 print "***In getCl: DoNotOverwrite=True, but computed some new values. Not saving new vals."
+                print newcl.bintaglist
     return cldat
 
 #------------------------------------------------------------------------
