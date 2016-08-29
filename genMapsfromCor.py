@@ -86,7 +86,9 @@ class glmData(object):
         self.Nmap=self.glm.shape[1]
         if len(maptaglist)!=self.Nmap:
             print "WARNING! mismatch: len(maptaglist)!=Nmaps. Setting all='?'"
-            self.maptaglist=['?']*self.Nmap
+            self.maptaglist=['?']*self.Nmap #ex. maptag:
+            # maptag.modtag.masktag.runtag: "eucz07.g10_var1.00e-02_0l30.fullsky.depthtest"
+            # euclid type, z0 at 7, gaussian mean 1, variance 1e-2, lmin30, fullsky (no mask), depthtest
         else:
             self.maptaglist=maptaglist
         #nbar is avg density/str for map. used to apply noise and needed for
@@ -566,13 +568,15 @@ def generate_glmdat_fromcl(cldata,rlz=0,savedat=True,filetag='',retglmData=True,
         
     #need match between Ncross and Nmaps
     Ncross=cldata.cl.shape[0]
-    Nmaps = len(bintaglist)
-    if Ncross!=Nmaps*(Nmaps+1)/2:
+    Nmaps = len(bintaglist) #just gests number of maps
+    if Ncross!=Nmaps*(Nmaps+1)/2: #verify # maps matches number cl
         print "***STOPPING! # of C_l not consistant with # of maps."
         return
+    #call healpy, pass Cl data + Cl noise added, new is healpy function that tells order of Cl vs Cl cross correlations
     glmgrid=np.array(hp.synalm(cldata.cl+cldata.noisecl,new=True))#[map,lm]
     if retglmData or savedat:
         #modtag and masktag are defaults 'nomod' and 'fullsky'
+    #glm data is class that stores info on the maps that generated it as well as the glm data itself
         glmdat=glmData(glm=glmgrid,lmax=rundat.lmax,maptaglist=bintaglist,runtag=runtag,rundir=rundat.rundir,rlzns=np.array([rlz]),filetags=[filetag],nbarlist=cldata.nbar)
     #save the data
     if savedat:
@@ -823,7 +827,10 @@ def getglm_frommaps(dummyglm,rlzns=np.array([]),Nreal=1):
     
     #go get data
     for r in xrange(Nreal):
+#        print r
+#        print dummyglm.get_mapfile()
         for n in xrange(Nmap):
+#            print n
             mapfile=dummyglm.get_mapfile(rlzns[r],n) #filename of .fits file
             #read in map, extract glm
             mapdat=hp.read_map(mapfile,verbose=False)
@@ -1141,7 +1148,8 @@ def apply_additive_caliberror_tocl(cldat,mapmodcombos=[]):
     #initialize
     calcl=np.zeros((Nmap,Nell))#should have same number of entries as maps in cldat
     newnbarlist=cldat.nbar[:]
-    
+#    print 'cl bintags',cldat.bintaglist
+#    print 'mm',mapmodcombos
     #go through mapmod combos, generate Clcal and put it in the appropriate place in calcl
     for c in mapmodcombos:
         mtag=c[0]#maptag
@@ -1154,6 +1162,7 @@ def apply_additive_caliberror_tocl(cldat,mapmodcombos=[]):
                 break
         if mapind==-1:
             print 'map tag not found:',mtag
+            print 'cldat.bintaglist:',cldat.bintaglist[i]
         else: #parse modtag and get calib error Cl
             if ctag[:2]=='l2':#power law
                 var,maxl,minl=parsemodtag_fixedvar_l2(ctag)
@@ -1161,23 +1170,25 @@ def apply_additive_caliberror_tocl(cldat,mapmodcombos=[]):
             elif ctag[:1]=='g':#gaussian
                 var,maxl,minl,width=parsemodtag_fixedvar_gauss(ctag)
                 thiscalcl=gen_error_cl_fixedvar_gauss(var,maxl,minl,width=width)
+#                print
+#                print (mtag,thiscalcl[:2])
             else:
                 print "modtag not recognized:",ctag
             #put this cal cl into clcal grid
             thisNell=thiscalcl.size
-            calcl[i,:thisNell]=thiscalcl
-            #print '    calcl[l=4]=',calcl[i,4]
+            calcl[mapind,:thisNell]=thiscalcl#(calcl[i,:thisNell]=thiscalcl #changed i-->mapind 160712) #calcl for l = [0,thisNell] of the ith map
+#            print '    calcl[l=4]=',calcl[i,4]
 
     #epsilon parameter tells us how nbar changes; includign only c00 contrib
-    epsilon=calcl[:,0]/np.sqrt(4*np.pi) #is zero if no Clcal input
+    epsilon=np.sqrt(calcl[:,0]/(4*np.pi))#calcl[:,0]/np.sqrt(4*np.pi) #is zero if no Clcal input #<--- [NJW 160707] shouldn't this be sqrt[calcl] since epsilon=1+c00/sqrt[4pi] and c00 = sqrt[calcl]
     newnbarlist=cldat.nbar*(1.+epsilon) #if not gal, eps=0, so nbar=-1 still
-    
+#    print 'epsilon=',epsilon
     #make copy of cl data
     outcl=np.copy(cldat.cl)
     crosspairs=cldat.crosspairs #[crossind,mapinds] 
     crossinds=cldat.crossinds #[mapind,mapind]
     Ncross=cldat.Ncross
-    
+#    print 'cal cl(l=0) for all maps:',calcl[:,0]
     #go through all cross pairs and add appropriate calib error modifications
     for n in xrange(Ncross):
         #print 'n=',n
@@ -1185,14 +1196,18 @@ def apply_additive_caliberror_tocl(cldat,mapmodcombos=[]):
         if i==j:
             outcl[n,:]+=calcl[i,:] #additive power from calib error auto power
         outcl[n,0]+=-1*np.sqrt(calcl[i,0]*calcl[j,0]) #from some of the epsilon terms 
+#        print outcl[n,4]
         outcl[n,:]/=(1.+epsilon[i])*(1.+epsilon[j]) #no mod if epsilon small
+#        print outcl[n,4]
+#        print 'mapA,mapB, Cl00: {0}, {1}, {2}'.format(i,j,outcl[n,0])
         #print '  changed?',np.any(outcl[n,:]==cldat.cl[n,:])
-        #print '      ij=',i,j,', outcl[ij,4]=',outcl[n,4],'  prev',cldat.cl[n,4]
+#        print '      ij=',i,j,', outcl[ij,4]=',outcl[n,4],'  prev',cldat.cl[n,4]
         
     #creat outcldata object with new outcl and nbar
     #print 'HAS CL changed? ',np.any(cldat.cl-outcl)
     outcldat=ClData(copy.deepcopy(cldat.rundat),cldat.bintaglist,clgrid=outcl,docrossind=cldat.docross,nbarlist=newnbarlist)
-
+#    print 'outcldat'    
+#    print outcldat.cl[2,4]
     return outcldat
 
 #------------------------------------------------------------------------

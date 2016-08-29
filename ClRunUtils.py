@@ -24,7 +24,7 @@ class KData(object):
         self.karray = 10**(logkmin+dlogk*np.arange(Nk))
         
         self.infostr= 'kmin={0:0.3e}, kmax={1:0.3e}, kperlog={2:d}, krcut(add,mult)=({3:0.3g},{4:0.3g});'.format(self.kmin,self.kmax,self.nperlogk,self.krcutadd,self.krcutmult)
-        print "Initializing Kdata:"
+#        print "Initializing Kdata:"
         print self.infostr
 
 ###########################################################################
