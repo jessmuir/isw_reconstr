@@ -282,7 +282,7 @@ def caltest_basic_expplot_forpaper(varname='rho',plotdir='output/plots_forpaper/
     
     #get data
     rhoexplist=[]#will be 1D; [variance ] 
-    rhoexplist=caltest_get_rhoexp(varlist,lmax=lmaxcal,lmin=lmincal,shape=shape,width=width,overwrite=True,doplot=False,saverho=True,varname=varname,reclmin=reclmin)
+    rhoexplist=caltest_get_rhoexp(varlist=varlist,lmax=lmaxcal,lmin=lmincal,shape=shape,width=width,overwrite=True,doplot=False,saverho=True,varname=varname,reclmin=reclmin)
     #shapestr=r'$C_{{\ell}}^{{\rm cal}}\propto e^{{-(\ell/{0:.0f})^2}}$'.format(width,lmincal,lmaxcal)
     linelabel='Theory (add. only)'
     datplot=caltest_getdataplot_forshapecompare(varname,shortvarlist,[shape],[width],[lmincal],[lmaxcal],recminelllist=np.array([reclmin]),colorlist=colorlist,labellist=['Results from sim.'],getunmod=False)

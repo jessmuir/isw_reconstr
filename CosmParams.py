@@ -29,7 +29,7 @@ class Cosmology(object):
     c =  299792. #speed of light in km/s. units chosen so c/H is in Mpc
     #-----------------------------------
     def __init__(self,paramfile,tabulateZ=False,needPk=False,zmax=1.,nperz=200.,cambdir='output/camb_output/',kmin=-1.,kmax=-1.,rerunCAMB=False,CAMBkmax=-1.,epsilon=1.e-10,bkgd_zrhgf_ext=np.array([]),pk_ext=np.array([])):
-        print " Initializing instance of Cosmology"
+#        print " Initializing instance of Cosmology"
         
         self.paramfile = paramfile
         self.importCosmParams(paramfile)
@@ -59,7 +59,7 @@ class Cosmology(object):
     #-----------------------------------
     # read in cosmological paramter files, set up instance params
     def importCosmParams(self,paramfile):
-        print "  Importing cosm params from:",paramfile
+#        print "  Importing cosm params from:",paramfile
         f = open(paramfile,'r')
         lines= f.read().split('\n')
         f.close()
@@ -196,8 +196,8 @@ class Cosmology(object):
     def getPk(self,kmin=-1.,kmax=-1.,cambdir='',rerunCAMB=False,CAMBkmax=-1.,kperln=0,pk_ext=np.array([])):
         print "  In getPk"
         if not pk_ext.size:
-            print "  ...cambdir=",cambdir,"rerunCAMB=",rerunCAMB
-            print "  ...kmin=",kmin,"kmax=",kmax,"CAMBkmax=",CAMBkmax
+#            print "  ...cambdir=",cambdir,"rerunCAMB=",rerunCAMB
+#            print "  ...kmin=",kmin,"kmax=",kmax,"CAMBkmax=",CAMBkmax
             if CAMBkmax<0:
                 CAMBkmax=kmax
             self.havePk = 1 #use to check whether this has been run
@@ -384,4 +384,6 @@ class Cosmology(object):
         f.close()
         print "  ...Calling CAMB."
         p =subprocess.call(''.join(['camb ' , inifile,' > ',outdir,cosm.CAMBtag,'.log']), shell=True)
+        print p
+        print cosm.CAMBtag
     #----------------------------------------------------------
