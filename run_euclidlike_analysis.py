@@ -2816,8 +2816,9 @@ def catztest_onerec_plot(fidrecf=0.,simf=np.array([0.,5.e-4,1.e-3,2.e-3,.01,.02,
     plt.savefig(plotdir+outname)
     plt.close()
 
-def catztest_onesim_plot(fidf=0.02,recf=np.array([0.,5.e-4,1.e-3,2.e-3,.01,.02,.1,.2]),varname='rho',plotdir='output/zdisttest/plots/',outtag='onesim',outname='',Nbins=1,secondfidf=-1,dohatch=False,biascomp=True,overwritedat=True): #working here
+def catztest_onesim_plot(fidf=0.02,recf=np.array([0.,5.e-4,1.e-3,2.e-3,.01,.02,.1,.2]),varname='rho',plotdir='output/zdisttest/plots/',outtag='onesim',outname='',Nbins=1,secondfidf=-1,dohatch=False,biascomp=True,overwritedat=True,diffx=False): 
     print '****Nbins',Nbins
+    print '***diffx=',diffx
     #if secondfidf>0, will plot a second line
     colors=['#a6611a','#2c7bb6']
     if secondfidf>0:
@@ -2825,6 +2826,7 @@ def catztest_onesim_plot(fidf=0.02,recf=np.array([0.,5.e-4,1.e-3,2.e-3,.01,.02,.
         
     else:
         simf=np.array([fidf])
+        
     Nsim=simf.size
     Nrec=recf.size
     wherematch=[np.argwhere(recf==sf)[0][0] for sf in simf] #Nsim len list
@@ -2833,8 +2835,9 @@ def catztest_onesim_plot(fidf=0.02,recf=np.array([0.,5.e-4,1.e-3,2.e-3,.01,.02,.
     matchval=[rhogrid[i,wherematch[i]] for i in xrange(Nsim)]#Nsim len list
     if outtag:
         outtag='_'+outtag
-    if not outname:
-        outname='catztest{0:d}bin_{1:s}_exp{2:s}.pdf'.format(Nbins,varname,outtag)
+    
+    if diffx:
+        outtag=outtag+'_diffx'
 
     fig=plt.figure(figsize=(8,4))
     fig.subplots_adjust(bottom=.2)
@@ -2845,13 +2848,23 @@ def catztest_onesim_plot(fidf=0.02,recf=np.array([0.,5.e-4,1.e-3,2.e-3,.01,.02,.
     for item in ([ax1.title, ax1.xaxis.label, ax1.yaxis.label] +
                  ax1.get_xticklabels() + ax1.get_yticklabels()):
         item.set_fontsize(18)
-    xmax=.5
-    linthreshx=1.e-3
-    xmin=-.1*linthreshx
-    ax1.set_xscale('symlog',linthreshx=linthreshx)
-    ax1.set_xlim((xmin,xmax))
-    ax1.set_xlabel(r"$x$ used in ISW rec.")
-    #ax1.yaxis.grid(True)
+
+    if diffx:
+        ax1.set_xlabel(r"$x^{\rm rec} - x^{\rm sim}$")
+        xmax=.22
+        xmin = -0.12
+        linthreshx=1.e-3
+        #ax1.set_xscale('symlog',linthreshx=linthreshx)
+        ax1.set_xlim((xmin,xmax))
+        #ax1.axvline(0,color='grey',linestyle=':')
+    else:
+        ax1.set_xlabel(r"$x$ used in ISW rec.")
+        xmax=.5
+        linthreshx=1.e-3
+        xmin=-.1*linthreshx
+        ax1.set_xscale('symlog',linthreshx=linthreshx)
+        ax1.set_xlim((xmin,xmax))
+    
     ax1.yaxis.get_major_formatter().set_powerlimits((0,1))
     ax1.axhline(0,color='grey',linestyle=':')
     if varname=='rho':
@@ -2859,21 +2872,30 @@ def catztest_onesim_plot(fidf=0.02,recf=np.array([0.,5.e-4,1.e-3,2.e-3,.01,.02,.
         varstr=r'\rho'
         if dohatch:
             annoteloc=[(.55,.3)]
+        elif diffx:
+            annoteloc=[(.77,.5),(.65,.83)]
         else:
             annoteloc=[(.25,.83),(.3,.45)]
         ax1.set_ylim((-1,linthreshy))
         arrowystart= .55*linthreshy
         arrowstr=r'$\downarrow$'
+
     elif varname=='s':
         linthreshy=1.e-4
         varstr='s'
         if dohatch:
             annoteloc=[(.55,.9)]
+        elif diffx:
+            annoteloc=[(.8,.6),(.31,.96)]
         else:
             annoteloc=[(.25,.6),(.3,.95)]
-        ax1.set_ylim((-1*linthreshy,100.))
+        if diffx:
+            ax1.set_ylim((-1*linthreshy,10.))
+        else:
+            ax1.set_ylim((-1*linthreshy,100.))
         arrowystart= -.55*linthreshy
         arrowstr=r'$\uparrow$'
+
     ax1.set_yscale('symlog',linthreshy=linthreshy)
     ax1.set_ylabel(r'$\left[\langle {0:s} \rangle -\langle {0:s} \rangle_{{\rm match}} \right]/\langle {0:s} \rangle_{{\rm match}}$'.format(varstr))
     
@@ -2888,17 +2910,34 @@ def catztest_onesim_plot(fidf=0.02,recf=np.array([0.,5.e-4,1.e-3,2.e-3,.01,.02,.
         nofitrhogrid=catz_get_rhoexp(simfracs=simf,recfracs=recf,overwrite=overwritedat,saverho=True,doplot=False,varname=varname,filetag=outtag[1:]+'_nob0fit',fitbias=False,Nbins=Nbins)
         outtag=outtag+'_biascomp'
         for i in xrange(Nsim):
-            ax1.plot(recf,nofitrhogrid[i,:]/matchval[i]-1,marker='d',color='#969696')
+            if diffx:
+                ax1.plot(recf-simf[i],nofitrhogrid[i,:]/matchval[i]-1,marker='d',color='#969696')
+            else:
+                ax1.plot(recf,nofitrhogrid[i,:]/matchval[i]-1,marker='d',color='#969696')
         if varname=='s': #skipping b0 fitting has no impact on rho
-            plt.annotate(r'no bias fitting',color='#969696',xy=(.35,.3),horizontalalignment='right',verticalalignment='top',fontsize=12,xycoords='axes fraction')
+            if diffx:
+                plt.annotate(r'no bias fitting',color='#969696',xy=(.27,.42),horizontalalignment='right',verticalalignment='top',fontsize=12,xycoords='axes fraction')
+            else:
+                plt.annotate(r'no bias fitting',color='#969696',xy=(.35,.3),horizontalalignment='right',verticalalignment='top',fontsize=12,xycoords='axes fraction')
+            
     #plot data
     for i in xrange(Nsim):
-        ax1.plot(recf,rhogrid[i,:]/matchval[i] -1,marker='o',color=colors[i])
+        ax1.plot(recf-simf[i],rhogrid[i,:]/matchval[i] -1,marker='o',color=colors[i])
         #put arrow above or below fiducial point
-        plt.plot(simf[i],arrowystart,color='black',marker=arrowstr,markersize=16)
-        plt.annotate(r'match',xy=(simf[i]*1.3,arrowystart),horizontalalignment='left',verticalalignment='center',fontsize=12)
-        
+        if diffx:
+            matchxloc = 0
+            arrowxloc = 0.01
+        else:
+            matchxloc = simf[i]
+            arrowxloc = 1.3*matchxloc
+        if i==0 or (not diffx):
+            plt.plot(matchxloc,arrowystart,color='black',marker=arrowstr,markersize=16)
+            plt.annotate(r'match',xy=(arrowxloc,arrowystart),horizontalalignment='left',verticalalignment='center',fontsize=12)        
         plt.annotate(r'True (sim.) $x={0:0.2f}$'.format(simf[i])+'\n'+r'$\langle {0:s}\rangle_{{\rm match}}={1:0.3f}$'.format(varstr,matchval[i]),xy=annoteloc[i],horizontalalignment='center',verticalalignment='top',fontsize=18,xycoords='axes fraction',color=colors[i])
+
+        
+    if not outname:
+        outname='catztest{0:d}bin_{1:s}_exp{2:s}.pdf'.format(Nbins,varname,outtag)
     
     print 'Saving plot to ',plotdir+outname
     plt.savefig(plotdir+outname)
