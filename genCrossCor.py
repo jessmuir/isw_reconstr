@@ -233,7 +233,10 @@ def LimberCl_intwrapper(argtuple):
     if lval==0:
         return 0
     binmap1,binmap2=mappair
-
+    
+    epsabs=epsilon/100. #NJW added 160830 to allow adjustment. Note that stops when one of the conditions is satisfied (rel or abs), not both!
+    epsrel=epsilon
+    
     #get cosmological functions
     co_r = cosm.co_r #function with arg z
     z_from_cor = cosm.z_from_cor #function with arg r
@@ -270,7 +273,7 @@ def LimberCl_intwrapper(argtuple):
     else:
         iswprefactor=lambda z:1.
 
-    result=quad(lambda z: LimberCl_integrand(z,hubble,D,co_r,Pofz,iswprefactor,binmap1.window,binmap2.window,c),zmin,zmax,full_output=1,limit=zintlim,epsabs=epsilon,epsrel=epsilon)[0]
+    result=quad(lambda z: LimberCl_integrand(z,hubble,D,co_r,Pofz,iswprefactor,binmap1.window,binmap2.window,c),zmin,zmax,full_output=1,limit=zintlim,epsabs=epsabs,epsrel=epsrel)[0]
     return result
 
 def LimberCl_integrand(z,hubble,growth,cor,Pz_interpfn,iswprefactor,window1,window2,c=299792):
@@ -377,6 +380,9 @@ def Iintwrapper(argtuple):#(l,kval,rmin,rmax,cosm,binmap,zintlim=10000):
     dr=rmax-rmin
     if l==0: return 0. #don't compute monopole
     
+    epsabs=epsilon/100. #NJW added 160830 to allow adjustment. Note that stops when one of the conditions is satisfied (rel or abs), not both!
+    epsrel=epsilon
+    
     #bessel function will be effectively zero below some argument; adjust rmin accordingly
     if besselxmincut:
         xmin=findxmin(l,epsilon) #ADDED 5/19; seems to speed things up without chaning Ilk results much
@@ -426,15 +432,15 @@ def Iintwrapper(argtuple):#(l,kval,rmin,rmax,cosm,binmap,zintlim=10000):
     if ALLPOSTCUT:
         result_precut=0.
     else:
-        result_precut=quad(lambda r: Iintegrand(r,l,kval,window,z_from_cor,hubble,D,f,isISW,c,prefactor),rmin,r_atkrcut,full_output=1,limit=zintlim,epsabs=epsilon,epsrel=epsilon)[0]
+        result_precut=quad(lambda r: Iintegrand(r,l,kval,window,z_from_cor,hubble,D,f,isISW,c,prefactor),rmin,r_atkrcut,full_output=1,limit=zintlim,epsabs=epsabs,epsrel=epsrel)[0]
 
     if zeropostcut or ALLPRECUT: 
         result_postcut= 0
     elif l%2==0: #after krcut, use quad's ability to weight with sin or cos
         #even l bessels act line sin/x
-        result_postcut=quad(lambda r: Iintegrand_postcut(r,l,kval,window,z_from_cor,hubble,D,f,isISW,c,prefactor),r_atkrcut,rmax,full_output=1,limit=zintlim,epsabs=epsilon,epsrel=epsilon,weight='sin',wvar=kval)[0]
+        result_postcut=quad(lambda r: Iintegrand_postcut(r,l,kval,window,z_from_cor,hubble,D,f,isISW,c,prefactor),r_atkrcut,rmax,full_output=1,limit=zintlim,epsabs=epsabs,epsrel=epsrel,weight='sin',wvar=kval)[0]
     else: #odd bessels act like cos/x
-        result_postcut=quad(lambda r: Iintegrand_postcut(r,l,kval,window,z_from_cor,hubble,D,f,isISW,c,prefactor),r_atkrcut,rmax,full_output=1,limit=zintlim,epsabs=epsilon,epsrel=epsilon,weight='cos',wvar=kval)[0]
+        result_postcut=quad(lambda r: Iintegrand_postcut(r,l,kval,window,z_from_cor,hubble,D,f,isISW,c,prefactor),r_atkrcut,rmax,full_output=1,limit=zintlim,epsabs=epsabs,epsrel=epsrel,weight='cos',wvar=kval)[0]
 
     return result_precut+result_postcut
 #--------------------------------------------------                   
@@ -482,7 +488,9 @@ def writeIlk(Ilkarray,binmap,rundata):
     print 'Writing Ilk data to ',outfile
     k = rundata.kdata.karray
     lvals = rundata.lvals
-    Nell = sum(l<rundata.limberl for l in lvals) #number below limber switch
+    if rundata.limberl>=0: #this added by NJW on 160830 since wasn't writin the Ilk files when limberl==-1 (was computing, just not writing to save)
+        Nell = sum(l<rundata.limberl for l in lvals) #number below limber switch
+    else: Nell = len(lvals) #if limberl==-1, no limber calc
     krcutstr='{0:13g}.{1:<10g}'.format(rundata.kdata.krcutadd,rundata.kdata.krcutmult)
     if rundata.kdata.krcutadd<0 or rundata.kdata.krcutmult<0:
         krcutstr='{0:23g}'.format(-1.)
@@ -536,8 +544,10 @@ def readIlk_file(binmap,rundata):
     if limberl>=0 and limberl<=rundata.lmax:
         # these are the expected ell values we want out
         checkell=rundata.lvals[:np.where(rundata.lvals<limberl)[0][-1]+1]
+        print '0 <=limberl < lmaxlen(rundata.lvals)= ',len(checkell)
     else:
         checkell=rundata.lvals
+        print 'len(rundata.lvals)= ',len(checkell)
     if l.size>=checkell.size:
         lind_incheck=[] #index of each checkell element in l
         for lval in checkell:
@@ -727,7 +737,7 @@ def computeCl(binmaps,rundata,dopairs=[],docrossind=[],redoIlk=False,addauto=Fal
 
     # First sort out when to switch to limber approx
     limberl=rundata.limberl #where to switch to Limber
-    print "limberl=",limberl
+#    print "limberl=",limberl
     if limberl>0 and limberl<=rundata.lmax:
         lvals_preLim=rundata.lvals[:np.where(rundata.lvals<limberl)[0][-1]+1]
         Nell_preLim=lvals_preLim.size
@@ -841,6 +851,10 @@ def Clintwrapper(argtuple):
     #nl,bool dothiscross,lnkmin,lnkmax,Pk_array,Igrid,kintlim =argtuple
     nl,dothiscross,lnkmin,lnkmax,Plnkfunc,Ipair_fornl,lnkforIpair,kintlim,epsilon=argtuple
     n,lind=nl
+    
+    epsabs=epsilon/100. #NJW added 160830 to allow adjustment. Note that stops when one of the conditions is satisfied (rel or abs), not both!
+    epsrel=epsilon
+    
     if not dothiscross: clval= 0
     else:
         ik1=Ipair_fornl[0]
@@ -891,7 +905,7 @@ def Clintwrapper(argtuple):
         
         #I1_interp= interp1d(lnkfori1,ik1,kind='cubic',bounds_error=False,fill_value=0.)
         #I2_interp= interp1d(lnkfori2,ik2,kind='cubic',bounds_error=False,fill_value=0.)
-        clval= quad(lambda lnk: Cl_integrand(lnk,Plnkfunc,I1_interp,I2_interp),lnkmin,lnkmax,limit=kintlim,epsabs=epsilon,epsrel=epsilon,full_output=1)[0]
+        clval= quad(lambda lnk: Cl_integrand(lnk,Plnkfunc,I1_interp,I2_interp),lnkmin,lnkmax,limit=kintlim,epsabs=epsabs,epsrel=epsrel,full_output=1)[0]
 
     return clval*2./np.pi
 
