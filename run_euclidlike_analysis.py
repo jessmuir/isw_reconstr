@@ -389,6 +389,7 @@ def bintest_get_zedgeslist(zedges,getdivs=['all'],returnstr=True):
         elif getdivs[0]=='all':
             slist=bintest_get_divstr_all(Nmax)
     zedgelist=[]#will be list of arrays, one for each binning strategy
+#    print 'slist=',slist
     for s in slist:
         nlist=[int(x) for x in s]
         if np.sum(nlist)!=Nmax:
@@ -408,9 +409,10 @@ def bintest_get_zedgeslist(zedges,getdivs=['all'],returnstr=True):
 #----------------------------------------------------------------    
 # Generate Cl
 #----------------------------------------------------------------
-def bintest_get_maptypelist(finestN=6,getdivs=['all'],z0=0.7,sigz=0.05,includeisw=True,survtype='euc'):
+def bintest_get_maptypelist(finestN=6,getdivs=['all'],z0=0.7,nbar=3.5e8,sigz=0.05,includeisw=True,survtype='euc'):
     #get zedges
     zedges0 = bintest_get_finest_zedges(finestN,z0) #for finest division
+#    print '\nin euc.bintest_get_maptyplest. (finestN, zedges,getdivs)=',(finestN,zedges0,getdivs)
     zedges,divstr=bintest_get_zedgeslist(zedges0,getdivs,True) 
     Ntypes = len(zedges)
     maptypes=[] #list of maptype objects, put finest div first
@@ -422,7 +424,7 @@ def bintest_get_maptypelist(finestN=6,getdivs=['all'],z0=0.7,sigz=0.05,includeis
         #print 'getting survey for zedges=',zedges[i]
         tag=maintag+divstr[i]
         if survtype=='euc':
-            survey = mdu.get_Euclidlike_SurveyType(sigz=sigz,z0=z0,tag=tag,zedges=zedges[i])#0.7,tag=tag,zedges=zedges[i]) [NJW 160822]
+            survey = mdu.get_Euclidlike_SurveyType(sigz=sigz,z0=z0,nbar=nbar,tag=tag,zedges=zedges[i])#0.7,tag=tag,zedges=zedges[i]) [NJW 160822]
             maptypes.append(survey)
         else: raise ValueError('Error: Only set up to take Euclidlike surveys, via "euc" argument. You passed {0}'.format(survtype))
     return maptypes
