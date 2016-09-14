@@ -409,7 +409,7 @@ def bintest_get_zedgeslist(zedges,getdivs=['all'],returnstr=True):
 #----------------------------------------------------------------    
 # Generate Cl
 #----------------------------------------------------------------
-def bintest_get_maptypelist(finestN=6,getdivs=['all'],z0=0.7,nbar=3.5e8,sigz=0.05,includeisw=True,survtype='euc'):
+def bintest_get_maptypelist(finestN=6,getdivs=['all'],z0=0.7,sigz=0.05,nbar=3.5e8,includeisw=True,survtype='euc'):
     #get zedges
     zedges0 = bintest_get_finest_zedges(finestN,z0) #for finest division
 #    print '\nin euc.bintest_get_maptyplest. (finestN, zedges,getdivs)=',(finestN,zedges0,getdivs)
