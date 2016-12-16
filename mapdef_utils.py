@@ -33,6 +33,15 @@ def dndz_Euclidlike(z,z0=0.7):
     exponent=-1.*(z/z0)**1.5
     result*=np.exp(exponent)
     return result
+    
+def dndz_Spherexlike(z,z0=0.46):
+    #from eq 1 in arxiv:1506.02192
+    #same as euclid for now, since more general form not much better fit
+    result=1.5/(z0**3)
+    result*=z*z
+    exponent=-1.*(z/z0)**1.5
+    result*=np.exp(exponent)
+    return result
 
 def dndz_NVSSlike(z,z0=.32,alpha=0.36):
     exponent=-1.*alpha*z/z0
@@ -69,6 +78,22 @@ def get_Euclidlike_SurveyType(sigz=0.05,z0=0.7,nbar=3.5e8,onebin=False,tag='',ze
             zedges=np.array([.01,5*z0])
         else:
             zedges=np.array([.01,.4,.8,1.2,1.6,2.,5*z0])
+    return SurveyType(tag,zedges,sigz,nbar,dndz,bias,dndzargs,biasargs,longtag,addnoise=False,fracbadz=fracbadz)
+    
+def get_Spherexlike_SurveyType(sigz=0.1,z0=0.46,nbar=6.6e7,onebin=False,tag='',zedges=np.array([]),b0=1.,b2=0,fracbadz=0.):
+    if not tag:
+        tag='spx_z0{0:0.2f}sz{1:0.3f}'.format(z0,sigz)
+    bias=quadbias
+    biasargs=[b0,b2]
+    dndz=dndz_Spherexlike
+    dndzargs=[z0]
+    nbar=nbar
+    longtag='SphereX-like survey, z0={0:0.3f}, sigz={1:0.3f}, b0={2:0.3f}, b2={3:0.3f}'.format(z0,sigz,b0,b2)
+    if not zedges.size:
+        if onebin:
+            zedges=np.array([.01,6*z0])
+        else:
+            zedges=np.array([.01, .35,.7, 1.05, 1.4, 1.75, 6*z0])
     return SurveyType(tag,zedges,sigz,nbar,dndz,bias,dndzargs,biasargs,longtag,addnoise=False,fracbadz=fracbadz)
     
     

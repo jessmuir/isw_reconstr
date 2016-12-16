@@ -1053,6 +1053,8 @@ def get_modtag_shotnbar(nbar):
 #   and calib error is assumed to have l^-2 spectrum
 #------------------------------------------------------------------------
 def gen_error_cl_fixedvar_l2(sig2=0.1,caliblmax=30,lmin=1):
+    if lmin==0:
+        lmin=1 # added 160915 NJW
     invnorm=0 #clcal=norm/l^2, 
     clcal=np.zeros(caliblmax+1)
     for l in xrange(lmin,caliblmax+1):#find using rel between variance and C_l
