@@ -340,6 +340,20 @@ def bintest_get_finest_zedges(finestN=6,z0=0.7):
             zedges[n]=dz*n
     zedges[0]=.01 #don't go down all the way to zero
     return zedges
+    
+#-----
+#get z edges for finest division of z bins, changed to be z0-dependent instead of hardcoded. [161216 NJW]
+def bintest_get_finest_zedges_z0dep(finestN=6,z0=0.7):
+    zedges=np.zeros(finestN+1)
+    zedges[-1]=5.*z0 
+    if finestN>1:
+        zedges[-2]=2./0.7*z0 #2.  #scale by z0
+        dz=zedges[-2]/(finestN-1)
+        for n in xrange(finestN-1):
+            zedges[n]=dz*n
+    zedges[0]=.01 #don't go down all the way to zero
+    return zedges
+    
 #-----
 # get string tags for divisions for option "equal"
 def bintest_get_divstr_equal(finestN=6):
@@ -411,7 +425,8 @@ def bintest_get_zedgeslist(zedges,getdivs=['all'],returnstr=True):
 #----------------------------------------------------------------
 def bintest_get_maptypelist(finestN=6,getdivs=['all'],z0=0.7,sigz=0.05,nbar=3.5e8,includeisw=True,survtype='euc'):
     #get zedges
-    zedges0 = bintest_get_finest_zedges(finestN,z0) #for finest division
+    #zedges0 = bintest_get_finest_zedges(finestN,z0) #for finest division
+    zedges0 = bintest_get_finest_zedges_z0dep(finestN,z0) # made it so edges scale with z0. z0=0.7 gives same results as orig above
 #    print '\nin euc.bintest_get_maptyplest. (finestN, zedges,getdivs)=',(finestN,zedges0,getdivs)
     zedges,divstr=bintest_get_zedgeslist(zedges0,getdivs,True) 
     Ntypes = len(zedges)
@@ -426,7 +441,10 @@ def bintest_get_maptypelist(finestN=6,getdivs=['all'],z0=0.7,sigz=0.05,nbar=3.5e
         if survtype=='euc':
             survey = mdu.get_Euclidlike_SurveyType(sigz=sigz,z0=z0,nbar=nbar,tag=tag,zedges=zedges[i])#0.7,tag=tag,zedges=zedges[i]) [NJW 160822]
             maptypes.append(survey)
-        else: raise ValueError('Error: Only set up to take Euclidlike surveys, via "euc" argument. You passed {0}'.format(survtype))
+        elif survtype=='spx':
+            survey = mdu.get_Spherexlike_SurveyType(sigz=sigz,z0=z0,nbar=nbar,tag=tag,zedges=zedges[i])#0.7,tag=tag,zedges=zedges[i]) [NJW 160822]
+            maptypes.append(survey)
+        else: raise ValueError('Error: Only set up to take Euclidlike (\'euc\') or Spherexlike (\'spx\') surveys. You passed {0}'.format(survtype))
     return maptypes
 
 def bintest_get_binmaps(finestN=6,getdivs=['all'],z0=0.7,sigz=0.05,includeisw=True,justfinest=False):
