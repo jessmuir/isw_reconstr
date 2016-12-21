@@ -1428,11 +1428,12 @@ def caltest_get_rhoexp(z0=0.7,varlist=[1.e-4],lmax=30,lmin=1,shape='g',width=10.
     
     # return array of shape [Nvar,Nell]
     Nrec=len(varlist)
-    rhoarray=np.zeros(Nrec)
+#    rhoarray=np.zeros(Nrec)
+    rholist=[0]*Nrec
     for r in xrange(Nrec):
         #print '--ON VAR=',varlist[r],'---------'
-        rhoarray[r]=au.compute_rho_fromcl(clmodlist[r],recdat,reccldat=fidcl,varname=varname)
-
+        rholist[r]=au.compute_rho_fromcl(clmodlist[r],recdat,reccldat=fidcl,varname=varname)
+    rhoarray=np.array(rholist)
     #if save, write to file
     if saverho:
         f=open(outdir+datfile,'w')
@@ -1443,7 +1444,7 @@ def caltest_get_rhoexp(z0=0.7,varlist=[1.e-4],lmax=30,lmin=1,shape='g',width=10.
 
     if doplot:
         caltest_rhoexpplot(varlist,rhoarray,varname=varname,outtag=shapestr,plotdir=plotdir)
-    return rhoarray
+    return rholist#rhoarray
 
 #-------
 def caltest_getmapmods_onebin(lssbintag,varlist=[1.e-1,1.e-2,1.e-3,1.e-4],lmax=30,lmin=0,shape='g',width=10.):

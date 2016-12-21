@@ -94,7 +94,7 @@ def get_Spherexlike_SurveyType(sigz=0.1,z0=0.46,nbar=6.6e7,onebin=False,tag='',z
     biasargs=[b0,b2]
     dndz=dndz_Spherexlike
     dndzargs=[z0]
-    print nbar
+#    print nbar
     if nbar=='default':
         if sigz==0.1:
             nbar=6.6e7
