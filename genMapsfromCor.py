@@ -1053,6 +1053,8 @@ def get_modtag_shotnbar(nbar):
 #   and calib error is assumed to have l^-2 spectrum
 #------------------------------------------------------------------------
 def gen_error_cl_fixedvar_l2(sig2=0.1,caliblmax=30,lmin=1):
+    if lmin==0:
+        lmin=1 # added 160915 NJW
     invnorm=0 #clcal=norm/l^2, 
     clcal=np.zeros(caliblmax+1)
     for l in xrange(lmin,caliblmax+1):#find using rel between variance and C_l
@@ -1140,7 +1142,11 @@ def getmodtag_fixedvar(sig2,shape='g',lmin=0,lmax=30,width=10.):
 # assumes epsilon propto c_00
 # assumes calibration error maps are uncorrelated with each other and galaxies
 #------------------------------------------------------------------------
-def apply_additive_caliberror_tocl(cldat,mapmodcombos=[]):
+def apply_additive_caliberror_tocl(cldat,mapmodcombos=[],f_xcorr=0):
+    # f_xcorr is fraction of cross-correlation between map calibration errors:
+    # Cl_cal_XY = f_xcorr * sqrt(Cl_cal_XX * Cl_cal_YY).
+    # Note, -1 =< f_xcorr <= 1
+    # Could make more complicated, as different surveys will not have same amt of xcorr, but ok for 1st approx, esp if from same survey. Or could make l-dependent
     #print '  in apply caliberror to cl'
     Nmap=cldat.Nmap
     Nell=cldat.Nell
@@ -1150,6 +1156,7 @@ def apply_additive_caliberror_tocl(cldat,mapmodcombos=[]):
     newnbarlist=cldat.nbar[:]
 #    print 'cl bintags',cldat.bintaglist
 #    print 'mm',mapmodcombos
+#    print 'f_xcorr= ',f_xcorr
     #go through mapmod combos, generate Clcal and put it in the appropriate place in calcl
     for c in mapmodcombos:
         mtag=c[0]#maptag
@@ -1171,7 +1178,7 @@ def apply_additive_caliberror_tocl(cldat,mapmodcombos=[]):
                 var,maxl,minl,width=parsemodtag_fixedvar_gauss(ctag)
                 thiscalcl=gen_error_cl_fixedvar_gauss(var,maxl,minl,width=width)
 #                print
-#                print (mtag,thiscalcl[:2])
+#                print (mtag,thiscalcl[:4])
             else:
                 print "modtag not recognized:",ctag
             #put this cal cl into clcal grid
@@ -1195,14 +1202,19 @@ def apply_additive_caliberror_tocl(cldat,mapmodcombos=[]):
         i,j=crosspairs[n]
         if i==j:
             outcl[n,:]+=calcl[i,:] #additive power from calib error auto power
+        elif f_xcorr!=0: #added 160822 NJW
+            outcl[n,:] += f_xcorr * np.sqrt(calcl[i,:]*calcl[j,:]) #cross correlation of calib error from the autocorrelations times calib correlation coeff b/n the maps(f_xcorr)
+            
         outcl[n,0]+=-1*np.sqrt(calcl[i,0]*calcl[j,0]) #from some of the epsilon terms 
 #        print outcl[n,4]
+#        if outcl[n,4]-cldat.cl[n,4]!=0:
+#            print ' (pre-eps)     ij=',i,j,', outcl[ij,4]=',outcl[n,4],'  prev',cldat.cl[n,4]
+#        else: print '  (pre eps)    ij=',i,j,', no change'
         outcl[n,:]/=(1.+epsilon[i])*(1.+epsilon[j]) #no mod if epsilon small
 #        print outcl[n,4]
 #        print 'mapA,mapB, Cl00: {0}, {1}, {2}'.format(i,j,outcl[n,0])
         #print '  changed?',np.any(outcl[n,:]==cldat.cl[n,:])
-#        print '      ij=',i,j,', outcl[ij,4]=',outcl[n,4],'  prev',cldat.cl[n,4]
-        
+
     #creat outcldata object with new outcl and nbar
     #print 'HAS CL changed? ',np.any(cldat.cl-outcl)
     outcldat=ClData(copy.deepcopy(cldat.rundat),cldat.bintaglist,clgrid=outcl,docrossind=cldat.docross,nbarlist=newnbarlist)

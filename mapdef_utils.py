@@ -33,6 +33,15 @@ def dndz_Euclidlike(z,z0=0.7):
     exponent=-1.*(z/z0)**1.5
     result*=np.exp(exponent)
     return result
+    
+def dndz_Spherexlike(z,z0=0.46):
+    #from eq 1 in arxiv:1506.02192
+    #same as euclid for now, since more general form not much better fit
+    result=1.5/(z0**3)
+    result*=z*z
+    exponent=-1.*(z/z0)**1.5
+    result*=np.exp(exponent)
+    return result
 
 def dndz_NVSSlike(z,z0=.32,alpha=0.36):
     exponent=-1.*alpha*z/z0
@@ -45,11 +54,14 @@ def dndz_NVSSlike(z,z0=.32,alpha=0.36):
 #     6 redshift bins; 10 of width .2 going from 0-1., then 1 for z>1
 #     no shot noise included 
 #===============================================================
-def get_DESlike_SurveyType(sigz,tag=''):
+def get_DESlike_SurveyType(sigz,tag='',nbar=1.e9):
     if not tag:
         tag='des_sigz{0:0.3f}'.format(sigz)
     zedges=np.array([.01,.2,.4,.6,.8,1.,5.])
-    nbar=1.e9 #From Dragan via email, early June'15
+    if nbar=='default':
+        nbar=1.e9#From Dragan via email, early June'15
+    else:
+        nbar=nbar
     dndz=dndz_DESlike
     bias=nobias
     longtag='DES-like survey w bias=1'
@@ -62,13 +74,49 @@ def get_Euclidlike_SurveyType(sigz=0.05,z0=0.7,nbar=3.5e8,onebin=False,tag='',ze
     biasargs=[b0,b2]
     dndz=dndz_Euclidlike
     dndzargs=[z0]
-    nbar=nbar
+    if nbar=='default':
+        nbar=3.5e8
+    else:
+        nbar=nbar
+    assert type(nbar)==float, nbar
     longtag='Euclid-like survey, z0={0:0.3f}, sigz={1:0.3f}, b0={2:0.3f}, b2={3:0.3f}'.format(z0,sigz,b0,b2)
     if not zedges.size:
         if onebin:
             zedges=np.array([.01,5*z0])
         else:
             zedges=np.array([.01,.4,.8,1.2,1.6,2.,5*z0])
+    return SurveyType(tag,zedges,sigz,nbar,dndz,bias,dndzargs,biasargs,longtag,addnoise=False,fracbadz=fracbadz)
+    
+def get_Spherexlike_SurveyType(sigz=0.1,z0=0.46,nbar=6.6e7,onebin=False,tag='',zedges=np.array([]),b0=1.,b2=0,fracbadz=0.):
+    if not tag:
+        tag='spx_z0{0:0.2f}sz{1:0.3f}'.format(z0,sigz)
+    bias=quadbias
+    biasargs=[b0,b2]
+    dndz=dndz_Spherexlike
+    dndzargs=[z0]
+#    print nbar
+    if nbar=='default':
+        if sigz==0.1:
+            nbar=6.6e7
+        elif sigz==0.03:
+            nbar=2.4e7
+        else: raise TypeError, 'Passed nbar=default but no default survey type with sigz={0}'.format(sigz)
+    else:
+        nbar=nbar
+    assert type(nbar)==float, nbar
+    longtag='SphereX-like survey, z0={0:0.3f}, sigz={1:0.3f}, b0={2:0.3f}, b2={3:0.3f}'.format(z0,sigz,b0,b2)
+    if not zedges.size:
+        if onebin:
+            zedges=np.array([.01,5*z0])
+        else:
+            finestN=6
+            zedges=np.zeros(finestN+1)
+            zedges[-1]=5.*z0 
+            zedges[-2]=2./0.7*z0 #2.  #scale by z0
+            dz=zedges[-2]/(finestN-1)
+            for n in xrange(finestN-1):
+                zedges[n]=dz*n
+#            zedges=np.array([.01, .35,.7, 1.05, 1.4, 1.75, 5*z0])
     return SurveyType(tag,zedges,sigz,nbar,dndz,bias,dndzargs,biasargs,longtag,addnoise=False,fracbadz=fracbadz)
     
     

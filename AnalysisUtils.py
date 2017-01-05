@@ -1131,6 +1131,7 @@ def compute_rho_fromcl(cldat,recdat,reccldat=0,varname='rho',fitbias=True):
     for l in xrange(Nell):
         if Dinv[l,0,0]!=0:
             Nl[l]=1/Dinv[l,0,0]
+#    print Nl[:50]
 #    print 'N[l=4]=',Nl[4]
     if lmax<0 or  (lmax>(Nell-1)):
         lmax=Nell-1
@@ -1216,7 +1217,7 @@ def compute_rho_fromcl(cldat,recdat,reccldat=0,varname='rho',fitbias=True):
         if denom==0:
             result=0
         else:
-            #print '   FINAL   num,demon:',numerator,denom
+#            print '   FINAL   num,demon:',numerator,denom
             result=numerator/denom
     elif varname=='s':
         #for each l sum over LSS maps for numerator, the sum over l
@@ -1262,6 +1263,18 @@ def compute_rho_fromcl(cldat,recdat,reccldat=0,varname='rho',fitbias=True):
         result =np.sum(chisqell)#sum over ell
     elif varname=='estop':
         result = estop
+    elif varname=='Nl_tup':
+        result = (Nl, recNl) #Nl is variance of opitmal estimator
+    elif varname=='sigNl_tup': #exploring how could get an analytical variance. Not complete
+        sig2Nl=Nl*(2.*lvals+1)
+        sig2N=np.sum(sig2Nl[lmin:lmax+1])
+#        print sig2N.shape
+        sig2Nlrec = recNl*(2.*lvals+1)
+        sig2Nrec=np.sum(sig2Nlrec[lmin:lmax+1])
+        result = (sig2N/sig2isw, sig2Nrec/sig2rec)
+#        result = (sig2N/sig2rec, sig2Nrec/sig2isw)
+#        result = (sig2N/(sig2isw*sig2rec)**.5, sig2Nrec/(sig2isw*sig2rec)**.5)
+#        result = (sig2Nrec/np.sum((sig2Nl*Nl)[lmin:lmax+1])**.5, sig2Nrec/np.sum((sig2Nlrec*recNl)[lmin:lmax+1])**.5)
     return result
     
 

@@ -340,6 +340,20 @@ def bintest_get_finest_zedges(finestN=6,z0=0.7):
             zedges[n]=dz*n
     zedges[0]=.01 #don't go down all the way to zero
     return zedges
+    
+#-----
+#get z edges for finest division of z bins, changed to be z0-dependent instead of hardcoded. [161216 NJW]
+def bintest_get_finest_zedges_z0dep(finestN=6,z0=0.7):
+    zedges=np.zeros(finestN+1)
+    zedges[-1]=5.*z0 
+    if finestN>1:
+        zedges[-2]=2./0.7*z0 #2.  #scale by z0
+        dz=zedges[-2]/(finestN-1)
+        for n in xrange(finestN-1):
+            zedges[n]=dz*n
+    zedges[0]=.01 #don't go down all the way to zero
+    return zedges
+    
 #-----
 # get string tags for divisions for option "equal"
 def bintest_get_divstr_equal(finestN=6):
@@ -389,6 +403,7 @@ def bintest_get_zedgeslist(zedges,getdivs=['all'],returnstr=True):
         elif getdivs[0]=='all':
             slist=bintest_get_divstr_all(Nmax)
     zedgelist=[]#will be list of arrays, one for each binning strategy
+#    print 'slist=',slist
     for s in slist:
         nlist=[int(x) for x in s]
         if np.sum(nlist)!=Nmax:
@@ -408,21 +423,28 @@ def bintest_get_zedgeslist(zedges,getdivs=['all'],returnstr=True):
 #----------------------------------------------------------------    
 # Generate Cl
 #----------------------------------------------------------------
-def bintest_get_maptypelist(finestN=6,getdivs=['all'],z0=0.7,sigz=0.05,includeisw=True):
+def bintest_get_maptypelist(finestN=6,getdivs=['all'],z0=0.7,sigz=0.05,nbar=3.5e8,includeisw=True,survtype='euc'):
     #get zedges
-    zedges0 = bintest_get_finest_zedges(finestN,z0) #for finest division
+    #zedges0 = bintest_get_finest_zedges(finestN,z0) #for finest division
+    zedges0 = bintest_get_finest_zedges_z0dep(finestN,z0) # made it so edges scale with z0. z0=0.7 gives same results as orig above
+#    print '\nin euc.bintest_get_maptyplest. (finestN, zedges,getdivs)=',(finestN,zedges0,getdivs)
     zedges,divstr=bintest_get_zedgeslist(zedges0,getdivs,True) 
     Ntypes = len(zedges)
     maptypes=[] #list of maptype objects, put finest div first
-    maintag='euc{0:d}bins{1:03d}div'.format(finestN,int(1000*sigz))
+    maintag=survtype+'{0:d}bins{1:03d}div'.format(finestN,int(1000*sigz))
     if includeisw:
         iswmaptype = mdu.get_fullISW_MapType(zmax=15)
         maptypes.append(iswmaptype)
     for i in xrange(Ntypes):
         #print 'getting survey for zedges=',zedges[i]
         tag=maintag+divstr[i]
-        survey = mdu.get_Euclidlike_SurveyType(sigz=sigz,z0=0.7,tag=tag,zedges=zedges[i])
-        maptypes.append(survey)
+        if survtype=='euc':
+            survey = mdu.get_Euclidlike_SurveyType(sigz=sigz,z0=z0,nbar=nbar,tag=tag,zedges=zedges[i])#0.7,tag=tag,zedges=zedges[i]) [NJW 160822]
+            maptypes.append(survey)
+        elif survtype=='spx':
+            survey = mdu.get_Spherexlike_SurveyType(sigz=sigz,z0=z0,nbar=nbar,tag=tag,zedges=zedges[i])#0.7,tag=tag,zedges=zedges[i]) [NJW 160822]
+            maptypes.append(survey)
+        else: raise ValueError('Error: Only set up to take Euclidlike (\'euc\') or Spherexlike (\'spx\') surveys. You passed {0}'.format(survtype))
     return maptypes
 
 def bintest_get_binmaps(finestN=6,getdivs=['all'],z0=0.7,sigz=0.05,includeisw=True,justfinest=False):
@@ -718,7 +740,8 @@ def bintest_read_rell_wfiles(divlist=['6','222','111111'],sigz=0.05,varname='rel
 # also works for s, switch in variable varname
 #   dataplot=[(datrho,datstd,datdiv,datlabel,datcol),...] #if you want to plot
 #       some data points, pass their plotting info here. datsig!=0 adds error bars
-def bintest_rhoexpplot(allzedges,labels,rhoarraylist,labellist=[],outname='',legtitle='',markerlist=[],colorlist=[],outtag='',varname='rho',dotitle=False,plotdir='output/eucbintest/plots/',datplot=[]):
+def bintest_rhoexpplot(allzedges,labels,rhoarraylist,labellist=[],outname='',legtitle='',markerlist=[],colorlist=[],outtag='',
+                       varname='rho',dotitle=False,plotdir='output/eucbintest/plots/',datplot=[], saveplot=True):
     if type(rhoarraylist[0])!=np.ndarray: #just one array passed,not list of arr
         rhoarraylist=[rhoarraylist]
     if not outname:
@@ -824,6 +847,9 @@ def bintest_rhoexpplot(allzedges,labels,rhoarraylist,labellist=[],outname='',leg
     for i in xrange(len(rhoarraylist)):
         rhoarray=rhoarraylist[i]
         m=markerlist[i]
+        print
+        print(len(yvals),yvals)
+        print(len(rhoarray),rhoarray)
         if labellist:
             ax2.scatter(rhoarray,yvals,label=labellist[i],color=colorlist[i],marker=m,s=50)
         else:
@@ -838,9 +864,10 @@ def bintest_rhoexpplot(allzedges,labels,rhoarraylist,labellist=[],outname='',leg
 
     plt.setp(ax2.get_yticklabels(), visible=False)
     plt.setp(ax2.get_xticklabels()[0], visible=False)#don't show number at first label
-    print 'Saving plot to ',plotdir+outname
-    plt.savefig(plotdir+outname)
-    plt.close()
+    if saveplot:
+        print 'Saving plot to ',plotdir+outname
+        plt.savefig(plotdir+outname)
+        plt.close()
 
 #----------------
 def bintest_plot_rhohist(divstr=['6','222','111111'],getrhopred=True,reclabels=['1 bin','3 bins','6 bins'],varname='rho',firstNreal=-1):
@@ -1401,11 +1428,12 @@ def caltest_get_rhoexp(z0=0.7,varlist=[1.e-4],lmax=30,lmin=1,shape='g',width=10.
     
     # return array of shape [Nvar,Nell]
     Nrec=len(varlist)
-    rhoarray=np.zeros(Nrec)
+#    rhoarray=np.zeros(Nrec)
+    rholist=[0]*Nrec
     for r in xrange(Nrec):
         #print '--ON VAR=',varlist[r],'---------'
-        rhoarray[r]=au.compute_rho_fromcl(clmodlist[r],recdat,reccldat=fidcl,varname=varname)
-
+        rholist[r]=au.compute_rho_fromcl(clmodlist[r],recdat,reccldat=fidcl,varname=varname)
+    rhoarray=np.array(rholist)
     #if save, write to file
     if saverho:
         f=open(outdir+datfile,'w')
@@ -1416,7 +1444,7 @@ def caltest_get_rhoexp(z0=0.7,varlist=[1.e-4],lmax=30,lmin=1,shape='g',width=10.
 
     if doplot:
         caltest_rhoexpplot(varlist,rhoarray,varname=varname,outtag=shapestr,plotdir=plotdir)
-    return rhoarray
+    return rholist#rhoarray
 
 #-------
 def caltest_getmapmods_onebin(lssbintag,varlist=[1.e-1,1.e-2,1.e-3,1.e-4],lmax=30,lmin=0,shape='g',width=10.):
