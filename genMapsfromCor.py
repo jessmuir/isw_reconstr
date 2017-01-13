@@ -1217,7 +1217,7 @@ def apply_additive_caliberror_tocl(cldat,mapmodcombos=[],f_xcorr=0):
 
     #creat outcldata object with new outcl and nbar
     #print 'HAS CL changed? ',np.any(cldat.cl-outcl)
-    outcldat=ClData(copy.deepcopy(cldat.rundat),cldat.bintaglist,clgrid=outcl,docrossind=cldat.docross,nbarlist=newnbarlist)
+    outcldat=ClData(copy.deepcopy(cldat.rundat),cldat.bintaglist,clgrid=outcl,docrossind=cldat.docross,nbarlist=newnbarlist, )
 #    print 'outcldat'    
 #    print outcldat.cl[2,4]
     return outcldat
@@ -1235,8 +1235,8 @@ def apply_caliberror_tomap(inmap,cmap,innbar,justaddnoise=False):
     else:
         Nin=innbar*(inmap+1.) #total number count in each direction
         Nobs=(1.+cmap)*Nin #this is how the calibration error map is defined
+        outnbar=np.average(Nobs) #170112 [NJW] this was switched with line below, throwing error due to outnbar not being defined... why didn't this happen before?
         outmap=Nobs/outnbar - 1.
-        outnbar=np.average(Nobs)
     return outmap,outnbar
 
 #------------------------------------------------------------------------

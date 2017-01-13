@@ -33,7 +33,7 @@ class ClData(object):
         crosspairs,crossinds=get_index_pairs(self.Nmap)
         self.crosspairs=crosspairs #[crossind,mapinds] (NCross x2)
         self.crossinds=crossinds #[mapind,mapind] (Nmap x Nmap)
-
+        
         if len(docrossind): #if list of cross pair indices given, use those
             self.docross = docrossind
             self.pairs=get_pairs_fromcrossind(self.bintaglist,docrossind,self.crosspairs,self.crossinds)

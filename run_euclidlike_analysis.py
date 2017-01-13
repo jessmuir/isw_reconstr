@@ -3950,7 +3950,7 @@ if __name__=="__main__":
             # change domaps to False
 #----- MULTI ------        
     outtag = '_multi_same_cltimed_full'
-    if 1: #compute Cl # this takes a while;
+    if 0: #compute Cl # this takes a while;
         depthtest_get_Cl(justread=False,z0vals=depthtestz0, outtag=outtag)
     if 0: #generate MULTI depthhtest maps (don't want togr)
         Nreal=100

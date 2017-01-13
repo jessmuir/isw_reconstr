@@ -297,7 +297,7 @@ def get_glm_array_forrec(glmdat,includelist=[],zerotag='isw_bin0'):
 #   iswrecglm - glmData object containing just ISW reconstructed
 #                also saves to file
 #-------------------------------------------------------------------------
-def calc_isw_est(cldat,glmdat,recdat,writetofile=True,getmaps=True,redofits=True,makeplots=False,dorho=False,fitbias=True):
+def calc_isw_est(cldat,glmdat,recdat,writetofile=True,getmaps=True,redofits=True,makeplots=False,dorho=False,fitbias=True, useObs=False):
     maptag=recdat.maptag
     rectag=recdat.rectag
     lmin_forrec=recdat.lmin
@@ -329,8 +329,9 @@ def calc_isw_est(cldat,glmdat,recdat,writetofile=True,getmaps=True,redofits=True
         lmax=lmax_forrec
 
     b0=np.ones((Nreal,NLSS))#find best fit bias for each real, for each LSS tracer
+    
     #print '------reconstructing isw000-------'
-    if fitbias:
+    if fitbias and not useObs: #170112 added useObs conidtion
         for i in xrange(NLSS):
             #get cltheory form diagonal entry in Dl
             cltheory=Dl[:,i+1,i+1]#0th entry is ISW
@@ -370,10 +371,36 @@ def calc_isw_est(cldat,glmdat,recdat,writetofile=True,getmaps=True,redofits=True
     #scaling according to bias will make Dl and Dinv depend on realization
     Dlr=np.zeros((Nreal,Nell,NLSS+1,NLSS+1))
     Dinvr=np.zeros((Nreal,Nell,NLSS+1,NLSS+1))
-    for r in xrange(Nreal):
-        #print '         bias:',b0[r,:]
-        Dlr[r,:,:,:]=scale_Dl_byb0(Dl,b0[r,:]) #b0=1 if no fitting
-        Dinvr[r,:,:,:] = invert_Dl(Dlr[r,:,:,:])
+
+ 
+#--------- useobs 170112 NJW
+    if useObs: #calculate cross corr from map realisations and build Dl from that.
+        xpairs,xinds = gcc.get_index_pairs(NLSS) #corresponds to Cl ordering from healpy
+        for r in xrange(Nreal):
+    #        Dlr[r,:,:,:]=scale_Dl_byb0(Dl,b0[r,:]) #b0=1 if no fitting
+    #        Dinvr[r,:,:,:] = invert_Dl(Dlr[r,:,:,:])
+            # according to docs, alm2cl can take array of alms, and will return cross spectra in diag order (clA, clB, clC)--> (ClAA, clBB clCC, clAB, clBC, clAC)
+            clobs_xspec=hp.alm2cl(glmgrid[r,:,:]) #try it as array first, (will it use correct alms by NLSS? not sure) Should be array of dims Nell x NLSS*(NLSS+1)/2. Need to convert to correct order in Cl matrix
+            #dims Nell x N_xinds
+            for i in xrange(NLSS):
+                for j in xrange(NLSS):
+                    if j<=i: #symmetric matrix
+                        Dlr[r,:,i+1,j+1]=clobs_xspec[:,xinds[i,j]] # scale_Dl_byb0(Dl,b0[r,:]) #b0=1 if no fitting
+                        Dlr[r,:,j+1,i+1]=clobs_xspec[:,xinds[i,j]]
+            Dinvr[r,:,:,:] = invert_Dl(Dlr[r,:,:,:])
+#                cltheory=Dl[:,i+1,i+1]#0th entry is ISW
+#                clobs=np.zeros((Nell,Nreal))
+                #for each realization, get clobs from glm and do a fit
+    #            for r in xrange(Nreal):
+#                    clobs[:,r]=hp.alm2cl(glmgrid[r,i,:])
+    
+#                b0[:,i]=fitcl_forb0_onereal(cltheory[lmin:lmax+1],clobs[lmin:lmax+1,:])#only fit to desired ell
+    #------          
+    else: #don't use obs Dl from maps, use theory
+        for r in xrange(Nreal):
+            #print '         bias:',b0[r,:]
+            Dlr[r,:,:,:]=scale_Dl_byb0(Dl,b0[r,:]) #b0=1 if no fitting
+            Dinvr[r,:,:,:] = invert_Dl(Dlr[r,:,:,:])
         #print '   prescaling:',Dl[4,0,0],Dl[4,0,1],Dl[4,1,1]
         #print '  postscaling:',Dlr[r,4,0,0],Dlr[r,4,0,1],Dlr[r,4,1,1]
         #print '  R4 after scaling func',Dlr[r,4,0,1]/Dlr[r,4,1,1]
