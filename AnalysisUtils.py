@@ -32,15 +32,17 @@ from genMapsfromCor import * #functions which gen g_lm and maps from C_l
 #   NSIDE - healpix NSIDE for reconstructed map
 #   recmaptag - string or tuple identifying map to be reconstructed
 #             needs to be present in cldat, but not necessarily glmdat
+#   useObs - use observed Cl's from data for all LSS, use includelcl theory for LSS_ISW and ISW Cls
 ###########################################################################
 class RecData(object):
-    def __init__(self,includeglm=[],includecl=[],inmaptag='fromLSS',rectag='nonfid',minl_forrec=2,maxl_forrec=-1,NSIDE=32,zerotag='isw_bin0',maptagprefix='iswREC',nolmintag=False):
+    def __init__(self,includeglm=[],includecl=[],inmaptag='fromLSS',rectag='nonfid',minl_forrec=2,maxl_forrec=-1,NSIDE=32,zerotag='isw_bin0',maptagprefix='iswREC',nolmintag=False,useObs=False):
         self.Nmap=len(includeglm)
         self.inmaptag=inmaptag
         self.maptag=maptagprefix+'.'+inmaptag
         self.rectag=rectag
         self.lmin=minl_forrec
         self.lmax=maxl_forrec #by default, uses max l available
+        self.useObsCl = useObs
         if not nolmintag: #don't include to be compatible with old data
             lminstr="-lmin{0:02d}".format(self.lmin)
             if self.lmax>0:
@@ -282,22 +284,24 @@ def get_glm_array_forrec(glmdat,includelist=[],zerotag='isw_bin0'):
         outglm[:,d,:]=glmdat.glm[:,dinds[d],:]
     return outglm,dinds
 
-#-------------------------------------------------------------------------
-# calc_isw_est -  given clData and glmData objects, plus list of maps to use
-#        get the appropriate D matrix and construct isw estimator ala M&D
-#        but with no CMB temperature info
-# input:
-#   cldat, glmdat - ClData and glmData objects containing maps
-#                   to be used in reconstructing it (Cl must have isw too)
-#   recdat- RecData object containing info about what maps, tags, etc to use
-#   writetofile- if True, writes glm to file with glmfiletag rectag_recnote
-#   getmaps - if True, generates fits files of maps corresponding to glms
-#   makeplots - if getmaps==makeplots==True, also generate png plot images
-# output: 
-#   iswrecglm - glmData object containing just ISW reconstructed
-#                also saves to file
-#-------------------------------------------------------------------------
-def calc_isw_est(cldat,glmdat,recdat,writetofile=True,getmaps=True,redofits=True,makeplots=False,dorho=False,fitbias=True, useObs=False):
+def calc_isw_est(cldat,glmdat,recdat,writetofile=True,getmaps=True,redofits=True,makeplots=False,dorho=False,fitbias=True):
+    """
+    calc_isw_est -  given clData and glmData objects, plus list of maps to use
+            get the appropriate D matrix and construct isw estimator ala M&D
+            but with no CMB temperature info
+     input:
+       cldat, glmdat - ClData and glmData objects containing maps
+                       to be used in reconstructing it (Cl must have isw too)
+       recdat- RecData object containing info about what maps, tags, etc to use
+       writetofile- if True, writes glm to file with glmfiletag rectag_recnote
+       getmaps - if True, generates fits files of maps corresponding to glms
+       makeplots - if getmaps==makeplots==True, also generate png plot images
+     output: 
+       iswrecglm - glmData object containing just ISW reconstructed
+                    also saves to file
+    -------------------------------------------------------------------------
+    """
+    useObs=recdat.useObsCl
     maptag=recdat.maptag
     rectag=recdat.rectag
     lmin_forrec=recdat.lmin
@@ -320,8 +324,8 @@ def calc_isw_est(cldat,glmdat,recdat,writetofile=True,getmaps=True,redofits=True
 
     #fit for constant bias for each LSS map (assume all non-zero indices are LSS)
     Nreal=glmgrid.shape[0]
-    NLSS=glmgrid.shape[1]
-    Nell=Dl.shape[0]
+    NLSS=glmgrid.shape[1] 
+    Nell=Dl.shape[0] # 170113 - note that if useObs, don't actually uise Dl. this assumes Nell from Cl matches observed maps, which should usually be true, but could we tighten this?
     lmin=lmin_forrec
     if lmax_forrec<0 or lmax_forrec>Nell-1:
         lmax=Nell-1
@@ -372,28 +376,37 @@ def calc_isw_est(cldat,glmdat,recdat,writetofile=True,getmaps=True,redofits=True
     Dlr=np.zeros((Nreal,Nell,NLSS+1,NLSS+1))
     Dinvr=np.zeros((Nreal,Nell,NLSS+1,NLSS+1))
 
- 
-#--------- useobs 170112 NJW
+#    --------- useobs 170112 NJW
     if useObs: #calculate cross corr from map realisations and build Dl from that.
-        xpairs,xinds = gcc.get_index_pairs(NLSS) #corresponds to Cl ordering from healpy
+        print 'Using Cl_obs from maps for Estimator...'
+        xpairs,xinds = get_index_pairs(NLSS) #corresponds to Cl ordering from healpy
         for r in xrange(Nreal):
     #        Dlr[r,:,:,:]=scale_Dl_byb0(Dl,b0[r,:]) #b0=1 if no fitting
     #        Dinvr[r,:,:,:] = invert_Dl(Dlr[r,:,:,:])
             # according to docs, alm2cl can take array of alms, and will return cross spectra in diag order (clA, clB, clC)--> (ClAA, clBB clCC, clAB, clBC, clAC)
-            clobs_xspec=hp.alm2cl(glmgrid[r,:,:]) #try it as array first, (will it use correct alms by NLSS? not sure) Should be array of dims Nell x NLSS*(NLSS+1)/2. Need to convert to correct order in Cl matrix
-            #dims Nell x N_xinds
+            clobs_xspec=np.array(hp.alm2cl(glmgrid[r,:,:])).T #try it as array first, (will it use correct alms by NLSS? not sure) Should be array of dims Nell x NLSS*(NLSS+1)/2. Need to convert to correct order in Cl matrix
+#            print clobs_xspec            
+            #dims Nell x N_xinds. Assumes readin maps have same Nell as that derived from passed Cldat
             for i in xrange(NLSS):
                 for j in xrange(NLSS):
                     if j<=i: #symmetric matrix
+                        print 'xinds',xinds[i,j]
+                        print (i,j)
+                        print clobs_xspec.shape
                         Dlr[r,:,i+1,j+1]=clobs_xspec[:,xinds[i,j]] # scale_Dl_byb0(Dl,b0[r,:]) #b0=1 if no fitting
                         Dlr[r,:,j+1,i+1]=clobs_xspec[:,xinds[i,j]]
+            Dlr[r,:,:,0] = Dl[:,:,0]
+            Dlr[r,:,0,:] = Dl[:,0,:]
+            assert Dl[4,1,0]==Dlr[r,4,0,1] #should be symmetric
+            
+#            print Dlr[r,:,:,:]
             Dinvr[r,:,:,:] = invert_Dl(Dlr[r,:,:,:])
 #                cltheory=Dl[:,i+1,i+1]#0th entry is ISW
 #                clobs=np.zeros((Nell,Nreal))
                 #for each realization, get clobs from glm and do a fit
     #            for r in xrange(Nreal):
 #                    clobs[:,r]=hp.alm2cl(glmgrid[r,i,:])
-    
+        print Dlr[0,:,0:2,0:2]
 #                b0[:,i]=fitcl_forb0_onereal(cltheory[lmin:lmax+1],clobs[lmin:lmax+1,:])#only fit to desired ell
     #------          
     else: #don't use obs Dl from maps, use theory
@@ -418,7 +431,11 @@ def calc_isw_est(cldat,glmdat,recdat,writetofile=True,getmaps=True,redofits=True
             #print 'just added',-1*Dinv[ell,0,i]*glmgrid[:,i,lmind]
         almest[:,0,lmind]*=Nl
     outmaptags=[recdat.maptag]
-    outmodtags=[recdat.rectag]
+    if useObs: #added 170116, sbould only affect ISWrec maps... NJW
+        outmodtags=[recdat.rectag + '-obs']
+    else:
+        outmodtags=[recdat.rectag + '-thry']
+#    outmodtags=[recdat.rectag]
     outmasktags=[recdat.masktag]#for now, only handles changing lmin/max, not masks
     almdat=glmData(almest,glmdat.lmax,outmaptags,glmdat.runtag,glmdat.rundir,rlzns=glmdat.rlzns,filetags=[maptag+'.'+rectag],modtaglist=outmodtags,masktaglist=outmasktags)
 
@@ -616,7 +633,7 @@ def rell_onereal(truemap,recmap,varname='rell'):
 #  -given Cl, generate glm for simulated maps
 #  -perform some isw reconstructions (maybe for a few lmin?)
 #  -only save glm data for Nglm realizations (make plots for these too)
-def getmaps_fromCl(cldat,Nreal=1,rlzns=np.array([]),reclist=[],Nglm=1,block=100,glmfiletag='',almfiletag='iswREC',rhofiletag='',justgetrho=False,dorho=True,dos=True,dochisq=True,dorell=False,dochisqell=False):
+def getmaps_fromCl(cldat,Nreal=1,rlzns=np.array([]),reclist=[],Nglm=1,block=100,glmfiletag='',almfiletag='iswREC',rhofiletag='',justgetrho=False,dorho=True,dos=True,dochisq=True,dorell=False,dochisqell=False,useObs=False):
     #block=1
     print '======in getmaps_fromCl==========='
     arangereal=not rlzns.size
@@ -662,7 +679,7 @@ def getmaps_fromCl(cldat,Nreal=1,rlzns=np.array([]),reclist=[],Nglm=1,block=100,
             glmdat=generate_many_glm_fromcl(cldat,rlzns=nrlzns,savedat=False)
             if reclist:
                 print "  Doing ISW reconstructions."
-                almdat=domany_isw_recs(cldat,glmdat,reclist,writetofile=False,getmaps=True,makeplots=False,outruntag=glmdat.runtag,dorho=False)
+                almdat=domany_isw_recs(cldat,glmdat,reclist,writetofile=False,getmaps=True,makeplots=False,outruntag=glmdat.runtag,dorho=False,useObs=useObs)
             #    print '  ************alm after rec:',almdat.maptaglist
             #print '  *****glm generated from healpy:',glmdat.maptaglist
             print 'getting galaxy maps'
@@ -707,24 +724,26 @@ def getmaps_fromCl(cldat,Nreal=1,rlzns=np.array([]),reclist=[],Nglm=1,block=100,
         print get_rho_filename(recdat,almdat,filetag=rhofiletag)
 
 
-#------------------------------------------------------------------------
-# doiswrec_formaps - given a dummy glmdata with info for existing .fits maps
-#                   make ISW reconstructiosn, compute stats, etc
-# input:
-#  dummyglm - glmData object with Nreal=0, but containing input map names, lmax, etc
-#  cldat - clData object containing info for maps to be used in reconstruction
-#  Nreal, rlzns; tell what or how many realizations to do reconstruction for
-#  reclist - list of recdat objects, containing reconstruction parameters, such as which glm of cldat to us
-#  Nglm - if nonzero, number of realizations for which to save glm data
-#  block - number of realizations to include in each reconstruction; set in order
-#          to avoid manipulating extremely large arrays
-#  glmfiletag,almfiletag - for if you want to save glm data
-#  rhofiletag- appended to filename where rho data is saved
-#  domaps - do we want to generate maps or just look at them? set to false
-#           if we want to just calc rho and other stats
-#  dorell - set to True if we want to compute variance at different ell
-
 def doiswrec_formaps(dummyglm,cldat,Nreal=1,rlzns=np.array([]),reclist=[],Nglm=0,block=100,glmfiletag='',almfiletag='iswREC',rhofiletag='',domaps=True,dorell=False,dos=True,fitbias=True):
+    """
+    #------------------------------------------------------------------------
+    # doiswrec_formaps - given a dummy glmdata with info for existing .fits maps
+    #                   make ISW reconstructiosn, compute stats, etc
+    # input:
+    #  dummyglm - glmData object with Nreal=0, but containing input map names, lmax, etc
+    #  cldat - clData object containing info for maps to be used in reconstruction
+    #  Nreal, rlzns; tell what or how many realizations to do reconstruction for
+    #  reclist - list of recdat objects, containing reconstruction parameters, such as which glm of cldat to us
+    #  Nglm - if nonzero, number of realizations for which to save glm data
+    #  block - number of realizations to include in each reconstruction; set in order
+    #          to avoid manipulating extremely large arrays
+    #  glmfiletag,almfiletag - for if you want to save glm data
+    #  rhofiletag- appended to filename where rho data is saved
+    #  domaps - do we want to generate maps or just look at them? set to false
+    #           if we want to just calc rho and other stats
+    #  dorell - set to True if we want to compute variance at different ell
+    #  
+    """
     #block=3
     arangereal=not rlzns.size
     if rlzns.size:
