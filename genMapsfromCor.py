@@ -753,7 +753,7 @@ def get_maps_from_glm(glmdata,rlzns=np.array([]),redofits=False,makeplots=False,
 #      associated with a given realization number
 #    input: glmdat - glmData object
 #           rlz - realization number, int; will check that glmdat has this real.
-#           redofits - bool. if false, reads in data from exsiting files
+#           redofits - bool. if false, reads in data from existing files
 #                            if true, overwrites any files with matching name
 #           makeplot - if true, also makes a plot of map and puts it in a png file
 #                      isw maps have red/blue colors, other maps are greyscale

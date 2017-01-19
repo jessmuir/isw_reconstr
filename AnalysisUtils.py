@@ -66,7 +66,7 @@ class RecData(object):
                 self.set_fidreccl()
         else:
             if len(includecl)!=len(includeglm):
-                print "WARNING: includeglm and includecl are not the same lenght!"
+                print "WARNING: includeglm and includecl are not the same length!"
             self.includecl=[self.zerotagstr]+includecl #now len is +1 vs incglm
 
     def set_includeglm(self,newglmlist):
@@ -435,7 +435,7 @@ def domany_isw_recs(cldatlist,glmdatlist,reclist,outfiletag='iswREC',outruntag='
     Sameglm=False
     if type(cldatlist)!=list:#if a clData object is passed
         cldatlist=[cldatlist]
-    if type(glmdatlist)!=list: #if a glmData object is passedo
+    if type(glmdatlist)!=list: #if a glmData object is passed
         glmdatlist=[glmdatlist]
     if len(cldatlist)==1:
         SameCl=True
