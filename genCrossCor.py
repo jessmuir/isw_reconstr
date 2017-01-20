@@ -211,6 +211,63 @@ class ClData(object):
                 self.noisecl[diagind,0]=0
         return (self,tag) #return the new (now uniqe) tag
 
+    def addCMBtemp(self,cmbclfile = 'camb_workspace/noisw_scalCls.dat', cmbtag='CMBT',hasISWpower=False,iswtag = 'isw_bin0'):
+        #working here, need to test
+        """
+        Given the name of a CAMB output file containing CMB scalar power,
+        reads in temperature C_l, adds it to the cldata object with appropriate
+        cross correlations. 
+
+        if hasISWpower = False, assumes that power from ISW has been removed
+        from input power spectrum. If True, assumes ISW power is in the input Cl's.
+        """
+        #read in data
+        dat = np.loadtxt(cmbclfile,skiprows=1)
+        cmbcl = np.zeros(self.Nell) #starts at ell=2
+        cmbcl[2:] = dat[:,1]
+
+        #get isw info
+        iswind = self.tagdict[iswtag]
+
+        #if we need to, add in isw power
+        if not hasISWpower:
+            iswautoind = self.crossinds[iswind,iswind]
+            cmbcl += self.cl[iswautoind,:]
+
+        #add appropriate entries to cl
+        newNmap = self.Nmap +1
+        cmbind = newNmap - 1
+        newNcross =newNmap*(newNmap+1)/2
+        newcrosspairs,newcrossinds=get_index_pairs(newNmap)
+        newcl = np.zeros(newNcross,self.Nell)
+        newnoisecl = np.zeros(newNcross,self.Nell)
+        for i in xrange(newNmap):
+            for j in xrange(i,newNmap):
+                if i==cmbind and j==cmbind:
+                    newcl[newcrossinds[i,j],:] = cmbcl
+                    #noise will be zero
+                elif i==cmbind:
+                    newcl[newcrossinds[i,j],:] = self.cl[self.crossinds[iswind,j],:]
+                    newnoisecl[newcrossinds[i,j],:] = self.noisecl[self.crossinds[iswind,j],:]
+                elif j==cmbind:
+                    newcl[newcrossinds[i,j],:] = self.cl[self.crossinds[iswind,i],:]
+                    newnoisecl[newcrossinds[i,j],:] = self.noisecl[self.crossinds[iswind,i],:]
+                else:
+                    newcl[newcrossinds[i,j],:] = self.cl[self.crossinds[i,j],:]
+                    newnoisecl[newcrossinds[i,j],:] = self.noisecl[self.crossinds[i,j],:]
+        self.bintaglist.append(cmbtag)
+        self.Nmap = newNmap
+        self.tagdict[cmbtag] = cmbind
+        self.crosspairs = newcrosspairs
+        self.crossinds = newcrossinds
+        self.cl = newcl
+        self.noisecl = newnoisecl
+        newnbar = -1*np.ones(newNmap) #CMB will have -1 for nbar and therefore 0 noise
+        newnbar[:-1] = self.nbar
+        self.nbar = newnbar
+/Users/jlmuir/workspace/isw_reconstr/output/plots/mapplot_isw_bin0.unmod.fullsky.depthtest.r00000.png
+
+
 ###########################################################################
 def sphericalBesselj(n,x):
     return jv(n + 0.5, x) * np.sqrt(np.pi/(2*x))

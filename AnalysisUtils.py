@@ -144,7 +144,7 @@ def get_Dl_matrix(cldat,includelist=[],zerotag='isw_bin0'):
             if x in cldat.bintaglist:
                 if x not in dtags: 
                     dtags.append(x)
-                elif x!='isw_bin0': print 'Repeat tag {0} ignored for Dl'.format(x,)
+                elif x!=zerotag: print 'Repeat tag {0} ignored for Dl'.format(x,)
             else:
                 print x," not in C_l data; disregarding."
         elif isinstance(x,MapType): #this part has not been tested
