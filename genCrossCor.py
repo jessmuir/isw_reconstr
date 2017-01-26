@@ -212,7 +212,6 @@ class ClData(object):
         return (self,tag) #return the new (now uniqe) tag
 
     def addCMBtemp(self,cmbclfile = 'camb_workspace/noisw_scalCls.dat', cmbtag='CMBT',hasISWpower=False,iswtag = 'isw_bin0'):
-        #working here, need to test
         """
         Given the name of a CAMB output file containing CMB scalar power,
         reads in temperature C_l, adds it to the cldata object with appropriate
@@ -224,7 +223,9 @@ class ClData(object):
         #read in data
         dat = np.loadtxt(cmbclfile,skiprows=1)
         cmbcl = np.zeros(self.Nell) #starts at ell=2
-        cmbcl[2:] = dat[:,1]
+        # CAMB output is actually ell*(ell+1)*Cl/2*pi and is in units uK^2
+        ell = dat[:self.Nell-2,0]
+        cmbcl[2:] = dat[:self.Nell-2,1]*2.*np.pi/(ell*(ell+1.))*(1.e-6**2)
 
         #get isw info
         iswind = self.tagdict[iswtag]
@@ -239,8 +240,8 @@ class ClData(object):
         cmbind = newNmap - 1
         newNcross =newNmap*(newNmap+1)/2
         newcrosspairs,newcrossinds=get_index_pairs(newNmap)
-        newcl = np.zeros(newNcross,self.Nell)
-        newnoisecl = np.zeros(newNcross,self.Nell)
+        newcl = np.zeros((newNcross,self.Nell))
+        newnoisecl = np.zeros((newNcross,self.Nell))
         for i in xrange(newNmap):
             for j in xrange(i,newNmap):
                 if i==cmbind and j==cmbind:
@@ -265,8 +266,6 @@ class ClData(object):
         newnbar = -1*np.ones(newNmap) #CMB will have -1 for nbar and therefore 0 noise
         newnbar[:-1] = self.nbar
         self.nbar = newnbar
-/Users/jlmuir/workspace/isw_reconstr/output/plots/mapplot_isw_bin0.unmod.fullsky.depthtest.r00000.png
-
 
 ###########################################################################
 def sphericalBesselj(n,x):
@@ -322,7 +321,8 @@ def LimberCl_intwrapper(argtuple):
     if Nisw:
         prefactor= (100.)**2 #H0^2 in units h^2km^2/Mpc^2/s^2 
         prefactor*= 3./cosm.c**2 #h^2/Mpc^2
-        iswpref =lambda z: prefactor*(1.-f(z))/(kofz(z)**2) if kofz(z)!=0 else 0. #unitless function
+        prefactor*=cosm.Om*cosm.temp_cmb # h^2 K /Mpc^2 #added  1/26/17 -JM
+        iswpref =lambda z: prefactor*(1.-f(z))/(kofz(z)**2) if kofz(z)!=0 else 0. # funtion w units Kelvin
         if Nisw==1:
             iswprefactor= iswpref
         elif Nisw==2:
@@ -461,8 +461,9 @@ def Iintwrapper(argtuple):#(l,kval,rmin,rmax,cosm,binmap,zintlim=10000):
     prefactor=1.
     if binmap.isISW:
         H02 = (100.)**2 #h^2km^2/Mpc^2/s^2 
-        prefactor= 3.*H02/cosm.c**2 #h^2/Mpc^2 
-        prefactor=prefactor/(kval**2) #unitless
+        prefactor= 3.*H02/cosm.c**2 #h^2/Mpc^2
+        prefactor*=cosm.Om*cosm.temp_cmb # h^2 K /Mpc^2 #added  1/26/17 -JM
+        prefactor=prefactor/(kval**2) #Kelvin
     #print '   looking at pre/post cut division'
     #find r where we want to switch from full bessel to approx
     ALLPRECUT=False
@@ -707,7 +708,7 @@ def getCl(binmaplist,rundata,dopairs=[],redoAllCl=False,redoTheseCl=False,redoAu
         newdocross = docross[:]
         crossfromold = []#crossinds of x corrs previously computed
         if not (redoTheseCl or redoAutoCl):
-#            print "  Checking for previously computed C_l values."
+            print "  Checking for previously computed C_l values."
             #Remove from newdocross for pairs already computed
             for t in xrange(Nmap):
                 if oldind[t]>=0: #tag in oldtags
@@ -1085,7 +1086,7 @@ def get_docross_ind(tagdict,dopairs,crossinds=np.array([]),addauto=False):
 #           except: oldind[i]=-1 if tag doesn't appear in oldtaglist
 def translate_tag_inds(newcl,oldcl):
     #old = follow indices for maplist in prev existing file
-    oldind=-1*np.ones(newcl.Nmap) #for each tag in newcl,bintaglist, its index in oldcl.bintaglist
+    oldind=-1*np.ones(newcl.Nmap,dtype=int) #for each tag in newcl,bintaglist, its index in oldcl.bintaglist
     #get indices of tags existing in oldbintags
     for t in xrange(newcl.Nmap):
         tag=newcl.bintaglist[t]
