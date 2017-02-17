@@ -21,7 +21,7 @@ from ClRunUtils import *
 #          plus indices relevant for 
 ###########################################################################
 class ClData(object):
-    def __init__(self,rundata,bintags,dopairs=[],clgrid=np.array([]),addauto=True,docrossind=[],nbarlist=[]):
+    def __init__(self,rundata,bintags,dopairs=[],clgrid=np.array([]),addauto=True,docrossind=[],nbarlist=[],mapmodslist=[], fxcorr=0):
         if rundata.tag: runtag = '_'+rundata.tag
         else: runtag=''
         self.clfile= ''.join([rundata.cldir,'Cl',runtag,'.dat'])
@@ -33,6 +33,17 @@ class ClData(object):
         crosspairs,crossinds=get_index_pairs(self.Nmap)
         self.crosspairs=crosspairs #[crossind,mapinds] (NCross x2)
         self.crossinds=crossinds #[mapind,mapind] (Nmap x Nmap)
+        self.mapmodslist=mapmodslist #calibration errors that have already been applied to Cl_grid. Each bintag must only appear once. [(bintagA, modtag0),(bintagB,modtag0), ...]  
+#        self.binsmodded = [mapmod[0] for mapmod in mapmodslist if mapmod[1]!=0] #list of maps that have been modded (don't incldue ones modded with var=0)
+        if mapmodslist:
+            self.binsmodded,self.modtags = zip(*self.mapmodslist) #unzip mapmodslist into two (each is tuple, not list)
+            assert len(set(self.modtags))==1 #ensure all mods are the same
+            assert len(set(self.binsmodded))==len(self.binsmodded) #ensure no duplicate bins, indicating multiple calib errros for same map
+        else:
+            self.binsmodded=[]
+            self.modtags=[]
+            
+        self.fx=fxcorr #cross-correlation b/n calib errors of maps
         
         if len(docrossind): #if list of cross pair indices given, use those
             self.docross = docrossind
@@ -52,7 +63,7 @@ class ClData(object):
             self.nbar =nbarlist#same size as bintags, contains nbar for galaxy maps, -1 for otherrs
         else: #minus one means no nbar given for map at that index
             self.nbar=-1*np.ones(self.Nmap)
-        
+
         #keep noise contrib to C_l in separate array
         self.noisecl = np.zeros((self.Ncross,self.Nell))
         for i in xrange(self.Nmap):
@@ -60,7 +71,6 @@ class ClData(object):
                 diagind=self.crossinds[i,i]
                 self.noisecl[diagind,:]=1/self.nbar[i]
                 self.noisecl[diagind,0]=0
-
 
     def hasClvals(self):
         return bool(self.cl.size)
@@ -86,7 +96,14 @@ class ClData(object):
             if include_nbar: return self.cl[xind,:]+self.noisecl[xind,:]
             else: return self.cl[xind,:]
             
-
+    def insert_iswmodtag(self, tag=False):
+        """insert iswmodtag so writes maps with same modtags (since isw unique to each). If no tag passed, checks that allmodtags are same and use that."""
+        if tag==False:
+            if self.mapmodslist:
+                assert self.bintaglist[0]=='isw_bin0'
+                self.mapmodslist = [(self.bintaglist[0], self.modtags[0])] + self.mapmodslist
+                self.binsmodded,self.modtags = zip(*self.mapmodslist)
+            
     #pass string, for all binmaps with that string in their tag, change nbar
     def changenbar(self,mapstr,newnbar):
         changeinds=[]
@@ -1258,7 +1275,10 @@ def writeCl_file(cldat):
     f.write(header0b)
     f.write(header1)
     #write info about run ; won't be checked but good to have
-    f.write(rundata.infostr+'\n')
+    if cldat.mapmodslist: #added 170120 NJW
+        f.write(rundata.infostr+'; mapmods= {0}; fx_corr= {1}\n'.format(cldat.mapmodslist, cldat.fx))
+    else:
+        f.write(rundata.infostr+'\n')
     f.write('##############################\n') #skiprows = 8
     
     #write column labels
@@ -1462,7 +1482,11 @@ def get_reduced_cldata(incldat,dothesemaps=[]):
     #check that dothese maps is smaller than bintaglist
     for m in dothesemaps: #if so construct new bintaglist 
         if '_bin' in m: #is a specific map
-            mi = np.where(bintaglist==m)[0][0]
+#            print m
+#            print bintaglist
+#            print np.where(bintaglist==m)
+#            mi = np.where(bintaglist==m)[0][0] #170119 NJW - this doesn't work for strings (would ndeed to stet bintaglist to numpy array of type object)
+            mi = bintaglist.index(m)
             keepinds.append(mi)
             newtags.append(m)
             newnbars.append(incldat.nbar[mi])

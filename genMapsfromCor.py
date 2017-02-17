@@ -106,7 +106,7 @@ class glmData(object):
                 self.modtaglist=modtaglist*self.Nmap
             else:
                 if len(modtaglist):
-                    print "WARNING! mismatch: len(modtaglist)!=Nmaps. Setting all='unmod'"
+                    print "WARNING! mismatch: len(modtaglist)!=Nmaps. Setting all='unmod'. \n modtaglist = {0}, Nmap={1}".format(modtaglist,self.Nmap)
                 #if zero, or mismatch, set to default
                 self.modtaglist=['unmod']*self.Nmap
         else:
@@ -276,6 +276,7 @@ class glmData(object):
         return ''.join([self.mapdir(),fbase,'/',fbase,'.r{0:05d}.'.format(real),ftype])
     
     def get_mapfile_fortags(self,real,maptag,modtag='unmod',masktag='fullsky',ftype='fits'):
+        print self.mapdict
         n= self.mapdict[(maptag,modtag,masktag)]
         return self.get_mapfile(real,n,ftype)
 
@@ -486,7 +487,7 @@ def get_glm(cldata='',rundir='output/',filetag='',runtag='',Nreal=1,rlzns=np.arr
 
     # if Nreal, return dummy glmdat; no glm data, just filenames needed
     if Nreal==0:
-        glmdat=glmData(glm=np.array([]),lmax=cldata.rundat.lmax,maptaglist=cldata.bintaglist,masktaglist=masktaglist,runtag=runtag,rundir=cldata.rundat.rundir,filetags=[filetag],nbarlist=cldata.nbar)
+        glmdat=glmData(glm=np.array([]),lmax=cldata.rundat.lmax,maptaglist=cldata.bintaglist,modtaglist=cldata.modtags,masktaglist=masktaglist,runtag=runtag,rundir=cldata.rundat.rundir,filetags=[filetag],nbarlist=cldata.nbar)
         return glmdat
 
     if overwrite: #generate all these realizations of glm
@@ -539,7 +540,8 @@ def generate_many_glm_fromcl(cldata,Nreal=1,rlzns=np.array([]),savedat=True,file
         rlzns=np.array([])
     if matchClruntag:
         runtag=cldata.rundat.tag
-    glmdata=glmData(glm=glmgrid,lmax=cldata.rundat.lmax,maptaglist=cldata.bintaglist,runtag=runtag,rundir=cldata.rundat.rundir,rlzns=rlzns,filetags=[filetag],nbarlist=cldata.nbar)
+#    print '\ncldata.modtags = ',cldata.modtags
+    glmdata=glmData(glm=glmgrid,lmax=cldata.rundat.lmax,maptaglist=cldata.bintaglist,modtaglist=cldata.modtags,runtag=runtag,rundir=cldata.rundat.rundir,rlzns=rlzns,filetags=[filetag],nbarlist=cldata.nbar)
     if savedat:
         print "writing to files:",glmdata.get_glmfile()[:-9]+'XXXXX.dat'
 
@@ -565,7 +567,6 @@ def generate_glmdat_fromcl(cldata,rlz=0,savedat=True,filetag='',retglmData=True,
     if matchClruntag:
         runtag=cldata.rundat.tag
     bintaglist=cldata.bintaglist
-        
     #need match between Ncross and Nmaps
     Ncross=cldata.cl.shape[0]
     Nmaps = len(bintaglist) #just gests number of maps
@@ -577,7 +578,7 @@ def generate_glmdat_fromcl(cldata,rlz=0,savedat=True,filetag='',retglmData=True,
     if retglmData or savedat:
         #modtag and masktag are defaults 'nomod' and 'fullsky'
     #glm data is class that stores info on the maps that generated it as well as the glm data itself
-        glmdat=glmData(glm=glmgrid,lmax=rundat.lmax,maptaglist=bintaglist,runtag=runtag,rundir=rundat.rundir,rlzns=np.array([rlz]),filetags=[filetag],nbarlist=cldata.nbar)
+        glmdat=glmData(glm=glmgrid,lmax=rundat.lmax,maptaglist=bintaglist,modtaglist=cldata.modtags,runtag=runtag,rundir=rundat.rundir,rlzns=np.array([rlz]),filetags=[filetag],nbarlist=cldata.nbar)
     #save the data
     if savedat:
         glmdat= write_glm_to_files(glmdat,setnewfiletag=True,newfiletag=filetag)
@@ -834,7 +835,7 @@ def getglm_frommaps(dummyglm,rlzns=np.array([]),Nreal=1):
             mapfile=dummyglm.get_mapfile(rlzns[r],n) #filename of .fits file
             #read in map, extract glm
             mapdat=hp.read_map(mapfile,verbose=False)
-            #print mapfile,'\n   rms:',np.std(mapdat)
+#            print mapfile,'\n   rms:',np.std(mapdat)
             glm[r,n,:]=hp.map2alm(mapdat,dummyglm.lmax)
         #print 'realization',r,'glm nonzero?',np.any(glm[r,:,:])
         
@@ -904,7 +905,6 @@ def get_fixedvar_errors_formaps(glmdat,cdatalist=[],overwrite=False,NSIDE=32,Nre
     rundir=glmdat.rundir
     outdir=glmdat.mapdir()
     outtuplelist=[]
-
     for cdat in cdatalist:
         #defaults
         cvar=1.e-4
@@ -937,6 +937,7 @@ def get_fixedvar_errors_formaps(glmdat,cdatalist=[],overwrite=False,NSIDE=32,Nre
         #get realization numbers for which we're generating calib errors
         # if passing a dummy glm, look for Nreal arg to this function
         # if dummy glm and Nreal==0, get outtuple list but dn't make maps
+        makingmaps = True #will set this to false if Nreal==0 and dummyglm
         dothesereal=np.array([])
         if glmdat.rlzns.size:
             dothesereal=glmdat.rlzns
@@ -944,12 +945,14 @@ def get_fixedvar_errors_formaps(glmdat,cdatalist=[],overwrite=False,NSIDE=32,Nre
             dothesereal=np.arange(glmdat.Nreal)
         elif Nreal:
             dothesereal=np.arange(Nreal)
+        else:
+            makingmaps=False
         if shape=='l2':
             modtag='l2_var{0:.2e}_{2:d}l{1:d}'.format(cvar,clmax,clmin)
         elif shape=='g': #currently default width
             #print 'cvar',cvar,int(width),clmax,clmin
             modtag='g{1:d}_var{0:.2e}_{3:d}l{2:d}'.format(cvar,int(width),clmax,clmin)
-        print 'USING MODTAG',modtag
+#        print 'USING MODTAG',modtag
 
         rcountblock=100
         #loop through maps and realizations, generating calib maps
@@ -959,7 +962,8 @@ def get_fixedvar_errors_formaps(glmdat,cdatalist=[],overwrite=False,NSIDE=32,Nre
             thisoutdir=outdir+outbase+'/'
             if not os.path.isdir(thisoutdir):
                 os.mkdir(thisoutdir)
-            print 'Generating calibration error maps with base:',outbase
+            if makingmaps:
+                print 'Generating calibration error maps with base:',outbase
             for r in dothesereal:
                 if r%rcountblock==0:
                     print "    ON realization",r
@@ -1140,9 +1144,9 @@ def getmodtag_fixedvar(sig2,shape='g',lmin=0,lmax=30,width=10.):
 #
 # neglects multiplicative errors
 # assumes epsilon propto c_00
-# assumes calibration error maps are uncorrelated with each other and galaxies
+# assumes calibration error maps are uncorrelated with each other and galaxies [NO LONGER. USE F_XCORR FOR CROSSCORR]
 #------------------------------------------------------------------------
-def apply_additive_caliberror_tocl(cldat,mapmodcombos=[],f_xcorr=0):
+def apply_additive_caliberror_tocl(cldat,mapmodcombos=[],f_xcorr=0,insert_isw_modtag=False):
     # f_xcorr is fraction of cross-correlation between map calibration errors:
     # Cl_cal_XY = f_xcorr * sqrt(Cl_cal_XX * Cl_cal_YY).
     # Note, -1 =< f_xcorr <= 1
@@ -1217,7 +1221,9 @@ def apply_additive_caliberror_tocl(cldat,mapmodcombos=[],f_xcorr=0):
 
     #creat outcldata object with new outcl and nbar
     #print 'HAS CL changed? ',np.any(cldat.cl-outcl)
-    outcldat=ClData(copy.deepcopy(cldat.rundat),cldat.bintaglist,clgrid=outcl,docrossind=cldat.docross,nbarlist=newnbarlist, )
+    outcldat=ClData(copy.deepcopy(cldat.rundat),cldat.bintaglist,clgrid=outcl,docrossind=cldat.docross,nbarlist=newnbarlist,mapmodslist=mapmodcombos,fxcorr=f_xcorr)
+    if insert_isw_modtag:
+        outcldat.insert_iswmodtag()
 #    print 'outcldat'    
 #    print outcldat.cl[2,4]
     return outcldat
@@ -1407,7 +1413,9 @@ def apply_caliberror_to_manymaps(inglmdat,mapmodcombos=[],saveplots=False,rlzns=
             newmasktags.append(mapmod[2])
     if calmap_scaling!=1. and len(newmodtags)!=len(mapmodcombos):
         print "WARNING. nontrival scaling applied to calib error map, no newmodtags"
+        print 'newmodtags= {0}, \n mapmodcombos= {1}'.format(newmodtags, mapmodcombos)
         newmodtags=refmodtags
+        print 
     #for each new modification, get the map and mod maps, combine them
     # for each realization contained in inglmdat
     if rlzns.size:
