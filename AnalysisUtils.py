@@ -35,11 +35,11 @@ from genMapsfromCor import * #functions which gen g_lm and maps from C_l
 #   useObsCl - use observed Cl's from data for all LSS, use includelcl theory for LSS_ISW and ISW Cls
 #   userectags_foriswtrue - if True, uses the recdat modtag and masktag to find the true ISW map for computing rho.
 #                               Before 2/1/17, computed used base isw_true map and just added varainces to the large scale structure. Now when creating isw_true maps from Cl (instead of adding Cl to LSS maps), has modtag in filename.
-
+#   
 ###########################################################################
 class RecData(object):
     def __init__(self,includeglm=[],includecl=[],inmaptag='fromLSS',rectag='nonfid',minl_forrec=2,maxl_forrec=-1,
-                 NSIDE=32,zerotag='isw_bin0',maptagprefix='iswREC',nolmintag=False,useObsCl=False,userectags_fortrueisw=False):
+                 NSIDE=32,zerotag='isw_bin0',maptagprefix='iswREC',nolmintag=False,useObsCl=False,userectags_fortrueisw=False,modtaglist=[]):
         self.Nmap=len(includeglm)
         self.inmaptag=inmaptag
         self.maptag=maptagprefix+'.'+inmaptag
@@ -78,7 +78,19 @@ class RecData(object):
             if len(includecl)!=len(includeglm):
                 print "WARNING: includeglm and includecl are not the same lenght!"
             self.includecl=[self.zerotagstr]+includecl #now len is +1 vs incglm
-
+            
+        if not modtaglist:
+            self.modtaglist = ['unmod']*len(includeglm)
+        else:
+            if len(modtaglist)!=len(includeglm):
+                if len(modtaglist)!=1:
+                    print '\nWARNING: rectaglist and includeglm are not the same length! Using unmod for true maps.'
+                    self.modtaglist = ['unmod']*len(includeglm)
+                else:
+                    self.modtaglist = modtaglist*len(includeglm)
+            else:
+                self.modtaglist = modtaglist
+                
     def set_includeglm(self,newglmlist):
         if newglmlist[0] == self.zerotagstr:  #[zerotag wasn't present when I was running multi tests, resulting in error. NJW 160609]      
             newglmlist.remove(self.zerotagstr)
@@ -318,7 +330,7 @@ def calc_isw_est(cldat,glmdat,recdat,writetofile=True,getmaps=True,redofits=True
     print "Computing ISW estimator maptag,rectag:",maptag,rectag
     if not recdat.includeglm:
         useglm=cldat.bintaglist
-        print 'using cldat.bintaglist for ISW rec: ',useglm
+        print 'recdat.includeglm not present --> Using cldat.bintaglist for ISW rec: ',useglm
         print recdat.zerotag
         recdat.set_includeglm(useglm) # rectag.set_includeglm(useglm) [rectag is string, no set_.. func, changed to recdat NJW 160609]
     
@@ -378,7 +390,7 @@ def calc_isw_est(cldat,glmdat,recdat,writetofile=True,getmaps=True,redofits=True
                     plt.show()
 
 
-        print "Scaling by best-fit constant bias. Looping through realizations..."
+        print "bbb -- Scaling by best-fit constant bias. Looping through realizations..."
     else:
         print "***Skipping bias fitting step!***"            
     #scaling according to bias will make Dl and Dinv depend on realization
@@ -387,7 +399,7 @@ def calc_isw_est(cldat,glmdat,recdat,writetofile=True,getmaps=True,redofits=True
 
 #    --------- useobs 170112 NJW
     if useObsCl: #calculate cross corr from map realisations and build Dl from that.
-        print 'Using Cl_obs from maps for Estimator...'
+        print '----- Using Cl_obs from maps for Estimator...'
         xpairs,xinds = get_index_pairs(NLSS) #corresponds to Cl ordering from healpy
         for r in xrange(Nreal):
     #        Dlr[r,:,:,:]=scale_Dl_byb0(Dl,b0[r,:]) #b0=1 if no fitting
@@ -404,9 +416,10 @@ def calc_isw_est(cldat,glmdat,recdat,writetofile=True,getmaps=True,redofits=True
 #                        print clobs_xspec.shape
                         Dlr[r,:,i+1,j+1]=clobs_xspec[:,xinds[i,j]] # scale_Dl_byb0(Dl,b0[r,:]) #b0=1 if no fitting
                         Dlr[r,:,j+1,i+1]=clobs_xspec[:,xinds[i,j]]
-            Dlr[r,:,:,0] = Dl[:,:,0]
-            Dlr[r,:,0,:] = Dl[:,0,:]
-            assert Dl[4,1,0]==Dlr[r,4,0,1] #should be symmetric
+            # get isw-gal xpower from D matrix (indep of realization) for all ell
+            Dlr[r,:,:,0] = Dl[:,:,0] ## D matrix dims: Nellx(NLSS+1)x(NLSS+1) 
+            Dlr[r,:,0,:] = Dl[:,0,:] 
+            assert Dlr[r,4,-1,-2]==Dlr[r,4,-2,-1] #should be symmetric
             
 #            print Dlr[r,:,:,:]
             Dinvr[r,:,:,:] = invert_Dl(Dlr[r,:,:,:])
@@ -641,7 +654,8 @@ def rell_onereal(truemap,recmap,varname='rell'):
 #-------------------------------------------------------------------------
 def getmaps_fromCl(cldat,Nreal=1,rlzns=np.array([]),reclist=[],Nglm=1,block=100,
                    glmfiletag='',almfiletag='iswREC',rhofiletag='',justgetrho=False,
-                   dorho=True,dos=True,dochisq=False,dorell=False,dochisqell=False):
+                   dorho=True,dos=True,dochisq=False,dorell=False,dochisqell=False,
+                   rec_cldat=None): #170217 added by NJW, so can do reconstruction from different cl_data object (all params except cl_grid must be same)
     """
      The glm files take up a lot of space in memory;
      this function is meant to bundle together:
@@ -655,6 +669,8 @@ def getmaps_fromCl(cldat,Nreal=1,rlzns=np.array([]),reclist=[],Nglm=1,block=100,
     if rlzns.size:
         Nreal=rlzns.size
 
+    if rec_cldat==None:
+        rec_cldat = cldat #do recreation from same cls as passing in
     #to avoid having giant glm arrays, run in batches, 100ish should be fine
     Nblock=Nreal/block
     remainder=Nreal%block
@@ -689,12 +705,13 @@ def getmaps_fromCl(cldat,Nreal=1,rlzns=np.array([]),reclist=[],Nglm=1,block=100,
             Nglm=0
 
         if not justgetrho:
-            print "Making maps for rlzns {0:d}-{1:d}".format(nrlzns[0],nrlzns[-1])
+            print "\nMaking maps for rlzns {0:d}-{1:d}".format(nrlzns[0],nrlzns[-1])
             #print "   thisNglm=",thisNglm
             glmdat=generate_many_glm_fromcl(cldat,rlzns=nrlzns,savedat=False)
             if reclist:
                 print "  Doing ISW reconstructions."
-                almdat=domany_isw_recs(cldat,glmdat,reclist,writetofile=False,getmaps=True,makeplots=False,outruntag=glmdat.runtag,dorho=False)
+                almdat=domany_isw_recs(rec_cldat,glmdat,reclist,writetofile=False,getmaps=True,makeplots=False,outruntag=glmdat.runtag,dorho=False)
+#                almdat=domany_isw_recs(cldat,glmdat,reclist,writetofile=False,getmaps=True,makeplots=False,outruntag=glmdat.runtag,dorho=False)
             #    print '  ************alm after rec:',almdat.maptaglist
             #print '  *****glm generated from healpy:',glmdat.maptaglist
             print 'getting galaxy maps'

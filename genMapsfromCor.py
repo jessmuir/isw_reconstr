@@ -1209,12 +1209,13 @@ def apply_additive_caliberror_tocl(cldat,mapmodcombos=[],f_xcorr=0,insert_isw_mo
         elif f_xcorr!=0: #added 160822 NJW
             outcl[n,:] += f_xcorr * np.sqrt(calcl[i,:]*calcl[j,:]) #cross correlation of calib error from the autocorrelations times calib correlation coeff b/n the maps(f_xcorr)
             
-        outcl[n,0]+=-1*np.sqrt(calcl[i,0]*calcl[j,0]) #from some of the epsilon terms 
+        outcl[n,0]+=-4*np.pi*epsilon[i]*epsilon[j] 
+#        outcl[n,0]+=-1*np.sqrt(calcl[i,0]*calcl[j,0]) #from some of the epsilon terms 
 #        print outcl[n,4]
 #        if outcl[n,4]-cldat.cl[n,4]!=0:
 #            print ' (pre-eps)     ij=',i,j,', outcl[ij,4]=',outcl[n,4],'  prev',cldat.cl[n,4]
 #        else: print '  (pre eps)    ij=',i,j,', no change'
-        outcl[n,:]/=(1.+epsilon[i])*(1.+epsilon[j]) #no mod if epsilon small
+        outcl[n,:]/=((1.+epsilon[i])*(1.+epsilon[j])) #no mod if epsilon small
 #        print outcl[n,4]
 #        print 'mapA,mapB, Cl00: {0}, {1}, {2}'.format(i,j,outcl[n,0])
         #print '  changed?',np.any(outcl[n,:]==cldat.cl[n,:])
