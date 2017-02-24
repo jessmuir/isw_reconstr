@@ -327,7 +327,7 @@ def calc_isw_est(cldat,glmdat,recdat,writetofile=True,getmaps=True,redofits=True
     rectag=recdat.rectag
     lmin_forrec=recdat.lmin
     lmax_forrec=recdat.lmax
-    print "Computing ISW estimator maptag,rectag:",maptag,rectag
+    print "\nComputing ISW estimator maptag,rectag:",maptag,rectag
     if not recdat.includeglm:
         useglm=cldat.bintaglist
         print 'recdat.includeglm not present --> Using cldat.bintaglist for ISW rec: ',useglm
@@ -401,12 +401,17 @@ def calc_isw_est(cldat,glmdat,recdat,writetofile=True,getmaps=True,redofits=True
     if useObsCl: #calculate cross corr from map realisations and build Dl from that.
         print '----- Using Cl_obs from maps for Estimator...'
         xpairs,xinds = get_index_pairs(NLSS) #corresponds to Cl ordering from healpy
+        c_4_obs=[]
         for r in xrange(Nreal):
     #        Dlr[r,:,:,:]=scale_Dl_byb0(Dl,b0[r,:]) #b0=1 if no fitting
     #        Dinvr[r,:,:,:] = invert_Dl(Dlr[r,:,:,:])
             # according to docs, alm2cl can take array of alms, and will return cross spectra in diag order (clA, clB, clC)--> (ClAA, clBB clCC, clAB, clBC, clAC)
             clobs_xspec=np.array(hp.alm2cl(glmgrid[r,:,:])).T #try it as array first, (will it use correct alms by NLSS? not sure) Should be array of dims Nell x NLSS*(NLSS+1)/2. Need to convert to correct order in Cl matrix
-#            print clobs_xspec            
+#            print 'clobs shape:', clobs_xspec.shape
+#            print '\nclobs [(ClAA, clBB clCC, clAB, clBC, clAC)]:'
+#            print clobs_xspec[1,:]
+#            print 
+            c_4_obs.append(clobs_xspec[4,:])
             #dims Nell x N_xinds. Assumes readin maps have same Nell as that derived from passed Cldat
             for i in xrange(NLSS):
                 for j in xrange(NLSS):
@@ -420,14 +425,13 @@ def calc_isw_est(cldat,glmdat,recdat,writetofile=True,getmaps=True,redofits=True
             Dlr[r,:,:,0] = Dl[:,:,0] ## D matrix dims: Nellx(NLSS+1)x(NLSS+1) 
             Dlr[r,:,0,:] = Dl[:,0,:] 
             assert Dlr[r,4,-1,-2]==Dlr[r,4,-2,-1] #should be symmetric
-            
-#            print Dlr[r,:,:,:]
             Dinvr[r,:,:,:] = invert_Dl(Dlr[r,:,:,:])
 #                cltheory=Dl[:,i+1,i+1]#0th entry is ISW
 #                clobs=np.zeros((Nell,Nreal))
                 #for each realization, get clobs from glm and do a fit
     #            for r in xrange(Nreal):
 #                    clobs[:,r]=hp.alm2cl(glmgrid[r,i,:])
+
 #        print Dlr[0,:,0:3,0:3]
 #                b0[:,i]=fitcl_forb0_onereal(cltheory[lmin:lmax+1],clobs[lmin:lmax+1,:])#only fit to desired ell
     #------          
@@ -439,11 +443,28 @@ def calc_isw_est(cldat,glmdat,recdat,writetofile=True,getmaps=True,redofits=True
         #print '   prescaling:',Dl[4,0,0],Dl[4,0,1],Dl[4,1,1]
         #print '  postscaling:',Dlr[r,4,0,0],Dlr[r,4,0,1],Dlr[r,4,1,1]
         #print '  R4 after scaling func',Dlr[r,4,0,1]/Dlr[r,4,1,1]
+
+    ltest=4
+    cosvar=2*np.average(Dlr[:,ltest,0,0])/(2*ltest+1)
+    print' \n   ---- N_realz = {0}    '.format(Nreal)
+    print '\nC_[l={0}]_isw-isw. (avg, std, sderr)'.format(ltest)
+    print '<Clr> = ',(np.average(Dlr[:,ltest,0,0]), np.std(Dlr[:,ltest,0,0]), np.std(Dlr[:,ltest,0,0])/np.sqrt(Nreal))
+    print '  Cosmic var: ',cosvar
+    print '\n  +/- limits: ',(np.average(Dlr[:,ltest,0,0]) - 2*np.sqrt(cosvar), np.average(Dlr[:,ltest,0,0]) + 2*np.sqrt(cosvar))
+    
+    print '\nC_[l={0}]_isw-lss. (avg, std, sderr)'.format(ltest)
+    print (np.average(Dlr[:,ltest,0,1]), np.std(Dlr[:,ltest,0,1]), np.std(Dlr[:,ltest,0,1])/np.sqrt(Nreal))
+    
+    print '\nC_[l={0}]_lss-lss. (avg, std, sderr)'.format(ltest)
+    print (np.average(Dlr[:,ltest,1,1]), np.std(Dlr[:,ltest,1,1]), np.std(Dlr[:,ltest,1,1])/np.sqrt(Nreal))
+
+    
+
     #compute estimator; will have same number of realizations as glmdat
     almest=np.zeros((glmgrid.shape[0],1,glmgrid.shape[2]),dtype=np.complex)
     ellvals,emmvals=glmdat.get_hp_landm()
     for lmind in xrange(glmdat.Nlm):
-        ell=ellvals[lmind]
+        ell=ellvals[lmind] #note this only has m=[0,l], not -l values, so l*(l+1)/2 total vals
         emm=emmvals[lmind]
         if ell<lmin_forrec or (lmax_forrec>0 and ell>lmax_forrec): 
             continue
@@ -452,6 +473,45 @@ def calc_isw_est(cldat,glmdat,recdat,writetofile=True,getmaps=True,redofits=True
             almest[:,0,lmind]-=Dinvr[:,ell,0,i+1]*glmgrid[:,i,lmind]
             #print 'just added',-1*Dinv[ell,0,i]*glmgrid[:,i,lmind]
         almest[:,0,lmind]*=Nl
+        
+    ltest_mask = ellvals == ltest # selects lm_indices where l=ltest
+    m0_mask = emmvals==0
+    m_non0_mask = emmvals != 0
+    
+    # OK NEED TO CHECK ALL THESE. THIS IS ALL DEBUG STUFF, BUT NOT FULLY WRITTEN. MAKING SURE ESTIMATED ALMS HAVE SAME MEAN AND VARIANCE AS EXPECTED, EVEN WITH CALIB ERRORS
+#    print ellvals[90:130]
+    print len(ellvals)
+    print sum(ltest_mask)
+    print '\nvar(a_[l={0}]_m_est). (avg, (var(real), ar(imag), var(full), sderr)'.format(ltest)
+    print 'avg',np.average(almest[:,0,ltest_mask])
+    
+    clrest = np.average(almest[:,0,ltest_mask*m0_mask], axis=1) #average alm per 
+    clrest_var = np.var(clrest) #sample variance. Should = 2*Cl^2/(2l+1)
+    print 'len clrest = reals?',len(clrest)
+    print np.average(clrest)
+    print '<Cl> = ',clrest
+    print 'var(Cl) = ',clrest_var
+    
+    print '(Cl =) var, m=0'
+    clrest_m0 = np.var(almest[:,0,ltest_mask*m0_mask], axis=1) #length realz, with variance of Alms, which should = Cl on average
+    clrest_non0_real = np.var(almest[:,0,ltest_mask*m_non0_mask].real, axis=1)
+    clrest_non0_imag = np.var(almest[:,0,ltest_mask*m_non0_mask].imag, axis=1)
+    print '<Cl> (m=0) = ',np.average(clrest_m0)
+    print '<Cl> (m!=0, real) = ',np.average(clrest_non0_real)
+    print '<Cl> (m!=0, imag) = ',np.average(clrest_non0_imag)
+    
+    print 
+    print (np.var(almest[:,0,ltest_mask*m0_mask].real), np.var(almest[:,0,ltest_mask*m0_mask].imag))
+    print np.var(almest[:,0,ltest_mask*m0_mask])
+    print '(Cl =) 2*var, m != 0'
+    print (2*np.var(almest[:,0,ltest_mask*m_non0_mask].real), 2*np.var(almest[:,0,ltest_mask*m_non0_mask].imag))
+    print 'var tot',np.var(almest[:,0,ltest_mask*m_non0_mask])
+    print 'std'
+    print (np.std(almest[:,0,ltest_mask*m_non0_mask].real),np.std(almest[:,0,ltest_mask*m_non0_mask].imag))
+    print np.std(almest[:,0,ltest_mask*m_non0_mask])
+    print 'stderr',np.std(almest[:,0,ltest_mask])/np.sqrt(Nreal)
+    print
+    
     outmaptags=[recdat.maptag]
 # Now have useObsCl directly modify modtag in recdat object NJW 170119
 #    if useObsCl: #added 170116, sbould only affect ISWrec maps... NJW
@@ -655,7 +715,7 @@ def rell_onereal(truemap,recmap,varname='rell'):
 def getmaps_fromCl(cldat,Nreal=1,rlzns=np.array([]),reclist=[],Nglm=1,block=100,
                    glmfiletag='',almfiletag='iswREC',rhofiletag='',justgetrho=False,
                    dorho=True,dos=True,dochisq=False,dorell=False,dochisqell=False,
-                   rec_cldat=None): #170217 added by NJW, so can do reconstruction from different cl_data object (all params except cl_grid must be same)
+                   rec_cldat=None, fitbias=True): #170217 added by NJW, so can do reconstruction from different cl_data object (all params except cl_grid must be same)
     """
      The glm files take up a lot of space in memory;
      this function is meant to bundle together:
@@ -710,7 +770,7 @@ def getmaps_fromCl(cldat,Nreal=1,rlzns=np.array([]),reclist=[],Nglm=1,block=100,
             glmdat=generate_many_glm_fromcl(cldat,rlzns=nrlzns,savedat=False)
             if reclist:
                 print "  Doing ISW reconstructions."
-                almdat=domany_isw_recs(rec_cldat,glmdat,reclist,writetofile=False,getmaps=True,makeplots=False,outruntag=glmdat.runtag,dorho=False)
+                almdat=domany_isw_recs(rec_cldat,glmdat,reclist,writetofile=False,getmaps=True,makeplots=False,outruntag=glmdat.runtag,dorho=False,fitbias=fitbias)
 #                almdat=domany_isw_recs(cldat,glmdat,reclist,writetofile=False,getmaps=True,makeplots=False,outruntag=glmdat.runtag,dorho=False)
             #    print '  ************alm after rec:',almdat.maptaglist
             #print '  *****glm generated from healpy:',glmdat.maptaglist
