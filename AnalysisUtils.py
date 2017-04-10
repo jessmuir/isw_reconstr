@@ -7,7 +7,7 @@ import matplotlib.pyplot as plt
 import matplotlib.ticker as mtick
 import matplotlib
 import itertools
-from scipy.optimize import fmin_slsqp,leastsq
+from scipy.optimize import fmin_slsqp,leastsq,least_squares
 import copy
 
 from MapParams import * #Classes w info about map properties
@@ -327,7 +327,7 @@ def calc_isw_est(cldat,glmdat,recdat,writetofile=True,getmaps=True,redofits=True
     rectag=recdat.rectag
     lmin_forrec=recdat.lmin
     lmax_forrec=recdat.lmax
-    print "\nComputing ISW estimator maptag,rectag:",maptag,rectag
+    print "\n\n ===== Computing ISW estimator maptag,rectag:",maptag,rectag
     if not recdat.includeglm:
         useglm=cldat.bintaglist
         print 'recdat.includeglm not present --> Using cldat.bintaglist for ISW rec: ',useglm
@@ -338,7 +338,8 @@ def calc_isw_est(cldat,glmdat,recdat,writetofile=True,getmaps=True,redofits=True
     #   where NLSS is number of LSS maps being used for rec, 
     #       where +1 is from ISW
     Dl,dtags=get_Dl_matrix(cldat,recdat.includecl,recdat.zerotagstr)
-    Dinv=invert_Dl(Dl)
+
+#    Dinv=invert_Dl(Dl)
     #print 'Dinv',Dinv
     #get glmdata with right indices, dim realzxNLSSxNlm
     glmgrid,dinds=get_glm_array_forrec(glmdat,recdat.includeglm,recdat.zerotag)
@@ -346,13 +347,17 @@ def calc_isw_est(cldat,glmdat,recdat,writetofile=True,getmaps=True,redofits=True
     #fit for constant bias for each LSS map (assume all non-zero indices are LSS)
     Nreal=glmgrid.shape[0]
     NLSS=glmgrid.shape[1] 
-    Nell=Dl.shape[0] # 170113 - note that if useObsCl, don't actually uise Dl. this assumes Nell from Cl matches observed maps, which should usually be true, but could we tighten this?
+    Nell=Dl.shape[0] # 170113 - note that if useObsCl, this assumes Nell from Cl matches observed maps, which should usually be true, but could we tighten this?
     lmin=lmin_forrec
     if lmax_forrec<0 or lmax_forrec>Nell-1:
         lmax=Nell-1
     else:
         lmax=lmax_forrec
-
+    #translate between map indices in D and in C
+    clind=-1*np.ones(NLSS,int)        
+    for t in xrange(NLSS):
+        clind[t]=cldat.tagdict[dtags[t]]
+        
     b0=np.ones((Nreal,NLSS))#find best fit bias for each real, for each LSS tracer
     
     #print '------reconstructing isw000-------'
@@ -399,6 +404,7 @@ def calc_isw_est(cldat,glmdat,recdat,writetofile=True,getmaps=True,redofits=True
 
 #    --------- useobs 170112 NJW
     if useObsCl: #calculate cross corr from map realisations and build Dl from that.
+        
         print '----- Using Cl_obs from maps for Estimator...'
         xpairs,xinds = get_index_pairs(NLSS) #corresponds to Cl ordering from healpy
         c_4_obs=[]
@@ -421,6 +427,10 @@ def calc_isw_est(cldat,glmdat,recdat,writetofile=True,getmaps=True,redofits=True
 #                        print clobs_xspec.shape
                         Dlr[r,:,i+1,j+1]=clobs_xspec[:,xinds[i,j]] # scale_Dl_byb0(Dl,b0[r,:]) #b0=1 if no fitting
                         Dlr[r,:,j+1,i+1]=clobs_xspec[:,xinds[i,j]]
+                        
+                #add noise information from D matrix to gal autopowers (need to include any obs info? I think no) #170316
+                cl_xind = cldat.crossinds[clind[i],clind[i]] #crossind of gal autopower in clbasis
+                Dlr[r,:,i+1,i+1] += cldat.noisecl[cl_xind,:]
             # get isw-gal xpower from D matrix (indep of realization) for all ell
             Dlr[r,:,:,0] = Dl[:,:,0] ## D matrix dims: Nellx(NLSS+1)x(NLSS+1) 
             Dlr[r,:,0,:] = Dl[:,0,:] 
@@ -444,22 +454,6 @@ def calc_isw_est(cldat,glmdat,recdat,writetofile=True,getmaps=True,redofits=True
         #print '  postscaling:',Dlr[r,4,0,0],Dlr[r,4,0,1],Dlr[r,4,1,1]
         #print '  R4 after scaling func',Dlr[r,4,0,1]/Dlr[r,4,1,1]
 
-    ltest=4
-    cosvar=2*np.average(Dlr[:,ltest,0,0])/(2*ltest+1)
-    print' \n   ---- N_realz = {0}    '.format(Nreal)
-    print '\nC_[l={0}]_isw-isw. (avg, std, sderr)'.format(ltest)
-    print '<Clr> = ',(np.average(Dlr[:,ltest,0,0]), np.std(Dlr[:,ltest,0,0]), np.std(Dlr[:,ltest,0,0])/np.sqrt(Nreal))
-    print '  Cosmic var: ',cosvar
-    print '\n  +/- limits: ',(np.average(Dlr[:,ltest,0,0]) - 2*np.sqrt(cosvar), np.average(Dlr[:,ltest,0,0]) + 2*np.sqrt(cosvar))
-    
-    print '\nC_[l={0}]_isw-lss. (avg, std, sderr)'.format(ltest)
-    print (np.average(Dlr[:,ltest,0,1]), np.std(Dlr[:,ltest,0,1]), np.std(Dlr[:,ltest,0,1])/np.sqrt(Nreal))
-    
-    print '\nC_[l={0}]_lss-lss. (avg, std, sderr)'.format(ltest)
-    print (np.average(Dlr[:,ltest,1,1]), np.std(Dlr[:,ltest,1,1]), np.std(Dlr[:,ltest,1,1])/np.sqrt(Nreal))
-
-    
-
     #compute estimator; will have same number of realizations as glmdat
     almest=np.zeros((glmgrid.shape[0],1,glmgrid.shape[2]),dtype=np.complex)
     ellvals,emmvals=glmdat.get_hp_landm()
@@ -474,44 +468,105 @@ def calc_isw_est(cldat,glmdat,recdat,writetofile=True,getmaps=True,redofits=True
             #print 'just added',-1*Dinv[ell,0,i]*glmgrid[:,i,lmind]
         almest[:,0,lmind]*=Nl
         
-    ltest_mask = ellvals == ltest # selects lm_indices where l=ltest
-    m0_mask = emmvals==0
-    m_non0_mask = emmvals != 0
-    
-    # OK NEED TO CHECK ALL THESE. THIS IS ALL DEBUG STUFF, BUT NOT FULLY WRITTEN. MAKING SURE ESTIMATED ALMS HAVE SAME MEAN AND VARIANCE AS EXPECTED, EVEN WITH CALIB ERRORS
-#    print ellvals[90:130]
-    print len(ellvals)
-    print sum(ltest_mask)
-    print '\nvar(a_[l={0}]_m_est). (avg, (var(real), ar(imag), var(full), sderr)'.format(ltest)
-    print 'avg',np.average(almest[:,0,ltest_mask])
-    
-    clrest = np.average(almest[:,0,ltest_mask*m0_mask], axis=1) #average alm per 
-    clrest_var = np.var(clrest) #sample variance. Should = 2*Cl^2/(2l+1)
-    print 'len clrest = reals?',len(clrest)
-    print np.average(clrest)
-    print '<Cl> = ',clrest
-    print 'var(Cl) = ',clrest_var
-    
-    print '(Cl =) var, m=0'
-    clrest_m0 = np.var(almest[:,0,ltest_mask*m0_mask], axis=1) #length realz, with variance of Alms, which should = Cl on average
-    clrest_non0_real = np.var(almest[:,0,ltest_mask*m_non0_mask].real, axis=1)
-    clrest_non0_imag = np.var(almest[:,0,ltest_mask*m_non0_mask].imag, axis=1)
-    print '<Cl> (m=0) = ',np.average(clrest_m0)
-    print '<Cl> (m!=0, real) = ',np.average(clrest_non0_real)
-    print '<Cl> (m!=0, imag) = ',np.average(clrest_non0_imag)
-    
-    print 
-    print (np.var(almest[:,0,ltest_mask*m0_mask].real), np.var(almest[:,0,ltest_mask*m0_mask].imag))
-    print np.var(almest[:,0,ltest_mask*m0_mask])
-    print '(Cl =) 2*var, m != 0'
-    print (2*np.var(almest[:,0,ltest_mask*m_non0_mask].real), 2*np.var(almest[:,0,ltest_mask*m_non0_mask].imag))
-    print 'var tot',np.var(almest[:,0,ltest_mask*m_non0_mask])
-    print 'std'
-    print (np.std(almest[:,0,ltest_mask*m_non0_mask].real),np.std(almest[:,0,ltest_mask*m_non0_mask].imag))
-    print np.std(almest[:,0,ltest_mask*m_non0_mask])
-    print 'stderr',np.std(almest[:,0,ltest_mask])/np.sqrt(Nreal)
-    print
-    
+
+## ----- 1st debug section
+#    ltest=10
+#    isw_cosvar=2*np.average(Dlr[:,ltest,0,0])**2/(2*ltest+1)
+#    lss_cosvar=2*np.average(Dlr[:,ltest,1,1])**2/(2*ltest+1)
+#    cl_isw_avg = np.average(Dlr[:,ltest,0,0])
+#    cl_isw_std = np.std(Dlr[:,ltest,0,0], ddof=1)
+#    cl_lss_avg = np.average(Dlr[:,ltest,1,1])
+#    cl_lss_std = np.std(Dlr[:,ltest,1,1], ddof=1)
+#    print' \n   ---- N_realz = {0}    '.format(Nreal)
+#    print '\nC_[l={0}]_isw-isw. (avg, std, sderr)'.format(ltest)
+#    # print Cls used in model (i.e. map generation if they match) for l = ltest. Report average over all realz, along with std estimate and stderr estimate (use ddof=1 so unbiased.)
+#    print '<Clr>_Model = ',(cl_isw_avg, cl_isw_std, cl_isw_std/np.sqrt(Nreal))
+#    #95% spread of Cls expected due to cosmic variance limit, when calculating from each recon
+#    print '\n  avg +/- 2*stderr: '
+#    print (cl_isw_avg - 2*cl_isw_std/np.sqrt(Nreal), cl_isw_avg + 2*cl_isw_std/np.sqrt(Nreal))
+#    print ' sqrt(isw Cosmic var): ',isw_cosvar**.5
+#    
+#    print '\nC_[l={0}]_isw-lss (Model). (avg, std, sderr)'.format(ltest)
+#    print (np.average(Dlr[:,ltest,0,1]), np.std(Dlr[:,ltest,0,1], ddof=1), np.std(Dlr[:,ltest,0,1], ddof=1)/np.sqrt(Nreal))
+#    
+#    print '\nC_[l={0}]_lss-lss. (avg, std, sderr)'.format(ltest)
+#    print (cl_lss_avg, cl_lss_std, cl_lss_std/np.sqrt(Nreal))
+#    print '\n  avg +/- 2*stderr: ',(cl_lss_avg - 2*cl_lss_std/np.sqrt(Nreal), cl_lss_avg + 2*cl_lss_std/np.sqrt(Nreal))
+#    print '  sqrt(LSS cosmic var): ',lss_cosvar**.5
+#    
+##        scale_obs = True #scale by (2l-1)/(2l+1)
+#
+#    obsscalar = np.array([(2.*l-1)/(2.*l+1) for l in xrange(Nell)])
+#    obsscalar_lm = (2.*ellvals-1)/(2.*ellvals+1)
+#    almest_scaled = almest * obsscalar_lm
+#    
+#    #see if threcreation is better.
+#    scale_estimate=False
+#    if scale_estimate==True:
+##    if useObsCl:
+#        almest = almest_scaled.copy()    
+#    
+#    ltest_mask = ellvals == ltest # selects lm_indices where l=ltest
+#    m0_mask = emmvals==0
+#    m_non0_mask = emmvals != 0
+#    
+#    # OK NEED TO CHECK ALL THESE. THIS IS ALL DEBUG STUFF, BUT NOT FULLY WRITTEN. MAKING SURE ESTIMATED ALMS HAVE SAME MEAN AND VARIANCE AS EXPECTED, EVEN WITH CALIB ERRORS
+##    print ellvals[90:130]
+#    print len(ellvals)
+#    print sum(ltest_mask)
+#    print sum(ltest_mask*m0_mask) #=1
+#    print '\nvar(a_[l={0}]_m_est). (avg, (var(real), ar(imag), var(full), sderr)'.format(ltest)
+#    print 'avg',np.average(almest[:,0,ltest_mask])
+#    print sum(m0_mask)
+##    clrest = np.average(almest[:,0,ltest_mask*m0_mask], axis=1) #average alm per 
+##    clrest_var = np.var(clrest) #sample variance. Should = 2*Cl^2/(2l+1)
+##    print 'len clrest = reals?',len(clrest)
+##    print np.average(clrest)
+##    print '<Cl> = ',clrest
+##    print 'var(Cl) = ',clrest_var
+#    print 'ISW_rec qualities'
+#    print '(Cl =) var, m=0'
+##    plt.imshow(almest[:,0,:])
+##    plt.show(())
+##    print almest[:,0,ltest_mask*m0_mask].real
+##    plt.imshow(np.zeros_like(almest[:,0,:])[]
+#    #only one al_m=0 per real, so get total variance for all realz.
+#    clrest_m0 = np.var(almest[:,0,ltest_mask*m0_mask], ddof=1) #length 1, with variance of Alms, which should = Cl on average. Imag part == 0 (verified)
+## est var per real
+#    clrest_non0_real = 2*np.var(almest[:,0,ltest_mask*m_non0_mask].real, axis=1, ddof=1)
+#    clrest_non0_imag = 2*np.var(almest[:,0,ltest_mask*m_non0_mask].imag, axis=1, ddof=1)
+##    print len(clrest_m0)
+##    print len(clrest_non0_real)
+##    print len(clrest_non0_imag)
+##    print clrest_m0
+#    #avg estimated variance, using all realz
+#    print '<Cl> (m!=0, real) = {0}; err= {1}'.format(np.average(clrest_non0_real),np.std(clrest_non0_real, ddof=1)/np.sqrt(Nreal))
+#    print 'cosmic var from realz: var(Cl)= {0}'.format(np.var(clrest_non0_real, ddof=1))
+#    print '<Cl> (m!=0, imag) = {0}; err= {1}'.format(np.average(clrest_non0_imag),np.std(clrest_non0_imag, ddof=1)/np.sqrt(Nreal))
+#    print 'cosmic var from realz: var(Cl)= {0}'.format(np.var(clrest_non0_imag, ddof=1))
+#    #only one al_m=0 per real, so get total variance for all realz.
+#    print '<Cl_m=0,all realz> (m=0) = {0}'.format(clrest_m0)
+#    print 
+#    hpclrec = np.array([hp.alm2cl(almest[r,0,:]) for r in xrange(Nreal)])
+#    print hpclrec.shape
+#    clrec_avg = np.average(hpclrec[:,ltest])
+#    clrec_std = np.std(hpclrec[:,ltest], ddof=1)
+#    print 'from hp.alm2cl: (avg, std, stderr'
+#    print (clrec_avg, clrec_std, clrec_std/Nreal**.5)
+#    print '\n  avg +/- 2*stderr: ',(clrec_avg - 2*clrec_std/np.sqrt(Nreal), clrec_avg + 2*clrec_std/np.sqrt(Nreal))
+#    print
+##    print (np.var(almest[:,0,ltest_mask*m0_mask].real), np.var(almest[:,0,ltest_mask*m0_mask].imag))
+##    print np.var(almest[:,0,ltest_mask*m0_mask])
+##    print '(Cl =) 2*var, m != 0'
+##    print (2*np.var(almest[:,0,ltest_mask*m_non0_mask].real), 2*np.var(almest[:,0,ltest_mask*m_non0_mask].imag))
+##    print 'var tot',np.var(almest[:,0,ltest_mask*m_non0_mask])
+##    print 'std'
+##    print (np.std(almest[:,0,ltest_mask*m_non0_mask].real),np.std(almest[:,0,ltest_mask*m_non0_mask].imag))
+##    print np.std(almest[:,0,ltest_mask*m_non0_mask])
+##    print 'stderr',np.std(almest[:,0,ltest_mask])/np.sqrt(Nreal)
+##    print
+##  ---- end 1st debug section    
+
     outmaptags=[recdat.maptag]
 # Now have useObsCl directly modify modtag in recdat object NJW 170119
 #    if useObsCl: #added 170116, sbould only affect ISWrec maps... NJW
@@ -519,10 +574,298 @@ def calc_isw_est(cldat,glmdat,recdat,writetofile=True,getmaps=True,redofits=True
 #    else:
 #        outmodtags=[recdat.rectag + '-thry']
     outmodtags=[recdat.rectag]
-    print recdat.rectag
+#    print recdat.rectag
     outmasktags=[recdat.masktag]#for now, only handles changing lmin/max, not masks
     almdat=glmData(almest,glmdat.lmax,outmaptags,glmdat.runtag,glmdat.rundir,rlzns=glmdat.rlzns,filetags=[maptag+'.'+rectag],modtaglist=outmodtags,masktaglist=outmasktags)
 
+##----- debugggging
+#
+#    #plot rec vs true alms
+##    truemapf=glmdat.get_mapfile_fortags(0,recdat.zerotagstr)
+##    truemapbase=truemapf[:truemapf.rfind('.r')]
+##    print 'comparing to truemap: ',truemapbase
+##    print 'maptags: ',glmdat.maptaglist
+#    if recdat.useObsCl:# and recdat.userectags_fortrueisw:
+#        this_modtag = recdat.rectag[:recdat.rectag.rfind('-fromObs')] #truemaps don't have this string, only recreations
+#    else: this_modtag=recdat.rectag
+#    
+#    almtrue = np.zeros_like(almest, dtype=np.complex) #shape Nrealx 1 x Nlm
+#    print 'comparing to isw files with base real=0: ',glmdat.get_mapfile_fortags(0, 'isw_bin0', this_modtag) #filename of .fits file
+#    for r in xrange(Nreal):
+#        mapfile=glmdat.get_mapfile_fortags(r, 'isw_bin0',  this_modtag) #filename of .fits file
+#        #read in map, extract glm
+#        mapdat=hp.read_map(mapfile,verbose=False)
+#    #            print mapfile,'\n   rms:',np.std(mapdat)
+#        almtrue[r,0, :] = hp.map2alm(mapdat,glmdat.lmax)
+#    #only compare almrec and almtrue for th union of ell values
+#
+#    print lmin_forrec
+#    print 'ellvals:',ellvals[0:5]
+#    print 'alm, realz0: ',almtrue[0,0,:6]
+#    print 'alm, realz1: ',almtrue[1,0,:6]
+#    belowell = np.where(ellvals < lmin_forrec)
+#    ellmask = np.where(ellvals >= lmin_forrec)
+#    print 'ellval shape',ellvals.shape
+#    print 'ellvals[ellmask] shape',ellvals[ellmask].shape
+#    print 'belowell = ',belowell
+#    print 'dropped ells:',ellvals[belowell]
+##    print 'drop belowell',ellvals[not belowell].shape
+#    print 'ellamsk: ',ellmask
+##    print ellmask.shape
+##    print not ellmask #the "not mask" doesn't work
+##    print 'dropped ells:',ellvals[not ellmask]
+#    print 'almtrue = 0 at index (realz, ell):',np.where(almtrue[:5,0,:]==0)
+#    almtrue[:,0,belowell] = 0
+#    print 'almtrue = 0 at index (realz, ell):',np.where(almtrue[:5,0,:]==0)
+#    print 'almtrue is nan or inf:',np.argwhere(np.isinf(almtrue))
+#    print 'almest is nan or inf:',np.argwhere(np.isinf(almest))
+##        almtrue = [hp.map2alm(mapdat, glmdat.lmax) for mapdat in hp.read_map(get_map_from_tags())
+##    assert (almtrue.glm[:,0,:]==almtrue.glm[:,2,:]).all()==True,(almtrue.glm[:,0,:],almtrue.glm[:,2,:])
+#    print 'recdat includeglm = ',recdat.includeglm
+#    
+##    print almest.shape
+##    print almtrue.shape
+##    print ellvals.shape
+##    print almest[0,0,:]
+##    print almtrue[0,0,:]
+#    rec_true_diff = almest - almtrue
+#    rec_true_ratio = (almest[:,0,ellmask]/almtrue[:,0,ellmask])[:,0,:] #Nreal x lm_index
+#    rec_true_ratio_sc = (almest_scaled[:,0,ellmask]/almtrue[:,0,ellmask])[:,0,:] #Nreal x lm_index
+#    print rec_true_ratio.shape
+#    rec_true_ratio_avg = np.average(np.abs(rec_true_ratio), axis=0) #avg across realz
+#    rec_true_ratio_std = np.std(np.abs(rec_true_ratio), axis=0) #avg across realz
+#    print rec_true_ratio_avg.shape
+#    
+#    rec_true_ratio_avg_sc = np.average(np.abs(rec_true_ratio_sc), axis=0) #avg across realz
+#    ellarr = np.arange(Nell)
+#    avg_almtrue = avgbyell(ellvals,np.average(np.abs(almtrue[:,0,:]), axis=0))
+#    avg_almest = avgbyell(ellvals,np.average(np.abs(almest[:,0,:]), axis=0))
+#    avg_almest_sc = avgbyell(ellvals,np.average(np.abs(almest_scaled[:,0,:]), axis=0))
+##    print avg_almtrue
+##    print rec_true_ratio_avg.shape
+##    plt.plot(list(ellvals)*Nreal, np.abs(rec_true_ratio[:,:].flatten()), '.', alpha=.5, label='rec/true alm')
+##    plt.errorbar(ellvals, rec_true_ratio_avg, yerr=rec_true_ratio_std, alpha=.3, label='avg(rec/true) alm')
+#    print " --- SCALED = {0} ----".format(scale_estimate)
+#    print ellvals[ellmask].shape
+#    print rec_true_ratio_avg_sc.shape
+#    plt.plot(ellvals[ellmask], rec_true_ratio_avg_sc, '.', alpha=.3, label='avg(rec_sc/true) alm')
+#    plt.plot(ellvals[ellmask], rec_true_ratio_avg, '.', alpha=.3, label='avg(rec/true) alm')
+#    plt.plot(1./obsscalar, label='(2l+1)/(2l-1)')
+#    plt.plot([0,glmdat.lmax], [1,1],'k-')
+#    plt.ylim(0,3)
+#    plt.legend()
+#    plt.title('avg(abs(rec/true)), fromObs={0}'.format(useObsCl))
+#    plt.show()
+#    
+#    #plot raw alms
+#    plt.plot(ellvals, ellvals*(ellvals+1)*np.average(np.abs(almest[:,0,:]), axis=0), 'r.', label='est', alpha=0.1)
+#    plt.plot(ellvals, ellvals*(ellvals+1)*np.average(np.abs(almest_scaled[:,0,:]), axis=0), 'g.', label='est_scaled', alpha=0.1)
+#    plt.plot(ellvals, ellvals*(ellvals+1)*np.average(np.abs(almtrue[:,0,:]), axis=0),'b.', label='true', alpha=0.1)
+#    plt.plot(ellarr, ellarr*(ellarr+1)*avgbyell(ellvals,np.average(np.abs(almest[:,0,:]), axis=0)), 'ro', label='est', alpha=0.7)
+#    plt.plot(ellarr, ellarr*(ellarr+1)*avgbyell(ellvals,np.average(np.abs(almest_scaled[:,0,:]), axis=0)), 'go', label='est_scaled', alpha=0.7)
+#    plt.plot(ellarr, ellarr*(ellarr+1)*avgbyell(ellvals,np.average(np.abs(almtrue[:,0,:]), axis=0)),'bo', label='true', alpha=0.7)
+#    
+#    plt.title('l*(l+1)*sqrt(<alm alm>), fromObs={0}'.format(useObsCl))
+#    plt.legend()
+##    print (np.average(ellvals*(ellvals+1)*np.average(almest[:,0,:].imag, axis=0)),
+##           np.average(ellvals*(ellvals+1)*np.average(almtrue[:,0,:].imag, axis=0)),
+##            
+##            )
+#
+#
+#    plt.show()
+#    
+#    #plot real alms
+#    plt.plot(ellvals, ellvals*(ellvals+1)*np.average(almest[:,0,:].real, axis=0), '.', label='est', alpha=0.2)
+#    plt.plot(ellvals, ellvals*(ellvals+1)*np.average(almtrue[:,0,:].real, axis=0),'.', label='true', alpha=0.2)
+#    plt.plot(ellarr, ellarr*(ellarr+1)*avgbyell(ellvals,np.average(almest[:,0,:].real, axis=0)), 'o', label='est', alpha=0.7)
+#    plt.plot(ellarr, ellarr*(ellarr+1)*avgbyell(ellvals,np.average(almtrue[:,0,:].real, axis=0)),'o', label='true', alpha=0.7)
+#    plt.plot([0,glmdat.lmax], [0,0],'k-')
+#    plt.title('l*(l+1)*real(alm), fromObs={0}'.format(useObsCl))
+#    plt.legend()
+#    plt.show()
+#    
+#    #plot imag alms
+#    plt.plot(ellvals, ellvals*(ellvals+1)*np.average(almest[:,0,:].imag, axis=0), '.', label='est', alpha=0.2)
+#    plt.plot(ellvals, ellvals*(ellvals+1)*np.average(almtrue[:,0,:].imag, axis=0),'.', label='true', alpha=0.2)
+#    plt.plot(ellarr, ellarr*(ellarr+1)*avgbyell(ellvals,np.average(almest[:,0,:].imag, axis=0)), 'o', label='est', alpha=0.7)
+#    plt.plot(ellarr, ellarr*(ellarr+1)*avgbyell(ellvals,np.average(almtrue[:,0,:].imag, axis=0)),'o', label='true', alpha=0.7)
+#
+#    plt.plot([0,glmdat.lmax], [0,0],'k-')
+#    plt.title('l*(l+1)*imag(alm), fromObs={0}'.format(useObsCl))
+#    plt.legend()
+#    plt.show()
+#    
+#        #plot real alms DIFFS
+#    plt.plot(ellvals, ellvals*(ellvals+1)*np.average(rec_true_diff[:,0,:].real, axis=0), '.', label='rec-true REAL', alpha=0.2)
+#    plt.plot(ellarr, ellarr*(ellarr+1)*avgbyell(ellvals,np.average(rec_true_diff[:,0,:].real, axis=0)), 'o', label='rec-true REAL')
+##    plt.plot(ellvals, ellvals*(ellvals+1)*np.average(almtrue[:,0,:].real, axis=0),'.', label='true', alpha=0.2)
+#    plt.plot([0,glmdat.lmax], [0,0],'k-')
+#    plt.title('l*(l+1)*real(alm) DIFF, fromObs={0}'.format(useObsCl))
+#    plt.legend()
+#    plt.show()
+#    
+#    #plot imag alm DIFFS
+#    plt.plot(ellvals, ellvals*(ellvals+1)*np.average(rec_true_diff[:,0,:].imag, axis=0), '.', label='rec-true IMAG', alpha=0.2)
+#    plt.plot(ellarr, ellarr*(ellarr+1)*avgbyell(ellvals,np.average(rec_true_diff[:,0,:].imag, axis=0)), 'o', label='rec-true IMAG')
+##    plt.plot(ellvals, ellvals*(ellvals+1)*np.average(almtrue[:,0,:].imag, axis=0),'.', label='true', alpha=0.2)
+#    plt.plot([0,glmdat.lmax], [0,0],'k-')
+#    plt.title('l*(l+1)*imag(alm) DIFF, fromObs={0}'.format(useObsCl)) 
+#    plt.legend()
+#    plt.show()
+##    print 'real, imag diff: ',(np.average(ellarr*(ellarr+1)*avgbyell(ellvals,np.average(rec_true_diff[:,0,:].real, axis=0))),
+##                                         np.average(ellarr*(ellarr+1)*avgbyell(ellvals,np.average(rec_true_diff[:,0,:].imag, axis=0))))
+##    #plot raw alms
+##    plt.plot(ellvals, ellvals*(ellvals+1)*almest[:,0,:], '.', label='est', alpha=0.3)
+##    plt.plot(ellvals, ellvals*(ellvals+1)*almtrue[:,0,:],'.', label='true', alpha=0.3)
+###    plt.    
+##    plt.legend()
+##    plt.show()
+##    np.abs()
+#    plt.plot(ellarr*(ellarr+1)*avgbyell(ellvals,np.average(almtrue[:,0,:].imag, axis=0)),
+#            ellarr*(ellarr+1)*avgbyell(ellvals,np.average(almest[:,0,:].imag, axis=0)),
+#                     '.', label='imag')
+#    plt.plot(ellarr*(ellarr+1)*avgbyell(ellvals,np.average(almtrue[:,0,:].real, axis=0)),
+#            ellarr*(ellarr+1)*avgbyell(ellvals,np.average(almest[:,0,:].real, axis=0)),
+#                     '.', label='real')
+##    plt.plot(ellvals, ellvals*(ellvals+1)*np.average(almtrue[:,0,:].imag, axis=0),'.', label='true', alpha=0.2)
+##    plt.plot([-1,-1], [1,1],'k--')
+#    plt.grid(True)
+#    plt.title('l*(l+1)*(avg_l(<alm_rec>) vs avg_l(<alm_true>)), fromObs={0}'.format(useObsCl))
+#    plt.plot(list(plt.xlim()), list(plt.xlim()), 'k--')
+#    c_fit = np.median(np.abs(almest[:,0,:].real)-np.abs(almtrue[:,0,:].real)) #transition point for robust estimator. Should be ~|error|
+#    robust_fit = least_squares(resids, np.array([0,1]), loss='huber',f_scale=c_fit,
+#                               args=(linfit, almtrue[:,0,:].real.flatten(),almest[:,0,:].real.flatten()))
+#    c_fit = np.median(np.abs(almest[:,0,:].imag)-np.abs(almtrue[:,0,:].imag)) #transition point for robust estimator. Should be ~|error|
+#    print c_fit
+##    print almtrue[:,0,:].flatten().imag
+##    print almest[:,0,:].flatten().imag
+#    robust_fit = least_squares(resids, np.array([0,1]), loss='huber',f_scale=c_fit,
+#                               args=(linfit, almtrue[:,0,:].flatten().imag,almest[:,0,:].flatten().imag))
+#    x_rob = np.linspace(*plt.xlim())
+#    y_rob = linfit(robust_fit.x, x_rob)
+#    plt.plot(x_rob, y_rob,'-',label='robust fit')
+#    plt.legend(loc='best')
+#    plt.show()
+#    
+#    #plot rec mag vs true mag
+#    my_x = (ellarr*(ellarr+1)*avgbyell(ellvals,np.average(np.abs(almtrue[:,0,:]), axis=0)))[lmin_forrec:]
+#    my_y = (ellarr*(ellarr+1)*avgbyell(ellvals,np.average(np.abs(almest[:,0,:]), axis=0)))[lmin_forrec:]
+#
+#    print 'my_x shape: ',my_x.shape
+#    plt.plot(my_x, my_y,'.', label='l_avg(abs(alm))')
+#    plt.grid(True)
+#    plt.title('l*(l+1)*(avg_l(<|alm_rec|>) vs avg_l(<|alm_true|>)), fromObs={0}'.format(useObsCl))
+#    plt.plot(list(plt.xlim()), list(plt.xlim()), 'k--')
+#    c_fit = np.median(np.abs(np.abs(almest[:,0,:])-np.abs(almtrue[:,0,:]))) #transition point for robust estimator. Should be ~|error|
+#    robust_fit = least_squares(resids, np.array([0,1]), loss='huber',f_scale=c_fit,
+#                               args=(linfit, my_x,my_y))
+#    x_rob = np.linspace(*plt.xlim())
+#    y_rob = linfit(robust_fit.x, x_rob)
+#    print 'rec vs True c_fit = ',c_fit
+#    plt.plot(x_rob, y_rob,'-',label='robust fit, params={0}'.format(np.round(robust_fit.x,3)))
+#    goodinds = np.where(my_y/my_x > .97)
+#    plt.plot(my_x[goodinds],my_y[goodinds],'r.', label='rec/true>0.95')
+##    plt.plot(my_x[m0],my_y[goodinds],'r.', label='m=0')
+#    print goodinds
+#    print zip(ellvals[goodinds],emmvals[goodinds], np.around(my_x[goodinds],7), np.around(my_y[goodinds],7))
+##    print almest[0,0,10]
+#    plt.legend(loc='best')
+#    plt.show()
+#    
+#    #plot rec_SCALED mag vs true mag
+#    my_y_sc = (ellarr*(ellarr+1)*avgbyell(ellvals,np.average(np.abs(almest_scaled[:,0,:]), axis=0)))[lmin_forrec:]
+#    poptosamp_var = (2.*ellarr+1)/(2*ellarr)
+#    my_y_sc2 = (poptosamp_var*ellarr*(ellarr+1)*avgbyell(ellvals,np.average(np.abs(almest_scaled[:,0,:]), axis=0)))[lmin_forrec:]
+#
+#    print 'my_x shape: ',my_x.shape
+#    plt.plot(my_x, my_y,'.', label='raw',alpha=0.6)
+#    plt.plot(my_x, my_y_sc,'.', label='chi_scaled',alpha=0.6)
+#    plt.plot(my_x, my_y_sc2,'.', label='chi+pop_scaled',alpha=0.6)
+#    plt.grid(True)
+#    plt.title('REC_scaled vs TRUE, fromObs={0}'.format(useObsCl))
+#    xlims = np.array(plt.xlim())
+#    plt.plot(xlims, xlims, 'k--')
+#    c_fit = np.median(np.abs(np.abs(almest_scaled[:,0,:])-np.abs(almtrue[:,0,:]))) #transition point for robust estimator. Should be ~|error|
+#    robust_fit = least_squares(resids, np.array([0,1]), loss='huber',f_scale=c_fit,
+#                               args=(linfit, my_x,my_y))
+#    robust_fit_sc = least_squares(resids, np.array([0,1]), loss='huber',f_scale=c_fit,
+#                               args=(linfit, my_x,my_y_sc))
+#    robust_fit_sc2 = least_squares(resids, np.array([0,1]), loss='huber',f_scale=c_fit,
+#                               args=(linfit, my_x,my_y_sc2))
+#    x_rob = xlims
+#    y_rob = linfit(robust_fit.x, x_rob)
+#    y_rob_sc = linfit(robust_fit_sc.x, x_rob)
+#    y_rob_sc2 = linfit(robust_fit_sc2.x, x_rob)
+#    print 'rec vs True c_fit = ',c_fit
+#    print 'Rob fit params = ',robust_fit.x
+#    print 'Rob fit_sc params = ',robust_fit_sc.x
+#    print 'Rob fit_sc2 params = ',robust_fit_sc2.x
+#    plt.plot(x_rob, y_rob,'-',label=None)#'robust fit, params={0}'.format(np.round(robust_fit.x,6)))
+#    plt.plot(x_rob, y_rob_sc,'-',label=None)#'robust fit2, params={0}'.format(np.round(robust_fit.x,6)))
+#    plt.plot(x_rob, y_rob_sc2,'-',label=None)#'robust fit2, params={0}'.format(np.round(robust_fit.x,6)))
+#    goodinds = np.where(my_y/my_x > .97)
+##    plt.plot(my_x[goodinds],my_y[goodinds],'r.', label='rec/true>0.95')
+#    plt.ylabel('l*(l+1)*l_avg(abs(alm))')
+##    plt.plot(my_x[m0],my_y[goodinds],'r.', label='m=0')
+#    print goodinds
+#    print zip(ellvals[goodinds],emmvals[goodinds], np.around(my_x[goodinds],7), np.around(my_y[goodinds],7))
+##    print almest[0,0,10]
+#    plt.legend(loc='best')
+#    plt.show()
+#    
+#    #plot l_avg(abs(alm)) rec/true vs l
+#    plt.plot(ellarr[lmin_forrec:], my_y/my_x,'.')
+#    plt.plot(ellarr[lmin_forrec:], my_y_sc/my_x,'.')
+#    plt.plot(ellarr[lmin_forrec:], my_y_sc2/my_x,'.')
+#    plt.grid(True)
+#    plt.title('<l_avg(|alm_rec|)>/<l_avg(|alm_true|)>, fromObs={0}'.format(useObsCl))
+##    plt.plot(list(plt.xlim()), list(plt.xlim()), 'k--')
+#    plt.show()
+#    
+#    #plot diff
+#    difrat = (np.abs(almest[:,0,ellmask]-almtrue[:,0,ellmask])/almtrue[:,0,ellmask])[:,0,:] #
+##    difrat[np.isnan(difrat)]=0 #set nan to 0
+#    zfit = np.polyfit(ellvals[ellmask], np.average(difrat, axis=0), 2)
+#    pfit = np.poly1d(zfit)
+#    plt.plot(ellvals[ellmask], np.average(difrat, axis=0), '.', label='abs(diff/true)')
+#    plt.plot(ellarr, pfit(ellarr), '--',label='fit')
+#
+##    plt.plot(ellvals, ellvals*(ellvals+1)*np.average(np.abs(almtrue[:,0,:]), axis=0),'.', label='est')
+#    plt.plot([0,95],[0,0],'k-')
+#    plt.ylim(-1,1)
+#    plt.legend()
+#    plt.show()
+#    print 'Fit at l = 4, 10, 20, 80): ',(pfit(4),pfit(10),pfit(80))
+#    
+#    #divide by abs val
+##    difratabs = (almest[:,0,:]-almtrue[:,0,:])/np.abs(almtrue[:,0,:])
+##    print almest[0,0,200:202]
+##    print almtrue[0,0,200:202]
+##    print (almest[0,0,200:202]-almtrue[0,0,200:202])
+##    print difratabs[0,200:202]
+##    zfitabs = np.polyfit(ellvals, np.average(difrat, axis=0), 2)
+##    pfitabs = np.poly1d(zfitabs)
+##    plt.plot(ellvals, np.average(difratabs, axis=0), '.', label='diff/abs(true)')
+##    plt.plot(ellvals, pfitabs(ellvals), '--',label='fit')
+##    print 'Fit at l = 4, 10, 20, 80): ',(pfitabs(4),pfitabs(10),pfitabs(80))
+###    plt.plot(ellvals, ellvals*(ellvals+1)*np.average(np.abs(almtrue[:,0,:]), axis=0),'.', label='est')
+##    plt.plot([0,95],[0,0],'k-')
+##    plt.ylim(-1,1)
+##    plt.legend()
+##    plt.show()
+#    
+#    plt.plot(ellvals, ellvals*(ellvals+1)*np.abs(np.average(almest[:,0,:]-almtrue[:,0,:], axis=0)), '.', label='l(l+1)*diff')
+##    plt.plot(ellvals, ellvals*(ellvals+1)*np.average(np.abs(almtrue[:,0,:]), axis=0),'.', label='est')
+#    plt.plot([0,95],[0,0],'k-')
+##    plt.ylim(-1,1)
+#    plt.legend()
+#    plt.show()
+#    
+#    print 'getmaps = {0}, dorho={1}'.format(getmaps,dorho)
+##    clrectrue = hp.alm2cl(almest,almtrue.glm[r,0,])
+## --------- end debug
+    
     if writetofile: #might set as false if we want to do several recons
         #print "WRITING ALM DATA TO FILE"
         write_glm_to_files(almdat)
@@ -544,6 +887,15 @@ def calc_isw_est(cldat,glmdat,recdat,writetofile=True,getmaps=True,redofits=True
 
     return almdat
 
+def avgbyell(ellvals, arr2avg):
+    """return array of length Nell, with each entry the avg of all entries in arr2avg that correspond to same ell, as given by ellvals."""
+    ellmax = np.max(ellvals)
+    result = np.zeros(ellmax+1)
+    for ell in xrange(ellmax+1):
+        result[ell] = np.average(arr2avg[ellvals==ell]) #average all values in arr2avg that correspond to this ell value. Store in result
+
+    return result
+        
 #-------------------------------------------------------------------------
 # domany_isw_recs- run several sets of isw rec, bundle results into one output file
 #    list of cldata objects - if len=1, use same cl for all
@@ -640,6 +992,7 @@ def rho_onereal(map1,map2):
     rho= avgprod/(sig1*sig2)
     #print 'rho=',rho
     return rho
+    
 #-------------------------------------------------------------------------
 # s: compute s (variance of difference) between pixels of two maps
 #   #input: two heapy map arrays with equal NSIDE
@@ -688,13 +1041,18 @@ def chisq_onereal(truemap,recmap):
 # rell_onereal: compute correlation coef between true and rec alm given two maps
 # input: two healpy map arrays with equal NSIDE
 # output: rell - array of size Nell correlation for each ell value
-def rell_onereal(truemap,recmap,varname='rell'):
-    #max ell default is 3*Nside-1
+# 170405: reccl was commented out and so was computing with only truecl in denom. Switched to using sqrt(turecl*reccl) as is standard, with optional arg.
+def rell_onereal(truemap,recmap,varname='rell',normtoTrue=False):
+    #max ell default is 3*Nside-1`
     if varname=='rell':
         truecl=hp.sphtfunc.anafast(truemap) #compute Cl's from maps
-        #reccl=hp.sphtfunc.anafast(recmap) #compute Cl's from maps
+        reccl=hp.sphtfunc.anafast(recmap) #compute Cl's from maps
         xcl = hp.sphtfunc.anafast(recmap,truemap)
-        rell=xcl/truecl
+        if normtoTrue:
+            rell=xcl/truecl
+        else:
+            rell=xcl/np.sqrt(truecl*reccl)
+            
     elif varname=='chisqell':
         almtrue=hp.map2alm(truemap)
         almrec =hp.map2alm(recmap)
@@ -1024,7 +1382,8 @@ def rho_manyreal(truefilebase,recfilebase,Nreal=1,rlzns=np.array([]),savedat=Fal
     return rhovals
 
 #------------------------------------------------------------------------------
-def rell_manyreal(truefilebase,recfilebase,Nreal=1,rlzns=np.array([]),savedat=False,overwrite=False,filetag='',varname='rell'):
+def rell_manyreal(truefilebase,recfilebase,Nreal=1,rlzns=np.array([]),savedat=False,
+                  overwrite=False,filetag='',varname='rell', normtoTrue=False):
     if rlzns.size:
         Nreal=rlzns.size
     else:
@@ -1035,7 +1394,7 @@ def rell_manyreal(truefilebase,recfilebase,Nreal=1,rlzns=np.array([]),savedat=Fa
     f20=''.join([recfilebase,'.r{0:05d}.fits'.format(rlzns[0])])
     map10=hp.read_map(f10,verbose=False)
     map20=hp.read_map(f20,verbose=False)
-    rell0=rell_onereal(map10,map20,varname)
+    rell0=rell_onereal(map10,map20,varname,normtoTrue=normtoTrue)
     Nell=rell0.size
     #set up array to hold all data
     rellvals=np.zeros((Nreal,Nell))
@@ -1048,9 +1407,9 @@ def rell_manyreal(truefilebase,recfilebase,Nreal=1,rlzns=np.array([]),savedat=Fa
         map1=hp.read_map(f1,verbose=False)
         map2=hp.read_map(f2,verbose=False)
         #compute cross correlations and store the value
-        rellvals[r]=rell_onereal(map1,map2,varname)
+        rellvals[r]=rell_onereal(map1,map2,varname,normtoTrue=normtoTrue)
     if savedat:
-        save_relldat(rellvals,rlzns,truefilebase,recfilebase,overwrite=overwrite,filetag=filetag,varname=varname)
+        save_relldat(rellvals,rlzns,truefilebase,recfilebase,overwrite=overwrite,filetag=filetag,varname=varname,normtoTrue=normtoTrue)
     return rellvals
 
 #------------------------------------------------------------------------------
@@ -1125,7 +1484,7 @@ def save_rhodat(rhovals,rlzns,truefilebase,recfilebase,overwrite=False,filetag='
     f.close()
 #------------------------------------------------------------------------------
 # save_reldat - save rell data to file
-def save_relldat(rellvals,rlzns,truefilebase,recfilebase,overwrite=False,filetag='',varname='rell'):
+def save_relldat(rellvals,rlzns,truefilebase,recfilebase,overwrite=False,filetag='',varname='rell',normtoTrue=False):
     if filetag:
         tagstr='_'+filetag
     else:
@@ -1179,7 +1538,10 @@ def save_relldat(rellvals,rlzns,truefilebase,recfilebase,overwrite=False,filetag
         recstr=recfilebase[recfilebase.rfind('/')+1:]
         f=open(outf,'w')
         if varname=='rell':
-            f.write('Correlation coefficent r_ell between true and rec alm\n')
+            if normtoTrue: #added 170405
+                f.write('Correlation coefficent r_ell between true and rec alm, but normtoTrue=True: <alm_t alm_rec>/Cl_true\n')
+            else:
+                f.write('Correlation coefficent r_ell between true and rec alm,  with normtoTrue=False: <alm_t alm_rec>/sqrt(Cl_t*Cl_rec)\n')
         if varname=='chisqell':
             f.write('l specific contrib to chisq between true and rec alm\n')
         f.write('true isw: '+truestr+'\n')
@@ -1923,6 +2285,23 @@ def handle_dupes(cldat, recdat, dupesuf='_1'):
             recdat.includecl[cl_loc]=newtag
     return (cldat, recdat)
 
+def resids(arg_arr, fitfunc, x, y):
+    """arg_arr = array(a, b, c). Compute y - (a + bx)"""
+#    print y - fitfunc(arg_arr, x)
+    return y - fitfunc(arg_arr, x)
+
+def linfit(arg_arr, x):
+    """arg_arr = array(a, b, c). Compute (a + bx)"""
+    return (arg_arr[0] + arg_arr[1]*x)
+    
+def est_plot_robust(x, y):
+    c_fit = np.median(np.abs(y-x)) #transition point for robust estimator. Should be ~|error|
+    robust_fit = least_squares(resids, np.array([0,1]), loss='huber',f_scale=c_fit,
+                               args=(linfit, x, y))
+
+    x_rob = np.linspace(*plt.xlim())
+    y_rob = linfit(robust_fit.x, x_rob)
+    plt.plot(x_rob, y_rob,'.-',label='robfit')
     
 #    if var == 'includeglm':
 #        include_list = recdat.includeglm

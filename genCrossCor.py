@@ -674,6 +674,7 @@ def getCl(binmaplist,rundata,dopairs=[],redoAllCl=False,redoTheseCl=False,redoAu
                     #check which desired pairs are already computed
                     for t2 in xrange(t,Nmap): #loop through possible pairs
                         #if pair not in dopairs, don't compute
+#                        print (type(oldind[t]), type(oldind[t2])) #170405 throwing index error here after several package updates.
                         if crossinds[t,t2] not in newdocross:
                             continue
                         #otherwise, check if second tag in oldtags
@@ -1045,7 +1046,8 @@ def get_docross_ind(tagdict,dopairs,crossinds=np.array([]),addauto=False):
 #           except: oldind[i]=-1 if tag doesn't appear in oldtaglist
 def translate_tag_inds(newcl,oldcl):
     #old = follow indices for maplist in prev existing file
-    oldind=-1*np.ones(newcl.Nmap) #for each tag in newcl,bintaglist, its index in oldcl.bintaglist
+    oldind=-1*np.ones(newcl.Nmap, dtype=int) #170405 indexing is bombing on float indices
+#    oldind=-1*np.ones(newcl.Nmap) #for each tag in newcl,bintaglist, its index in oldcl.bintaglist
     #get indices of tags existing in oldbintags
     for t in xrange(newcl.Nmap):
         tag=newcl.bintaglist[t]

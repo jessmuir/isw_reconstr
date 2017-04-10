@@ -276,7 +276,7 @@ class glmData(object):
         return ''.join([self.mapdir(),fbase,'/',fbase,'.r{0:05d}.'.format(real),ftype])
     
     def get_mapfile_fortags(self,real,maptag,modtag='unmod',masktag='fullsky',ftype='fits'):
-        print self.mapdict
+#        print self.mapdict
         n= self.mapdict[(maptag,modtag,masktag)]
         return self.get_mapfile(real,n,ftype)
 
