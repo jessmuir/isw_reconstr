@@ -27,6 +27,7 @@ from scipy.interpolate import interp1d
 class Cosmology(object):
     """Class containing cosmological params and functions"""
     c =  299792. #speed of light in km/s. units chosen so c/H is in Mpc
+    temp_cmb = 2.7255 #CMB temp in Kelvin #added 1/26/17 -JM
     #-----------------------------------
     def __init__(self,paramfile,tabulateZ=False,needPk=False,zmax=1.,nperz=200.,cambdir='output/camb_output/',kmin=-1.,kmax=-1.,rerunCAMB=False,CAMBkmax=-1.,epsilon=1.e-10,bkgd_zrhgf_ext=np.array([]),pk_ext=np.array([])):
 #        print " Initializing instance of Cosmology"

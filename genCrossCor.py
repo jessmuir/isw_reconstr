@@ -228,6 +228,62 @@ class ClData(object):
                 self.noisecl[diagind,0]=0
         return (self,tag) #return the new (now uniqe) tag
 
+    def addCMBtemp(self,cmbclfile = 'camb_workspace/noisw_scalCls.dat', cmbtag='CMBT',hasISWpower=False,iswtag = 'isw_bin0'):
+        """
+        Given the name of a CAMB output file containing CMB scalar power,
+        reads in temperature C_l, adds it to the cldata object with appropriate
+        cross correlations. 
+
+        if hasISWpower = False, assumes that power from ISW has been removed
+        from input power spectrum. If True, assumes ISW power is in the input Cl's.
+        """
+        #read in data
+        dat = np.loadtxt(cmbclfile,skiprows=1)
+        cmbcl = np.zeros(self.Nell) #starts at ell=2
+        # CAMB output is actually ell*(ell+1)*Cl/2*pi and is in units uK^2
+        ell = dat[:self.Nell-2,0]
+        cmbcl[2:] = dat[:self.Nell-2,1]*2.*np.pi/(ell*(ell+1.))*(1.e-6**2)
+
+        #get isw info
+        iswind = self.tagdict[iswtag]
+
+        #if we need to, add in isw power
+        if not hasISWpower:
+            iswautoind = self.crossinds[iswind,iswind]
+            cmbcl += self.cl[iswautoind,:]
+
+        #add appropriate entries to cl
+        newNmap = self.Nmap +1
+        cmbind = newNmap - 1
+        newNcross =newNmap*(newNmap+1)/2
+        newcrosspairs,newcrossinds=get_index_pairs(newNmap)
+        newcl = np.zeros((newNcross,self.Nell))
+        newnoisecl = np.zeros((newNcross,self.Nell))
+        for i in xrange(newNmap):
+            for j in xrange(i,newNmap):
+                if i==cmbind and j==cmbind:
+                    newcl[newcrossinds[i,j],:] = cmbcl
+                    #noise will be zero
+                elif i==cmbind:
+                    newcl[newcrossinds[i,j],:] = self.cl[self.crossinds[iswind,j],:]
+                    newnoisecl[newcrossinds[i,j],:] = self.noisecl[self.crossinds[iswind,j],:]
+                elif j==cmbind:
+                    newcl[newcrossinds[i,j],:] = self.cl[self.crossinds[iswind,i],:]
+                    newnoisecl[newcrossinds[i,j],:] = self.noisecl[self.crossinds[iswind,i],:]
+                else:
+                    newcl[newcrossinds[i,j],:] = self.cl[self.crossinds[i,j],:]
+                    newnoisecl[newcrossinds[i,j],:] = self.noisecl[self.crossinds[i,j],:]
+        self.bintaglist.append(cmbtag)
+        self.Nmap = newNmap
+        self.tagdict[cmbtag] = cmbind
+        self.crosspairs = newcrosspairs
+        self.crossinds = newcrossinds
+        self.cl = newcl
+        self.noisecl = newnoisecl
+        newnbar = -1*np.ones(newNmap) #CMB will have -1 for nbar and therefore 0 noise
+        newnbar[:-1] = self.nbar
+        self.nbar = newnbar
+
 ###########################################################################
 def sphericalBesselj(n,x):
     return jv(n + 0.5, x) * np.sqrt(np.pi/(2*x))
@@ -282,7 +338,8 @@ def LimberCl_intwrapper(argtuple):
     if Nisw:
         prefactor= (100.)**2 #H0^2 in units h^2km^2/Mpc^2/s^2 
         prefactor*= 3./cosm.c**2 #h^2/Mpc^2
-        iswpref =lambda z: prefactor*(1.-f(z))/(kofz(z)**2) if kofz(z)!=0 else 0. #unitless function
+        prefactor*=cosm.Om*cosm.temp_cmb # h^2 K /Mpc^2 #added  1/26/17 -JM
+        iswpref =lambda z: prefactor*(1.-f(z))/(kofz(z)**2) if kofz(z)!=0 else 0. # funtion w units Kelvin
         if Nisw==1:
             iswprefactor= iswpref
         elif Nisw==2:
@@ -421,8 +478,9 @@ def Iintwrapper(argtuple):#(l,kval,rmin,rmax,cosm,binmap,zintlim=10000):
     prefactor=1.
     if binmap.isISW:
         H02 = (100.)**2 #h^2km^2/Mpc^2/s^2 
-        prefactor= 3.*H02/cosm.c**2 #h^2/Mpc^2 
-        prefactor=prefactor/(kval**2) #unitless
+        prefactor= 3.*H02/cosm.c**2 #h^2/Mpc^2
+        prefactor*=cosm.Om*cosm.temp_cmb # h^2 K /Mpc^2 #added  1/26/17 -JM
+        prefactor=prefactor/(kval**2) #Kelvin
     #print '   looking at pre/post cut division'
     #find r where we want to switch from full bessel to approx
     ALLPRECUT=False

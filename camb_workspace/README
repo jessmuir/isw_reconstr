@@ -1,0 +1,7 @@
+This directory contains scripts and outputfiles for CMB temperature
+power spectra. For both the "withisw" and "noisw" output files, we used
+the same fid_params.ini file that was used to generate the P(k) used
+in the other calculations for this project.
+
+The difference between them is that, before running with the "noisw" tag,
+we edited CAMB's equations.f90 so that ISW=0 for z=  1/a -1 <30. 
