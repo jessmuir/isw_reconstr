@@ -321,6 +321,8 @@ def depthtest_TTscatter(r=0, z0vals=np.array([0.3,0.6,0.7,0.8]),savepngmaps=True
 # finestN - finest division of bins to use
 #            last bin is always from z=2-5*z0 (tail of distrib)
 #            the rest of the bins are evenly distributed in z=0-2
+#            2017: This doesn't work great for shallow surveys,
+#               so now scale rest of bins to z=0 to 2*(z0/0.7)   
 # getdivs - list of strings describing divisions (see label info below)
 #           'all' means all possible divisions
 #           'equal' means all possible div with equal zbins
@@ -332,27 +334,29 @@ def depthtest_TTscatter(r=0, z0vals=np.array([0.3,0.6,0.7,0.8]),savepngmaps=True
 #get z edges for finest division of z bins
 def bintest_get_finest_zedges(finestN=6,z0=0.7):
     zedges=np.zeros(finestN+1)
-    zedges[-1]=5.*z0
+    zedges[-1]=5.*z0 
     if finestN>1:
-        zedges[-2]=2.
-        dz=2./(finestN-1)
+        zedges[-2]=2./0.7*z0 #2.  #scale by z0
+        dz=zedges[-2]/(finestN-1)
+#        zedges[-2]=2.
+#        dz=2./(finestN-1)
         for n in xrange(finestN-1):
             zedges[n]=dz*n
     zedges[0]=.01 #don't go down all the way to zero
     return zedges
     
 #-----
-#get z edges for finest division of z bins, changed to be z0-dependent instead of hardcoded. [161216 NJW]
-def bintest_get_finest_zedges_z0dep(finestN=6,z0=0.7):
-    zedges=np.zeros(finestN+1)
-    zedges[-1]=5.*z0 
-    if finestN>1:
-        zedges[-2]=2./0.7*z0 #2.  #scale by z0
-        dz=zedges[-2]/(finestN-1)
-        for n in xrange(finestN-1):
-            zedges[n]=dz*n
-    zedges[0]=.01 #don't go down all the way to zero
-    return zedges
+##get z edges for finest division of z bins, changed to be z0-dependent instead of hardcoded. [161216 NJW]
+#def bintest_get_finest_zedges_z0dep(finestN=6,z0=0.7):
+#    zedges=np.zeros(finestN+1)
+#    zedges[-1]=5.*z0 
+#    if finestN>1:
+#        zedges[-2]=2./0.7*z0 #2.  #scale by z0
+#        dz=zedges[-2]/(finestN-1)
+#        for n in xrange(finestN-1):
+#            zedges[n]=dz*n
+#    zedges[0]=.01 #don't go down all the way to zero
+#    return zedges
     
 #-----
 # get string tags for divisions for option "equal"
@@ -426,7 +430,7 @@ def bintest_get_zedgeslist(zedges,getdivs=['all'],returnstr=True):
 def bintest_get_maptypelist(finestN=6,getdivs=['all'],z0=0.7,sigz=0.05,nbar=3.5e8,includeisw=True,survtype='euc'):
     #get zedges
     #zedges0 = bintest_get_finest_zedges(finestN,z0) #for finest division
-    zedges0 = bintest_get_finest_zedges_z0dep(finestN,z0) # made it so edges scale with z0. z0=0.7 gives same results as orig above
+    zedges0 = bintest_get_finest_zedges(finestN,z0) # made it so edges scale with z0. z0=0.7 gives same results as orig above
 #    print '\nin euc.bintest_get_maptyplest. (finestN, zedges,getdivs)=',(finestN,zedges0,getdivs)
     zedges,divstr=bintest_get_zedgeslist(zedges0,getdivs,True) 
     Ntypes = len(zedges)
@@ -440,11 +444,12 @@ def bintest_get_maptypelist(finestN=6,getdivs=['all'],z0=0.7,sigz=0.05,nbar=3.5e
         tag=maintag+divstr[i]
         if survtype=='euc':
             survey = mdu.get_Euclidlike_SurveyType(sigz=sigz,z0=z0,nbar=nbar,tag=tag,zedges=zedges[i])#0.7,tag=tag,zedges=zedges[i]) [NJW 160822]
-            maptypes.append(survey)
         elif survtype=='spx':
             survey = mdu.get_Spherexlike_SurveyType(sigz=sigz,z0=z0,nbar=nbar,tag=tag,zedges=zedges[i])#0.7,tag=tag,zedges=zedges[i]) [NJW 160822]
-            maptypes.append(survey)
+        elif survtype=='des':
+            survey = mdu.get_DESlike_SurveyType(sigz=sigz,nbar=nbar,tag=tag,zedges=zedges[i])#0.7,tag=tag,zedges=zedges[i]) [NJW 160822]
         else: raise ValueError('Error: Only set up to take Euclidlike (\'euc\') or Spherexlike (\'spx\') surveys. You passed {0}'.format(survtype))
+        maptypes.append(survey)    
     return maptypes
 
 def bintest_get_binmaps(finestN=6,getdivs=['all'],z0=0.7,sigz=0.05,includeisw=True,justfinest=False):
@@ -4191,3 +4196,5 @@ if __name__=="__main__":
         angmomtest_LrecLtrue_corrcoef()
     
     print "Time to Run: {0:0f} mins".format((time.time() - st)/60.,)
+
+

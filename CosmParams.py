@@ -1,6 +1,8 @@
 import numpy as np
 import os,subprocess
 import copy_reg, types
+import matplotlib.pyplot as plt
+from copy import deepcopy
 from scipy.integrate import quad
 from scipy.interpolate import interp1d
 ###########################################################################
@@ -140,7 +142,6 @@ class Cosmology(object):
                 #if it exists, read it in
                 inzrhgf=np.loadtxt(tabzfile,skiprows=0)#1)#set to 1 if header included
                 #for now, assumes that this is the array we want
-                
                 self.z_array=inzrhgf[:,0]
                 self.r_array=inzrhgf[:,1]
                 self.H_array=inzrhgf[:,2]
@@ -178,13 +179,56 @@ class Cosmology(object):
                 print '    Saving z tab data to ',tabzfile
                 np.savetxt(tabzfile,zrhgf_grid)#,header=header)#header removed for flux's numpy version
                 
+#        print 'z_array = ',self.z_array
+#        print 'zmin, zmax = ',(self.z_array.min(), self.z_array.max())
+#        print 'r_array = ',self.r_array
+#        print 'rmin, rmax = ',(self.r_array.min(), self.r_array.max())
+#        print 'zmax, nperz = ',(self.zmax, self.nperz)
         #set up interpolating functions
         print '     Setting up interpolating functions.'
-        self.co_r = interp1d(self.z_array,self.r_array,kind='cubic',bounds_error=False,fill_value=0.)
+#        z_test = np.arange(1,3,.1)
+#        z_copy = deepcopy(self.z_array)#[2:-2:10]+.011
+#        r_copy = deepcopy(self.r_array)#[2:-2:10]+.011
+#        z_test = np.linspace(0.01,15,301)
+#        r_test = np.linspace(0.01,7000**3,len(z_copy))**(1./3)
+#        print (z_copy.shape, r_copy.shape)
+#        print (np.unique(z_copy).shape, np.unique(r_copy).shape)
+#        print (z_copy.dtype, r_copy.dtype)
+#        print 'nan?'
+#        print np.isnan(self.z_array).any()
+#        print np.isnan(self.r_array).any()
+#        plt.plot(z_copy, r_copy)
+#        plt.show()
+#        print 'try copy: z_copy,r_copy = ',(z_copy, r_copy)
+#        func = interp1d(z_copy, r_copy,kind='cubic')
+#        func = interp1d(z_copy, r_copy,kind='cubic')
+#        func2 = interp1d(z_copy*1., r_copy*1.,kind='cubic')
+#        print 'new func:'
+#        print func(z_test)
+#        plt.plot(z_test, func(z_test),label='orig')
+#        plt.show()
+#        plt.plot(z_copy+.1, func(z_copy),label='copy')
+#        plt.show()
+#        plt.plot(z_test+.2, func2(z_test),label='func2')
+#        plt.legend()
+#        plt.show()
+#        plt.plot(z_test,func2(z_test))
+#        plt.show()
+#        self.co_r = interp1d(z_copy,r_copy,kind='cubic',bounds_error=True,fill_value=0., assume_sorted=True)
+        self.co_r = interp1d(self.z_array,self.r_array,kind='cubic')#,bounds_error=False,fill_value=0.)
+#        print 'z_array = ',self.z_array
+#        print 'zmin, zmax = ',(self.z_array.min(), self.z_array.max())
+#        print 'r_array = ',self.r_array
+#        print 'rmin, rmax = ',(self.r_array.min(), self.r_array.max())
+#        print 'zmax, nperz = ',(self.zmax, self.nperz)
+#        print self.co_r(z_test)
+#        print 'reversed'
+#        print self.co_r(-z_test[::-1])
         self.z_from_cor= interp1d(self.r_array,self.z_array,kind='cubic',bounds_error=False,fill_value=0.)
         self.hub =self.Hubble#interp1d(self.z_array,self.H_array,kind='cubic') #analytic!
         self.growth =interp1d(self.z_array,self.g_array,kind='cubic',bounds_error=False,fill_value=0.)
         self.growthrate = interp1d(self.z_array,self.f_array,kind='cubic',bounds_error=False,fill_value=0.)
+        print self.co_r(np.arange(0,3,.1))
         print '     Tabulation done.'
            
     #==================================================

@@ -75,6 +75,7 @@ class glmData(object):
         #data about realizations
         self.Nreal = self.glm.shape[0]*(not self.isdummy) #0 if dummy
         if rlzns.size and rlzns.size!=self.Nreal:
+            raise Exception  #170516 add Assertions and excpetions to make sure these are caught
             print "WARNING! mismatch: rlzns.size!=Nreal. defaulting to arange(Nreal)"
             self.rlzns=np.array([])
         elif np.all(rlzns==np.arange(self.Nreal)):
@@ -84,8 +85,10 @@ class glmData(object):
         #----  
         #data about maps, modifications, and masks
         self.Nmap=self.glm.shape[1]
+#        assert len(maptaglist)==self.Nmap, (maptaglist, self.Nmap) #170516
         if len(maptaglist)!=self.Nmap:
             print "WARNING! mismatch: len(maptaglist)!=Nmaps. Setting all='?'"
+            raise Exception  #170516
             self.maptaglist=['?']*self.Nmap #ex. maptag:
             # maptag.modtag.masktag.runtag: "eucz07.g10_var1.00e-02_0l30.fullsky.depthtest"
             # euclid type, z0 at 7, gaussian mean 1, variance 1e-2, lmin30, fullsky (no mask), depthtest
@@ -93,9 +96,11 @@ class glmData(object):
             self.maptaglist=maptaglist
         #nbar is avg density/str for map. used to apply noise and needed for
         #  applying calibration error screens.
+#        assert len(nbarlist)!=self.Nmap, (nbarlist, self.Nmap) #170516
         if len(nbarlist)!=self.Nmap:
             if len(nbarlist):
                 print "WARNING! mismatch: len(nbarlist)!=Nmaps. Setting all=-1"
+                raise Exception  #170516
             #if zero, or mismatch, set to default
             self.nbarlist=-1*np.ones(self.Nmap)
         else:
@@ -105,8 +110,12 @@ class glmData(object):
             if len(modtaglist)==1: #if only one tag given, apply to all maps
                 self.modtaglist=modtaglist*self.Nmap
             else:
+#                assert len(modtaglist)==0,modtaglist #170516
                 if len(modtaglist):
                     print "WARNING! mismatch: len(modtaglist)!=Nmaps. Setting all='unmod'. \n modtaglist = {0}, Nmap={1}".format(modtaglist,self.Nmap)
+                    raise Exception  #170516
+#                print 'Maptags: ',maptaglist
+#                print 'Modtags: ',modtaglist
                 #if zero, or mismatch, set to default
                 self.modtaglist=['unmod']*self.Nmap
         else:
@@ -122,6 +131,7 @@ class glmData(object):
             else:
                 if len(masktaglist):
                     print "WARNING! mismatch: len(masktaglist)!=Nmaps. Setting all='fullsky'"
+                    raise Exception
                 #if zero, or mismatch, set to default
                 self.masktaglist=['fullsky']*self.Nmap
         else:
@@ -725,28 +735,31 @@ def read_glm_onefile(filename,getheaderinfo=True):
 #       otherwise, will check if the file exists and will just read
 #       the map in if it already exists
 #     if makeplots=True, will make png files of the maps
+#     if savemaps, save fits files. added 170519 to give option to turn off map saving
 #     Can set NSIDE for the healpix maps, default is 32
 #
 #  returns array w shape Nreal,Nmap,Npix containing helpy maps for each real+map
 #------------------------------------------------------------------------
-def get_maps_from_glm(glmdata,rlzns=np.array([]),redofits=False,makeplots=False,NSIDE=32):
+def get_maps_from_glm(glmdata,rlzns=np.array([]),redofits=False,makeplots=False,NSIDE=32,savemaps=True):
     if not rlzns.size:
         rlzns=glmdata.rlzns
     if not rlzns.size:
         rlzns=np.arange(glmdata.Nreal)
-    
+    print 'gmc.get_maps_from_glm. Getting maps for {0} realz'.format(len(rlzns))
     #check for output directories
     fbases=[glmdata.get_mapfile_base(i) for i in xrange(glmdata.Nmap)]
-    for i in xrange(glmdata.Nmap):
-        thismapdir=glmdata.mapdir()+fbases[i]+'/'
-        #print 'checking for ',thismapdir
-        if not os.path.isdir(thismapdir):
-            print "    creating dir",thismapdir
-            os.mkdir(thismapdir)
+    if savemaps: #170519
+        for i in xrange(glmdata.Nmap):
+            thismapdir=glmdata.mapdir()+fbases[i]+'/'
+            #print 'checking for ',thismapdir
+            if not os.path.isdir(thismapdir):
+                print "    creating dir",thismapdir
+                os.mkdir(thismapdir)
 
     mapgrid=[]
+    print 'getting maps now:'
     for r in rlzns:
-        mapgrid.append(get_maps_from_glm_1real(glmdata,r,redofits,makeplots,NSIDE,checkdir=False))
+        mapgrid.append(get_maps_from_glm_1real(glmdata,r,redofits,makeplots,NSIDE,checkdir=False,savemaps=savemaps))
     mapgrid=np.array(mapgrid)
     return mapgrid
 #------------------------------------------------------------------------
@@ -759,9 +772,10 @@ def get_maps_from_glm(glmdata,rlzns=np.array([]),redofits=False,makeplots=False,
 #           makeplot - if true, also makes a plot of map and puts it in a png file
 #                      isw maps have red/blue colors, other maps are greyscale
 #           NSIDE- the healpix Nside parameter. default is 32 here
+#           savemaps - if True, save the reconstructed map as fits file. Added 170519
 #    returns: array of heaplix maps, shape is rlzns,Nmaps,Npix
 #------------------------------------------------------------------------
-def get_maps_from_glm_1real(glmdat,rlz=0,redofits=False,makeplots=False,NSIDE=32,checkdir=True):
+def get_maps_from_glm_1real(glmdat,rlz=0,redofits=False,makeplots=False,NSIDE=32,checkdir=True,savemaps=True):
     #print 'in get_maps_from_glm_1real, rlz=',rlz
     #check that realization number is actually in glmdat
     if not glmdat.havethisreal(rlz):
@@ -780,26 +794,31 @@ def get_maps_from_glm_1real(glmdat,rlz=0,redofits=False,makeplots=False,NSIDE=32
     outflist = [glmdat.get_mapfile(rlz,i,'fits') for i in xrange(glmdat.Nmap)]
     hpmaplist=[]
     for i in xrange(glmdat.Nmap):
-        maptag=glmdat.maptaglist[i]
-        modtag=glmdat.modtaglist[i]
-        masktag=glmdat.masktaglist[i]
         mapfname = outflist[i]
 
         if redofits or not os.path.isfile(mapfname):
+#            print 'making contig array'
             #healpy complains if array isn't C contiguous, do this to avoid errors
             #  (errors don't always appear without, may depend on size)
             contigglm=np.ascontiguousarray(glmdat.glm[realind,i,:])
+#            print 'converting glm to map'
             m = hp.sphtfunc.alm2map(contigglm,NSIDE,verbose=False)
             #m = hp.sphtfunc.alm2map(glmdat.glm[realind,i,:],NSIDE,verbose=False)
-            #print 'Writing ',mapfname
-            hp.write_map(mapfname,m)
+            if savemaps: #170519
+#                print 'Writing ',mapfname
+                hp.write_map(mapfname,m)
         else:
-            #print "Reading existing file ",mapfname
+#            print "Reading existing file ",mapfname
             m=hp.read_map(mapfname,verbose=False)
         hpmaplist.append(m)
         if makeplots:
+#            print 'making plots'
+            maptag=glmdat.maptaglist[i]
+            modtag=glmdat.modtaglist[i]
+            masktag=glmdat.masktaglist[i]
             plotfname=glmdat.get_mapfile(rlz,i,'png')
-            plotmap(m,plotfname,rlz,maptag,modtag,masktag,glmdat.runtag)
+#            print 'plotting map ',plotfname
+            plotmap(m,plotfname,rlz,maptag,modtag,masktag,glmdat.runtag) #this is sloooow
     return np.array(hpmaplist) #shape=Nmap,Npix
 
 #================================================
@@ -847,24 +866,28 @@ def getglm_frommaps(dummyglm,rlzns=np.array([]),Nreal=1):
     return outglm
 
 #------------------------------------------------------------------------
-# plotmap - plot map, hanging onto various map/mod/mask info
+# plotmap - plot map, hanging onto various map/mod/mask info. This is pretty slow
 def plotmap(m,outfname,rlz,maptag,modtag='unmod',masktag='fullsky',titlenote=''):
     #variance=np.var(m)
     maxval=max(np.fabs(m))
     #nsig=6
-    scalemax=0.7*maxval#nsig*variance
-    scalemin=-0.7*maxval
+    scale_arr=np.array([1e-5, 5e-5, 1e-4, 5e-4, 1e-3, 5e-3, 1e-2, 5e-2, 1e-1, .5, 1, 5])
+    absscale = scale_arr[np.searchsorted(scale_arr, 0.7*maxval)] #get index of scale_arr element just larger than maxval    
+    scalemax= absscale#0.7*maxval#nsig*variance
+    scalemin= -absscale#-0.7*maxval
     plt.figure(0)
     if titlenote:
         titletag=' ('+titlenote+')'
     else: titletag=''
     maptitle=''.join([maptag,'.',modtag,'.',masktag,titletag,', rlzn ',str(rlz)])
+    redblue_cm = matplotlib.cm.RdYlBu_r
+    redblue_cm.set_under("w")#set background to white
     if 'isw' in maptag:
-        hp.mollview(m,title=maptitle,min=scalemin,max=scalemax)
+        hp.mollview(m,title=maptitle,min=scalemin,max=scalemax,cmap=redblue_cm)
     else:#for dm and galmaps, use light for high density, black for low
         mono_cm=matplotlib.cm.Greys_r
         mono_cm.set_under("w") #set background to white
-        hp.mollview(m,title=maptitle,min=scalemin,max=scalemax,cmap=mono_cm)
+        hp.mollview(m,title=maptitle,min=scalemin,max=scalemax,cmap=redblue_cm)#cmap=mono_cm)
     #print 'Writing plot to',plotfname
     plt.savefig(outfname)
     plt.close()
@@ -897,10 +920,11 @@ def plotmap(m,outfname,rlz,maptag,modtag='unmod',masktag='fullsky',titlenote='')
 #   overwrite - if True, will write new fits files for all maps
 #               if False, checks to see if fits files already exist, if so 
 #               uses those; only makes maps when needed
+#   justgetlist - if only want tuple list of modifcations (e.g. calib maps not separate)
 #  returns: for now, nothing. as long as apply_caliberror_toglm uses same
 #           naming convention as here, it will open up files
 #------------------------------------------------------------------------
-def get_fixedvar_errors_formaps(glmdat,cdatalist=[],overwrite=False,NSIDE=32,Nreal=0):
+def get_fixedvar_errors_formaps(glmdat,cdatalist=[],overwrite=False,NSIDE=32,Nreal=0, justgetlist=False):
     #print 'in get_fixedvar...; glmdat.glm.shape=',glmdat.glm.shape
     rundir=glmdat.rundir
     outdir=glmdat.mapdir()
@@ -958,24 +982,25 @@ def get_fixedvar_errors_formaps(glmdat,cdatalist=[],overwrite=False,NSIDE=32,Nre
         #loop through maps and realizations, generating calib maps
         for m in dothesemaps:
             outtuplelist.append((m,modtag)) #for now, assumes no mask
-            outbase='caliberror.{0:s}.for_{1:s}'.format(modtag,m)  
-            thisoutdir=outdir+outbase+'/'
-            if not os.path.isdir(thisoutdir):
-                os.mkdir(thisoutdir)
-            if makingmaps:
-                print 'Generating calibration error maps with base:',outbase
-            for r in dothesereal:
-                if r%rcountblock==0:
-                    print "    ON realization",r
-                outname=outbase+'.r{0:05d}.fits'.format(r)        
-                #only bother generating map if overwrite or file nonexistant
-                if overwrite or not os.path.isfile(thisoutdir+outname):
-                    if shape=='l2':
-                        cmap=gen_error_map_fixedvar_l2(cvar,clmax,clmin,NSIDE)
-                    elif shape=='g':
-                        cmap=gen_error_map_fixedvar_gauss(cvar,clmax,clmin,width=width,NSIDE=NSIDE)
-                    #write to file
-                    hp.write_map(thisoutdir+outname,cmap)
+            if not justgetlist: #added 170412
+                outbase='caliberror.{0:s}.for_{1:s}'.format(modtag,m)  
+                thisoutdir=outdir+outbase+'/'
+                if makingmaps:
+                    print 'Generating calibration error maps with base:',outbase
+                    if not os.path.isdir(thisoutdir): #170430 - moved under makingmaps conditional so won't make folders -NJW
+                        os.mkdir(thisoutdir)
+                for r in dothesereal:
+                    if r%rcountblock==0:
+                        print "    ON realization",r
+                    outname=outbase+'.r{0:05d}.fits'.format(r)        
+                    #only bother generating map if overwrite or file nonexistant
+                    if overwrite or not os.path.isfile(thisoutdir+outname):
+                        if shape=='l2':
+                            cmap=gen_error_map_fixedvar_l2(cvar,clmax,clmin,NSIDE)
+                        elif shape=='g':
+                            cmap=gen_error_map_fixedvar_gauss(cvar,clmax,clmin,width=width,NSIDE=NSIDE)
+                        #write to file
+                        hp.write_map(thisoutdir+outname,cmap)
     #return list of map/mod/mask tuples 
     # which can be given to apply_caliberror_toglm
     #print 'outtuplelist',outtuplelis
@@ -1141,12 +1166,14 @@ def getmodtag_fixedvar(sig2,shape='g',lmin=0,lmax=30,width=10.):
 #   input: cldat - ClData object containing ISW and galaxy maps
 #          mapmodcombos - list of (maptag,masktag) tuples
 #                        where each maptag  only appears once
+#   insert_cmb_modtags - add modtags for isw and cmbtt in cldata object (AFTER generating clib errors) for file locating purposes.
+#                       No calib erros added to cmb or isw.
 #
 # neglects multiplicative errors
 # assumes epsilon propto c_00
 # assumes calibration error maps are uncorrelated with each other and galaxies [NO LONGER. USE F_XCORR FOR CROSSCORR]
 #------------------------------------------------------------------------
-def apply_additive_caliberror_tocl(cldat,mapmodcombos=[],f_xcorr=0,insert_isw_modtag=False):
+def apply_additive_caliberror_tocl(cldat,mapmodcombos=[],f_xcorr=0,insert_cmb_modtags=False):
     # f_xcorr is fraction of cross-correlation between map calibration errors:
     # Cl_cal_XY = f_xcorr * sqrt(Cl_cal_XX * Cl_cal_YY).
     # Note, -1 =< f_xcorr <= 1
@@ -1223,8 +1250,9 @@ def apply_additive_caliberror_tocl(cldat,mapmodcombos=[],f_xcorr=0,insert_isw_mo
     #creat outcldata object with new outcl and nbar
     #print 'HAS CL changed? ',np.any(cldat.cl-outcl)
     outcldat=ClData(copy.deepcopy(cldat.rundat),cldat.bintaglist,clgrid=outcl,docrossind=cldat.docross,nbarlist=newnbarlist,mapmodslist=mapmodcombos,fxcorr=f_xcorr)
-    if insert_isw_modtag:
-        outcldat.insert_iswmodtag()
+    outcldat.cmbtt_tag = cldat.cmbtt_tag #copy over cmbtt_tag from old Cl. If CMBTT already present in the cldata, this will give us its name. If not, will just be None, indicating CMBTT not present.     
+    if insert_cmb_modtags:
+        outcldat.insert_CMB_modtags()
 #    print 'outcldat'    
 #    print outcldat.cl[2,4]
     return outcldat

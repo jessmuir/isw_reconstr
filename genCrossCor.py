@@ -21,9 +21,10 @@ from ClRunUtils import *
 #          plus indices relevant for 
 ###########################################################################
 class ClData(object):
-    def __init__(self,rundata,bintags,dopairs=[],clgrid=np.array([]),addauto=True,docrossind=[],nbarlist=[],mapmodslist=[], fxcorr=0):
+    def __init__(self,rundata,bintags,dopairs=[],clgrid=np.array([]),addauto=True,docrossind=[],nbarlist=[],mapmodslist=[], fxcorr=0, cmbtt_tag=None):
         if rundata.tag: runtag = '_'+rundata.tag
         else: runtag=''
+        self.cmbtt_tag=cmbtt_tag #updated when addCMB called
         self.clfile= ''.join([rundata.cldir,'Cl',runtag,'.dat'])
         self.rundat = rundata #Clrundata instance
         self.bintaglist=bintags #tag, given mapind
@@ -96,13 +97,24 @@ class ClData(object):
             if include_nbar: return self.cl[xind,:]+self.noisecl[xind,:]
             else: return self.cl[xind,:]
             
-    def insert_iswmodtag(self, tag=False):
-        """insert iswmodtag so writes maps with same modtags (since isw unique to each). If no tag passed, checks that allmodtags are same and use that."""
+    def insert_CMB_modtags(self, tag=False):
+        """insert iswmodtag so writes maps with same modtags (since isw unique to each). If has CMB data, add modtag to CMB as well. 
+        Currently just ensures all modtags are same, then uses first modtag."""
         if tag==False:
+#            assert len(set(self.modtags)) == len(self.modtags) #this checks if modtags unique, not same
+            assert len(set(self.modtags)) == 1, self.mapmodslist
             if self.mapmodslist:
-                assert self.bintaglist[0]=='isw_bin0'
-                self.mapmodslist = [(self.bintaglist[0], self.modtags[0])] + self.mapmodslist
-                self.binsmodded,self.modtags = zip(*self.mapmodslist)
+                assert self.bintaglist[0]=='isw_bin0', self.bintaglist
+                modtag_to_use=self.modtags[0]
+                self.mapmodslist = [(self.bintaglist[0], modtag_to_use)] + self.mapmodslist
+                #new mapmodslist has (isw, modtag) in front, (cmbtt, modtag) in back
+                if self.cmbtt_tag != None:
+#                    print 'Adding CMBTT modtag'
+                    self.mapmodslist = self.mapmodslist + [(self.cmbtt_tag, modtag_to_use)]
+#                else: print 'Adding isw modtag. Not using CMBTT'
+                self.binsmodded,self.modtags = zip(*self.mapmodslist) #update binsmodded and modtags lists
+            else: print 'No mapmodslist. Not adding modtag to isw or CMB'
+        else: raise Exception
             
     #pass string, for all binmaps with that string in their tag, change nbar
     def changenbar(self,mapstr,newnbar):
@@ -206,7 +218,8 @@ class ClData(object):
                     newdox.append(xind_new) #new cross correlations we've calc'd
 #                    print xind_new
         #set up new values
-        self.docross.extend(newdox) #indicate we've calculated the cross correlations
+        #self.docross.extend(newdox) #indicate we've calculated the cross correlations. 
+        self.docross = newdox #170501 We want to overwrite docross, not extend it, right?
         self.Nmap=newNmap
         self.bintaglist.append(tag)
         self.tagdict={self.bintaglist[m]:m for m in xrange(self.Nmap)}
@@ -224,11 +237,11 @@ class ClData(object):
         for i in xrange(self.Nmap):
             if self.nbar[i]!=-1: #assumes -1 for no noise or isw
                 diagind=self.crossinds[i,i]
-                self.noisecl[diagind,:]=1/self.nbar[i]
+                self.noisecl[diagind,:]=1./self.nbar[i]
                 self.noisecl[diagind,0]=0
         return (self,tag) #return the new (now uniqe) tag
 
-    def addCMBtemp(self,cmbclfile = 'camb_workspace/noisw_scalCls.dat', cmbtag='CMBT',hasISWpower=False,iswtag = 'isw_bin0'):
+    def addCMBtemp(self,cmbclfile = 'camb_workspace/noisw_scalCls.dat', cmbtag='CMBTT',hasISWpower=False,iswtag = 'isw_bin0'):
         """
         Given the name of a CAMB output file containing CMB scalar power,
         reads in temperature C_l, adds it to the cldata object with appropriate
@@ -237,6 +250,7 @@ class ClData(object):
         if hasISWpower = False, assumes that power from ISW has been removed
         from input power spectrum. If True, assumes ISW power is in the input Cl's.
         """
+        assert self.cmbtt_tag==None, 'WARNING -- CMBTT TAG ALREADY SET IN CLDATA OBJECT. CANNOT ADD CMBTT AGAIN. CMBTT_TAG = {0}'.format(self.cmbtt_tag)
         #read in data
         dat = np.loadtxt(cmbclfile,skiprows=1)
         cmbcl = np.zeros(self.Nell) #starts at ell=2
@@ -247,6 +261,7 @@ class ClData(object):
         #get isw info
         iswind = self.tagdict[iswtag]
 
+#        print '
         #if we need to, add in isw power
         if not hasISWpower:
             iswautoind = self.crossinds[iswind,iswind]
@@ -259,6 +274,7 @@ class ClData(object):
         newcrosspairs,newcrossinds=get_index_pairs(newNmap)
         newcl = np.zeros((newNcross,self.Nell))
         newnoisecl = np.zeros((newNcross,self.Nell))
+        newdocross = []
         for i in xrange(newNmap):
             for j in xrange(i,newNmap):
                 if i==cmbind and j==cmbind:
@@ -273,7 +289,10 @@ class ClData(object):
                 else:
                     newcl[newcrossinds[i,j],:] = self.cl[self.crossinds[i,j],:]
                     newnoisecl[newcrossinds[i,j],:] = self.noisecl[self.crossinds[i,j],:]
+                newdocross.append(newcrossinds[i,j])
+        self.docross = newdocross #added 170501 NJW so can call get_cl_from_pair()
         self.bintaglist.append(cmbtag)
+        self.cmbtt_tag = cmbtag
         self.Nmap = newNmap
         self.tagdict[cmbtag] = cmbind
         self.crosspairs = newcrosspairs
@@ -412,13 +431,16 @@ def computeIlk(binmap,rundata):
     if not cosm.tabZ or cosm.zmax<binmap.zmax:
         cosm.tabulateZdep(max(rundata.zmax,binmap.zmax),nperz=cosm.nperz)
     co_r = cosm.co_r #function with arg z
-    
+    print co_r(np.arange(0,3,.1))
     krcutadd=rundata.kdata.krcutadd #to make integral well behaved w fast osc
     krcutmult=rundata.kdata.krcutmult
     #bounds for integral in comoving radius
     rmin=co_r(binmap.zmin)
     rmax=co_r(binmap.zmax)
-    
+    print '\nbinmap.zmin, binmap.zmax = ',(binmap.zmin, binmap.zmax)
+    print 'rmin, rmax = ',(rmin, rmax)
+    print 'zintlim = ',zintlim
+    print 'lvals: ',lvals
     lk= itertools.product(lvals,kvals) #items=[l,k]
     argiter=itertools.izip(lk,itertools.repeat(rmin),itertools.repeat(rmax),itertools.repeat(cosm),itertools.repeat(binmap),itertools.repeat(krcutadd),itertools.repeat(krcutmult),itertools.repeat(zintlim),itertools.repeat(eps),itertools.repeat(rundata.sharpkcut),itertools.repeat(rundata.besselxmincut))
     if DOPARALLEL:
@@ -450,6 +472,7 @@ def computeIlk(binmap,rundata):
 def Iintwrapper(argtuple):#(l,kval,rmin,rmax,cosm,binmap,zintlim=10000):
     #print "in Iintwrapper"
     lk,rmin,rmax,cosm,binmap,krcutadd,krcutmult,zintlim,epsilon,zeropostcut,besselxmincut = argtuple
+#    print argtuple
     l,kval=lk
     dr=rmax-rmin
     if l==0: return 0. #don't compute monopole
@@ -481,6 +504,7 @@ def Iintwrapper(argtuple):#(l,kval,rmin,rmax,cosm,binmap,zintlim=10000):
         prefactor= 3.*H02/cosm.c**2 #h^2/Mpc^2
         prefactor*=cosm.Om*cosm.temp_cmb # h^2 K /Mpc^2 #added  1/26/17 -JM
         prefactor=prefactor/(kval**2) #Kelvin
+#        print "in Ilk for ISW, prefactor={0}".format(prefactor)
     #print '   looking at pre/post cut division'
     #find r where we want to switch from full bessel to approx
     ALLPRECUT=False
@@ -500,9 +524,9 @@ def Iintwrapper(argtuple):#(l,kval,rmin,rmax,cosm,binmap,zintlim=10000):
         r_atkrcut=rmax
         ALLPRECUT=True
 
-    #print '   doing integrals'
-    #print 'krcutmult=',krcutmult,'krcutadd',krcutadd
-    #print "r-atkrcut=",r_atkrcut,'ALLPRECUT=',ALLPRECUT,"ALLPOSTCUT=",ALLPOSTCUT
+#    print '   doing integrals'
+#    print 'krcutmult=',krcutmult,'krcutadd',krcutadd
+#    print "r-atkrcut=",r_atkrcut,'ALLPRECUT=',ALLPRECUT,"ALLPOSTCUT=",ALLPOSTCUT
     #calculate!
     if ALLPOSTCUT:
         result_precut=0.
@@ -619,7 +643,7 @@ def readIlk_file(binmap,rundata):
     if limberl>=0 and limberl<=rundata.lmax:
         # these are the expected ell values we want out
         checkell=rundata.lvals[:np.where(rundata.lvals<limberl)[0][-1]+1]
-        print '0 <=limberl < lmaxlen(rundata.lvals)= ',len(checkell)
+        print '0 <=limberl ({0}) < lmaxlen(rundata.lvals)= {1}'.format(limberl,len(checkell))
     else:
         checkell=rundata.lvals
         print 'len(rundata.lvals)= ',len(checkell)
@@ -699,9 +723,12 @@ def getCl(binmaplist,rundata,dopairs=[],redoAllCl=False,redoTheseCl=False,redoAu
             autoinnew=False
         #indices etc requested in arguments
         taglist=get_bintaglist(binmaplist)
+#        print 'In ClData. NewCl Taglist: ',taglist
+#        print '\nOldCl Taglist: ',oldcl.bintaglist
         nbarlist=[m.nbar for m in binmaplist]
         cldat=ClData(rundata,taglist,dopairs=dopairs,addauto=True,nbarlist=nbarlist)
         Nmap=cldat.Nmap
+#        print cldat.Nmap
         dopairs=cldat.pairs
         tagdict = cldat.tagdict
         crosspairs=cldat.crosspairs
@@ -718,10 +745,11 @@ def getCl(binmaplist,rundata,dopairs=[],redoAllCl=False,redoTheseCl=False,redoAu
 
         #get indices of tags existing in oldbintags
         oldind=translate_tag_inds(cldat,oldcl)
+#        print 'oldind: ',oldind
         for t in xrange(Nmap): #add autocorr for any maps not in oldtags
             if oldind[t]<0 and not redoAutoCl:
                 docross.append(crossinds[t,t])
-
+#        print docross
         newdocross = docross[:]
         crossfromold = []#crossinds of x corrs previously computed
         if not (redoTheseCl or redoAutoCl):
@@ -751,9 +779,11 @@ def getCl(binmaplist,rundata,dopairs=[],redoAllCl=False,redoTheseCl=False,redoAu
             #if we're not saving data, don't bother computing
             # just get dummy ClData object
             if newdocross:
-                print "***WARNING. Need new Cl data have set READONLY."
+                print "\n***WARNING. Need new Cl data have set READONLY."
                 print newdocross
                 print crosspairs[newdocross]
+                print 'OldCl tags: ',oldcl.bintaglist
+                print '\nNewCl tags: ',cldat.bintaglist
             newcl= computeCl(binmaplist,rundata,docrossind=np.array([]),redoIlk=False)
         
         if np.any(newcl.cl!=0):
@@ -1372,7 +1402,7 @@ def combineCl_twobin(cldat,tag1,tag2,combotag,newruntag='',keept1=False,keept2=F
     nbar1=cldat.nbar[mapind1]
     nbar2=cldat.nbar[mapind2]
     if nbar1<0 or nbar2<0:
-        print "***WARNING, no nbar info for one of these maps!"
+        print "\n***WARNING, no nbar info for one of these maps!"
         return
     nbartot=nbar1+nbar2
     

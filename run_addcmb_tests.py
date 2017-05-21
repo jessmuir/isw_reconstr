@@ -39,15 +39,18 @@ iswcontrib = fidtt - noiswtt
 iswtag = 'isw_bin0'
 iswind = cldat.tagdict[iswtag]
 iswautocl = cldat.cl[cldat.crossinds[iswind,iswind],2:]*(.3**2)*(2.73**2)
+iswautocl_us = cldat.cl[cldat.crossinds[iswind,iswind],2:] #unscaled, since already added? 170411
 
-#plt.semilogx(ell,iswcontrib,label='isw from camb')
-#plt.semilogx(ell,iswautocl,label='from our code')
+#plt.semilogy(ell,iswcontrib,label='isw from camb')
+#plt.semilogy(ell,iswautocl,label='from our code')
 # had missed adding units to ISW, but also missed a factor of Omega_m in window
-plt.semilogx(ell,iswautocl/iswcontrib)
+plt.semilogx(ell,iswautocl/iswcontrib,'.-',label='orig')
+#plt.semilogx(ell,iswautocl_us/iswcontrib,'.-',label='unscaled')
 plt.ylabel('[our ISW Cl]/[CAMB ISW Cl]')
 plt.xlabel('ell')
 plt.xlim((2,cldat.Nell+1))
 plt.legend()
+plt.grid(True)
 plt.show()
 
 

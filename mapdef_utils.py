@@ -7,7 +7,7 @@
 #  to make plots, etc. 
 ##################################################################
 import numpy as np
-from MapParams import *
+import MapParams as mp
 from ClRunUtils import *
 from genCrossCor import *
 from scipy.integrate import quad
@@ -30,13 +30,14 @@ def dndz_Euclidlike(z,z0=0.7):
     #from eq 1 in arxiv:1506.02192
     result=1.5/(z0**3)
     result*=z*z
+#    print (z, z0, result)
     exponent=-1.*(z/z0)**1.5
     result*=np.exp(exponent)
     return result
     
 def dndz_Spherexlike(z,z0=0.46):
     #from eq 1 in arxiv:1506.02192
-    #same as euclid for now, since more general form not much better fit
+    #same as euclid for now, since the more general form isn't a much better fit
     result=1.5/(z0**3)
     result*=z*z
     exponent=-1.*(z/z0)**1.5
@@ -54,10 +55,11 @@ def dndz_NVSSlike(z,z0=.32,alpha=0.36):
 #     6 redshift bins; 10 of width .2 going from 0-1., then 1 for z>1
 #     no shot noise included 
 #===============================================================
-def get_DESlike_SurveyType(sigz,tag='',nbar=1.e9):
+def get_DESlike_SurveyType(sigz,tag='',nbar=1.e9, zedges=None): #added zedges 170412
     if not tag:
         tag='des_sigz{0:0.3f}'.format(sigz)
-    zedges=np.array([.01,.2,.4,.6,.8,1.,5.])
+    if zedges==None:
+        zedges=np.array([.01,.2,.4,.6,.8,1.,5.])
     if nbar=='default':
         nbar=1.e9#From Dragan via email, early June'15
     else:
@@ -65,7 +67,7 @@ def get_DESlike_SurveyType(sigz,tag='',nbar=1.e9):
     dndz=dndz_DESlike
     bias=nobias
     longtag='DES-like survey w bias=1'
-    return SurveyType(tag,zedges,sigz,nbar,dndz,bias,longtag,addnoise=False)
+    return mp.SurveyType(tag,zedges,sigz,nbar,dndz,bias,longtag,addnoise=False)
 
 def get_Euclidlike_SurveyType(sigz=0.05,z0=0.7,nbar=3.5e8,onebin=False,tag='',zedges=np.array([]),b0=1.,b2=0,fracbadz=0.):
     if not tag:
@@ -85,7 +87,8 @@ def get_Euclidlike_SurveyType(sigz=0.05,z0=0.7,nbar=3.5e8,onebin=False,tag='',ze
             zedges=np.array([.01,5*z0])
         else:
             zedges=np.array([.01,.4,.8,1.2,1.6,2.,5*z0])
-    return SurveyType(tag,zedges,sigz,nbar,dndz,bias,dndzargs,biasargs,longtag,addnoise=False,fracbadz=fracbadz)
+#    print zedges
+    return mp.SurveyType(tag,zedges,sigz,nbar,dndz,bias,dndzargs,biasargs,longtag,addnoise=False,fracbadz=fracbadz)
     
 def get_Spherexlike_SurveyType(sigz=0.1,z0=0.46,nbar=6.6e7,onebin=False,tag='',zedges=np.array([]),b0=1.,b2=0,fracbadz=0.):
     if not tag:
@@ -105,6 +108,7 @@ def get_Spherexlike_SurveyType(sigz=0.1,z0=0.46,nbar=6.6e7,onebin=False,tag='',z
         nbar=nbar
     assert type(nbar)==float, nbar
     longtag='SphereX-like survey, z0={0:0.3f}, sigz={1:0.3f}, b0={2:0.3f}, b2={3:0.3f}'.format(z0,sigz,b0,b2)
+#    print 'spx zedges = ',zedges
     if not zedges.size:
         if onebin:
             zedges=np.array([.01,5*z0])
@@ -117,7 +121,7 @@ def get_Spherexlike_SurveyType(sigz=0.1,z0=0.46,nbar=6.6e7,onebin=False,tag='',z
             for n in xrange(finestN-1):
                 zedges[n]=dz*n
 #            zedges=np.array([.01, .35,.7, 1.05, 1.4, 1.75, 5*z0])
-    return SurveyType(tag,zedges,sigz,nbar,dndz,bias,dndzargs,biasargs,longtag,addnoise=False,fracbadz=fracbadz)
+    return mp.SurveyType(tag,zedges,sigz,nbar,dndz,bias,dndzargs,biasargs,longtag,addnoise=False,fracbadz=fracbadz)
     
     
 
@@ -128,13 +132,13 @@ def get_fullISW_MapType(zmax=15):
     tag='isw'
     zedges=[.01,zmax]
     sharpparam=.01/(zedges[-1]-zedges[0])
-    return MapType(tag,zedges,isISW=True,sharpness=sharpparam)
+    return mp.MapType(tag,zedges,isISW=True,sharpness=sharpparam)
 
 def get_testISW_MapType(zmax=.1):
     tag='iswTEST'
     zedges=[.01,zmax]
     sharpparam=.01/(zedges[-1]-zedges[0])
-    return MapType(tag,zedges,isISW=True,sharpness=sharpparam)
+    return mp.MapType(tag,zedges,isISW=True,sharpness=sharpparam)
 
 #===============================================================
 # This will return a mapType object for the full ISW effect

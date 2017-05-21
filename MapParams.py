@@ -60,6 +60,7 @@ class MapType(MapWrapper):
     def __init__(self,idtag,zedges,isISW=False,isGal=False,longtag='',epsilon=1.e-10,sharpness=.01):
         self.epsilon = epsilon #no function except for SurveyType, but included here
                                # so SurveyType and MapType can be created w same syntax
+#        super(MapType, self).__init__(idtag,isISW,isGal,longtag) #170413 getting "TypeError: unbound method __init__() must be called with MapWrapper instance as first argument (got MapType instance instead)". But not before... but didn't change anything... ?
         MapWrapper.__init__(self,idtag,isISW,isGal,longtag)
         self.sharpness=sharpness #how sharp is edge of tophat edges?
         self.zedges=np.array(zedges) #array of redshift values for bin edges
@@ -128,7 +129,7 @@ class SurveyType(MapType):
         self.badzmaxz = badzmaxz #max of range over which bad z's get randomized
         self.badzminz = badzminz #min of range over which bad z's get randomized
         self.infostr = 'Map type {0:s}: tag={1:s}, nbar={2:0.4g}, sigz0={3:0.3g}, z-bins= {4:s}, sharpness={5:f}, sigcut={6:f}, {7:s}'.format(self.typestr,self.tag,self.nbar,self.sigz0,self.zedges,self.sharpness,self.sigcut,self.longstr)
-
+#        print self.infostr
         #set up bin maps
         self.binmaps=[]
         #since bins have smoothed edges, go beyond nominal zmin, max
@@ -136,6 +137,7 @@ class SurveyType(MapType):
             zmin = max(0.,self.zedges[0]-sigcut*sigz0)
         else:
             zmin=zedges[0]
+        assert zmin > 0, (zmin, sigatzmin)
         if self.sigatzmax:
             zmax = self.zedges[-1]+sigcut*sigz0*(1+zedges[-1])
         else:
@@ -148,6 +150,10 @@ class SurveyType(MapType):
             zmaxnom = self.zedges[n+1]
             binzmin= max(zmin,zminnom-sigcut*sigz0*(1.+zminnom))
             binzmax= min(zmax,zmaxnom+sigcut*sigz0*(1.+zmaxnom))
+#            print
+#            print (zmin, zminnom, zminnom-sigcut*sigz0*(1.+zminnom))
+#            print (zmax, zmaxnom, zmaxnom+sigcut*sigz0*(1.+zmaxnom))
+#            print (binzmin, binzmax)
             #what fraction of the avg source counts go here?
             binint = quad(lambda z: self.F(n,z)*self.dndz(z,*self.dndzargs),binzmin,binzmax,epsabs=self.epsilon,epsrel=self.epsilon)[0]
             sourcefrac=binint/fullint

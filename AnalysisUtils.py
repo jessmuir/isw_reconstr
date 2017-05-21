@@ -32,23 +32,33 @@ from genMapsfromCor import * #functions which gen g_lm and maps from C_l
 #   NSIDE - healpix NSIDE for reconstructed map
 #   recmaptag - string or tuple identifying map to be reconstructed
 #             needs to be present in cldat, but not necessarily glmdat
-#   useObsCl - use observed Cl's from data for all LSS, use includelcl theory for LSS_ISW and ISW Cls
+#   useObsCl - use observed Cl's from data for all LSS, use includelcl theory for Cl_isw-isw, plust for Cl_isw-lss if no CMB data
 #   userectags_foriswtrue - if True, uses the recdat modtag and masktag to find the true ISW map for computing rho.
 #                               Before 2/1/17, computed used base isw_true map and just added varainces to the large scale structure. Now when creating isw_true maps from Cl (instead of adding Cl to LSS maps), has modtag in filename.
-#   
+#   survdivstr - string with survey divs that gets appended to to the runtag when generating maps.
+#             Required since now when generate maps with different binning, have different correlated ISW and CMB maps, so they need to have binning scheme in filename.
+#   f_cl_est - fraction of var[c] in underlying cl's that are used in the reconstruction cl's. E.g. 1 is that the reccl's match the ones that generated the maps
 ###########################################################################
 class RecData(object):
     def __init__(self,includeglm=[],includecl=[],inmaptag='fromLSS',rectag='nonfid',minl_forrec=2,maxl_forrec=-1,
-                 NSIDE=32,zerotag='isw_bin0',maptagprefix='iswREC',nolmintag=False,useObsCl=False,userectags_fortrueisw=False,modtaglist=[]):
+                 NSIDE=32,zerotag='isw_bin0',maptagprefix='iswREC',nolmintag=False, useObsCl=False, useCMBTT=False, 
+                 userectags_fortrueCMB=False,modtag='unmod', survdivstr='', f_cl_est=False, reccldat=False): #modtaglist=[]
         self.Nmap=len(includeglm)
         self.inmaptag=inmaptag
         self.maptag=maptagprefix+'.'+inmaptag
         self.rectag=rectag
+        self.userectags_fortrueCMB=userectags_fortrueCMB #change to incorporate both CMBTT and isw, assuming 0 errors on both
+#        self.userectags_fortrueisw=userectags_fortrueisw
+        self.useCMBTT=useCMBTT
+        self.useObsCl=useObsCl
+        self.f_cl_est=f_cl_est
+        if self.f_cl_est!=False and self.f_cl_est!=0: #don't include f_cl_est string if it's 0
+            assert self.useObsCl==False #if want to use some model calib cl's, then are not using observed Cls (at least not yet)
+            assert float('{0:.1g}'.format(f_cl_est)) == float('{0}'.format(f_cl_est)) #make sure only one sig fig in f_cl_est
+            self.rectag += '-fclest{0:0.0e}'.format(f_cl_est)
         if useObsCl:
             self.rectag+='-fromObs' #using Cl from observed maps instead of theory
-        self.userectags_fortrueisw=userectags_fortrueisw
-        
-        self.useObsCl=useObsCl
+        self.survdivstr=survdivstr
         self.lmin=minl_forrec
         self.lmax=maxl_forrec #by default, uses max l available
         if not nolmintag: #don't include to be compatible with old data
@@ -79,17 +89,19 @@ class RecData(object):
                 print "WARNING: includeglm and includecl are not the same length!"
             self.includecl=[self.zerotagstr]+includecl #now len is +1 vs incglm
             
-        if not modtaglist:
-            self.modtaglist = ['unmod']*len(includeglm)
-        else:
-            if len(modtaglist)!=len(includeglm):
-                if len(modtaglist)!=1:
-                    print '\nWARNING: rectaglist and includeglm are not the same length! Using unmod for true maps.'
-                    self.modtaglist = ['unmod']*len(includeglm)
-                else:
-                    self.modtaglist = modtaglist*len(includeglm)
-            else:
-                self.modtaglist = modtaglist
+        #modtag identifying the base LSS maps to use in reconstruction (does NOT indicate what cl's are assumed in making estimator)
+        self.modtag=modtag #with filenaming convention, can only handle combining bins with same modtag
+#        if not modtaglist:
+#            self.modtaglist = ['unmod']*len(includeglm)
+#        else:
+#            if len(modtaglist)!=len(includeglm):
+#                if len(modtaglist)!=1:
+#                    print '\nWARNING: rectaglist and includeglm are not the same length! Using unmod for true maps.'
+#                    self.modtaglist = ['unmod']*len(includeglm)
+#                else:
+#                    self.modtaglist = modtaglist*len(includeglm)
+#            else:
+#                self.modtaglist = modtaglist
                 
     def set_includeglm(self,newglmlist):
         if newglmlist[0] == self.zerotagstr:  #[zerotag wasn't present when I was running multi tests, resulting in error. NJW 160609]      
@@ -215,7 +227,7 @@ def get_Dl_matrix(cldat,includelist=[],zerotag='isw_bin0'):
 #-------------------------------------------------------------------------
 # invert_Dl: givem Dl matrix, with dim NellxNmapsxNmaps
 #            invert each 2d D[lind,:,:] matrix
-def invert_Dl(D):
+def invert_Dl(D, lmin=1): #added lmin arg, since only have CMB temp at l >= 2, so get singular matrix for l=1 if usinc CMB
     #Dinv=np.zeros_like(D)
     Nell=D.shape[0]
     Nmap=D.shape[1]
@@ -225,6 +237,7 @@ def invert_Dl(D):
     #   these are prolematic: will result in singular matrix
     zerorows=[[]]#for each ell, holds list of indices for rows that are all zero [lind][i]
     Dtoinvert=[np.array([])]
+#    for lind in xrange(1,Nell):
     for lind in xrange(1,Nell):
         zerorows.append([])
         #Dtoinvert.append([])
@@ -238,17 +251,19 @@ def invert_Dl(D):
             else:
                 tempDind+=1
         Dtoinvert.append(tempD)
-    #print 'zerorows',zerorows
+#    print 'zerorows',zerorows
 
     #for each l, invert with all-zero-rows/cols removed
     #could also just use np.linalg.inv, but found a forum saying this is quicker
     identity=np.identity(Nmap,dtype=D.dtype)
-    for l in xrange(1,Nell): #leave ell=0 as all zeros
+    for l in xrange(lmin,Nell): #leave ell=0 as all zeros, (or any l below lmin -- 170501)
+#    for l in xrange(1,Nell): #leave ell=0 as all zeros
 
-        #print 'ELL=',l
+#        print 'ELL=',l
         #print Dtoinvert[l]
         if identity.size!=Dtoinvert[l].size:
             identity=np.identity(Dtoinvert[l].shape[0])
+#        print l
         thisDinv=np.linalg.solve(Dtoinvert[l],identity) #just for this ell value
         #print thisDinv
         #put values into Dinv, skipping rows with indices in zerorows
@@ -299,17 +314,19 @@ def get_glm_array_forrec(glmdat,includelist=[],zerotag='isw_bin0'):
             dinds.append(xind)
             indexforD+=1
     #collect appropriate glm info
-    print 'Doing rec with following glm indices (based on modtags): ',dinds
+    print 'In au.get_glm_array_forrec. Doing rec with following glm indices (based on modtags): ',dinds
+    print 'Corresponding to maps: ',[glmdat.maptaglist[ind] for ind in dinds]
+        
     outglm=np.zeros((glmdat.Nreal,len(dinds),glmdat.Nlm),dtype=np.complex)
     for d in xrange(len(dinds)):
         outglm[:,d,:]=glmdat.glm[:,dinds[d],:]
     return outglm,dinds
 
-def calc_isw_est(cldat,glmdat,recdat,writetofile=True,getmaps=True,redofits=True,makeplots=False,dorho=False,fitbias=True):
+def calc_isw_est(cldat,glmdat,recdat,writetofile=True,getmaps=True,redofits=True,makeplots=False,dorho=False,fitbias=True,savemaps=True):
     """
     calc_isw_est -  given clData and glmData objects, plus list of maps to use
             get the appropriate D matrix and construct isw estimator ala M&D
-            but with no CMB temperature info
+        
      input:
        cldat, glmdat - ClData and glmData objects containing maps
                        to be used in reconstructing it (Cl must have isw too)
@@ -317,6 +334,7 @@ def calc_isw_est(cldat,glmdat,recdat,writetofile=True,getmaps=True,redofits=True
        writetofile- if True, writes glm to file with glmfiletag rectag_recnote
        getmaps - if True, generates fits files of maps corresponding to glms
        makeplots - if getmaps==makeplots==True, also generate png plot images
+       savemaps - if True (and getmaps==True), save the reconstructed maps. Added 170519, before, maps always saved if getmaps==True
      output: 
        iswrecglm - glmData object containing just ISW reconstructed
                     also saves to file
@@ -333,7 +351,7 @@ def calc_isw_est(cldat,glmdat,recdat,writetofile=True,getmaps=True,redofits=True
         print 'recdat.includeglm not present --> Using cldat.bintaglist for ISW rec: ',useglm
         print recdat.zerotag
         recdat.set_includeglm(useglm) # rectag.set_includeglm(useglm) [rectag is string, no set_.. func, changed to recdat NJW 160609]
-    
+        
     #get D matrix dim Nellx(NLSS+1)x(NLSS+1) 
     #   where NLSS is number of LSS maps being used for rec, 
     #       where +1 is from ISW
@@ -343,7 +361,7 @@ def calc_isw_est(cldat,glmdat,recdat,writetofile=True,getmaps=True,redofits=True
     #print 'Dinv',Dinv
     #get glmdata with right indices, dim realzxNLSSxNlm
     glmgrid,dinds=get_glm_array_forrec(glmdat,recdat.includeglm,recdat.zerotag)
-
+    print 'recdat.includeglm = ',recdat.includeglm
     #fit for constant bias for each LSS map (assume all non-zero indices are LSS)
     Nreal=glmgrid.shape[0]
     NLSS=glmgrid.shape[1] 
@@ -353,15 +371,28 @@ def calc_isw_est(cldat,glmdat,recdat,writetofile=True,getmaps=True,redofits=True
         lmax=Nell-1
     else:
         lmax=lmax_forrec
-    #translate between map indices in D and in C
-    clind=-1*np.ones(NLSS,int)        
-    for t in xrange(NLSS):
-        clind[t]=cldat.tagdict[dtags[t]]
         
+    #170502- Not sure about this... comes from get_Dl_matrix i think, but clind should be of length NLSS+1 to account 
+    #translate between map indices in D and in C
+#    clind=-1*np.ones(NLSS,int)        
+#    for t in xrange(NLSS):
+#        clind[t]=cldat.tagdict[dtags[t]]
+    assert len(dtags) == NLSS+1, (dtags, NLSS)
+    clind=-1*np.ones(NLSS+1,int)        #change 170502
+    for t in xrange(NLSS+1):
+        clind[t]=cldat.tagdict[dtags[t]]
+        if dtags[t]==cldat.cmbtt_tag:
+            dind_cmbtt = t #D index of cmbtt
+            print 'cmbtt index in D: ',dind_cmbtt
+    if cldat.cmbtt_tag != None:
+        clind_cmbtt = cldat.tagdict[cldat.cmbtt_tag] #Cl index of cmbtt
+    print 'CMBTT_TAG = ',cldat.cmbtt_tag
+    print 'recdat.useCMBTT = ',recdat.useCMBTT
     b0=np.ones((Nreal,NLSS))#find best fit bias for each real, for each LSS tracer
     
     #print '------reconstructing isw000-------'
     if fitbias and not useObsCl: #170112 added useObs conidtion
+        print "bbb -- Scaling by best-fit constant bias. Looping through realizations..."
         for i in xrange(NLSS):
             #get cltheory form diagonal entry in Dl
             cltheory=Dl[:,i+1,i+1]#0th entry is ISW
@@ -393,9 +424,9 @@ def calc_isw_est(cldat,glmdat,recdat,writetofile=True,getmaps=True,redofits=True
                     plt.xscale('log')
                     plt.yscale('log')
                     plt.show()
+        print 'avg bias factor for maps: b0 = ',np.mean(b0, axis=0)
+        print 'std dev bias factor for maps: ',np.std(b0, axis=0)
 
-
-        print "bbb -- Scaling by best-fit constant bias. Looping through realizations..."
     else:
         print "***Skipping bias fitting step!***"            
     #scaling according to bias will make Dl and Dinv depend on realization
@@ -404,8 +435,11 @@ def calc_isw_est(cldat,glmdat,recdat,writetofile=True,getmaps=True,redofits=True
 
 #    --------- useobs 170112 NJW
     if useObsCl: #calculate cross corr from map realisations and build Dl from that.
-        
-        print '----- Using Cl_obs from maps for Estimator...'
+        if not recdat.useCMBTT:
+            print '\n --- WARNING --- USING OBSERVED CL BUT NOT CMB. Using observed galaxy autopower but theory isw-gal crosspower. \n\
+            This will result in degraded ISW reconstructions. Set useCMBTT = True, or use all Theory Cls.' 
+        else:
+            print '----- Using Cl_obs from maps for Estimator...'
         xpairs,xinds = get_index_pairs(NLSS) #corresponds to Cl ordering from healpy
         c_4_obs=[]
         for r in xrange(Nreal):
@@ -413,43 +447,58 @@ def calc_isw_est(cldat,glmdat,recdat,writetofile=True,getmaps=True,redofits=True
     #        Dinvr[r,:,:,:] = invert_Dl(Dlr[r,:,:,:])
             # according to docs, alm2cl can take array of alms, and will return cross spectra in diag order (clA, clB, clC)--> (ClAA, clBB clCC, clAB, clBC, clAC)
             clobs_xspec=np.array(hp.alm2cl(glmgrid[r,:,:])).T #try it as array first, (will it use correct alms by NLSS? not sure) Should be array of dims Nell x NLSS*(NLSS+1)/2. Need to convert to correct order in Cl matrix
-#            print 'clobs shape:', clobs_xspec.shape
+#            print 'r={0}, clobs shape:'.format(r), clobs_xspec.shape
 #            print '\nclobs [(ClAA, clBB clCC, clAB, clBC, clAC)]:'
 #            print clobs_xspec[1,:]
 #            print 
             c_4_obs.append(clobs_xspec[4,:])
             #dims Nell x N_xinds. Assumes readin maps have same Nell as that derived from passed Cldat
             for i in xrange(NLSS):
-                for j in xrange(NLSS):
-                    if j<=i: #symmetric matrix
-#                        print 'in au.calc_isw_rec: xinds',xinds[i,j]
-#                        print (i,j)
-#                        print clobs_xspec.shape
-                        Dlr[r,:,i+1,j+1]=clobs_xspec[:,xinds[i,j]] # scale_Dl_byb0(Dl,b0[r,:]) #b0=1 if no fitting
-                        Dlr[r,:,j+1,i+1]=clobs_xspec[:,xinds[i,j]]
+                for j in xrange(i, NLSS):
+#                    if j<=i: #symmetric matrix
+#                    print 'in au.calc_isw_rec: xinds',xinds[i,j]
+#                    print (i,j)
+#                    print clobs_xspec.shape
+                    #row/col 0 is isw, which isn't in clobs
+                    #set Dl for realization to values in observed for maps i,j
+                    Dlr[r,:,i+1,j+1]=clobs_xspec[:,xinds[i,j]] # scale_Dl_byb0(Dl,b0[r,:]) #b0=1 if no fitting
+                    Dlr[r,:,j+1,i+1]=clobs_xspec[:,xinds[i,j]]
+                    # ^^ this sets cross-powers of galaxies to observed. What if we used thoeyr cross-powers as well and only observed autopowers?
+                    # This is 
                         
                 #add noise information from D matrix to gal autopowers (need to include any obs info? I think no) #170316
                 cl_xind = cldat.crossinds[clind[i],clind[i]] #crossind of gal autopower in clbasis
                 Dlr[r,:,i+1,i+1] += cldat.noisecl[cl_xind,:]
-            # get isw-gal xpower from D matrix (indep of realization) for all ell
-            Dlr[r,:,:,0] = Dl[:,:,0] ## D matrix dims: Nellx(NLSS+1)x(NLSS+1) 
-            Dlr[r,:,0,:] = Dl[:,0,:] 
+                if recdat.useCMBTT:
+                    Dlr[r,:,i+1,0]=clobs_xspec[:,xinds[i,dind_cmbtt-1]] #set observed isw-gal <-- cmb-gal obs
+                    Dlr[r,:,0,i+1]=clobs_xspec[:,xinds[i,dind_cmbtt-1]] #need index of cmbtt is one less than index in D matrix, due to ISW at beginning
+
+            Dlr[r,:,0,0] = Dl[:,0,0]  #set isw autopower to theory value            
+            if recdat.useCMBTT:
+                Dlr[r,:,0,dind_cmbtt] = Dl[:,0,dind_cmbtt]  #set isw-cmb to theory value
+                Dlr[r,:,dind_cmbtt,0] = Dl[:,0,dind_cmbtt]
+            else:
+                # Set all isw rows and cols (e.g. auto and isw-LSS xpower) to that from D matrix (thry; indep of realization) for all ell (and also isw-cmb)            
+                Dlr[r,:,:,0] = Dl[:,:,0] ## D matrix dims: Nellx(NLSS+1)x(NLSS+1) 
+                Dlr[r,:,0,:] = Dl[:,0,:]
+            
             assert Dlr[r,4,-1,-2]==Dlr[r,4,-2,-1] #should be symmetric
-            Dinvr[r,:,:,:] = invert_Dl(Dlr[r,:,:,:])
+            Dinvr[r,:,:,:] = invert_Dl(Dlr[r,:,:,:], lmin=lmin_forrec) #lmin arg added 170501 NJW)
 #                cltheory=Dl[:,i+1,i+1]#0th entry is ISW
 #                clobs=np.zeros((Nell,Nreal))
                 #for each realization, get clobs from glm and do a fit
     #            for r in xrange(Nreal):
 #                    clobs[:,r]=hp.alm2cl(glmgrid[r,i,:])
-
-#        print Dlr[0,:,0:3,0:3]
+#        try:
+#            print Dlr[0,:,0:4,0:4]
+#        except: print Dlr[0,:,0:4,0:4]
 #                b0[:,i]=fitcl_forb0_onereal(cltheory[lmin:lmax+1],clobs[lmin:lmax+1,:])#only fit to desired ell
     #------          
     else: #don't use obs Dl from maps, use theory
         for r in xrange(Nreal):
             #print '         bias:',b0[r,:]
             Dlr[r,:,:,:]=scale_Dl_byb0(Dl,b0[r,:]) #b0=1 if no fitting
-            Dinvr[r,:,:,:] = invert_Dl(Dlr[r,:,:,:])
+            Dinvr[r,:,:,:] = invert_Dl(Dlr[r,:,:,:], lmin=lmin_forrec) #lmin arg added 170501 NJW
         #print '   prescaling:',Dl[4,0,0],Dl[4,0,1],Dl[4,1,1]
         #print '  postscaling:',Dlr[r,4,0,0],Dlr[r,4,0,1],Dlr[r,4,1,1]
         #print '  R4 after scaling func',Dlr[r,4,0,1]/Dlr[r,4,1,1]
@@ -462,11 +511,12 @@ def calc_isw_est(cldat,glmdat,recdat,writetofile=True,getmaps=True,redofits=True
         emm=emmvals[lmind]
         if ell<lmin_forrec or (lmax_forrec>0 and ell>lmax_forrec): 
             continue
-        Nl=1./Dinvr[:,ell,0,0] #Nreal sized array
-        for i in xrange(recdat.Nmap): #loop through non-isw maps
-            almest[:,0,lmind]-=Dinvr[:,ell,0,i+1]*glmgrid[:,i,lmind]
-            #print 'just added',-1*Dinv[ell,0,i]*glmgrid[:,i,lmind]
-        almest[:,0,lmind]*=Nl
+        else: #added 170501. Before was no Else statement, always computed Nl, but will bomb for l<lmin since added lmin arg to invert_Dl to prevent singualrity at l=1 when using CMB. 
+            Nl=1./Dinvr[:,ell,0,0] #Nreal sized array
+            for i in xrange(recdat.Nmap): #loop through non-isw maps
+                almest[:,0,lmind]-=Dinvr[:,ell,0,i+1]*glmgrid[:,i,lmind]
+                #print 'just added',-1*Dinv[ell,0,i]*glmgrid[:,i,lmind]
+            almest[:,0,lmind]*=Nl
         
 
 ## ----- 1st debug section
@@ -585,7 +635,7 @@ def calc_isw_est(cldat,glmdat,recdat,writetofile=True,getmaps=True,redofits=True
 ##    truemapbase=truemapf[:truemapf.rfind('.r')]
 ##    print 'comparing to truemap: ',truemapbase
 ##    print 'maptags: ',glmdat.maptaglist
-#    if recdat.useObsCl:# and recdat.userectags_fortrueisw:
+#    if recdat.useObsCl:# and recdat.userectags_fortrueCMB:
 #        this_modtag = recdat.rectag[:recdat.rectag.rfind('-fromObs')] #truemaps don't have this string, only recreations
 #    else: this_modtag=recdat.rectag
 #    
@@ -870,7 +920,7 @@ def calc_isw_est(cldat,glmdat,recdat,writetofile=True,getmaps=True,redofits=True
         #print "WRITING ALM DATA TO FILE"
         write_glm_to_files(almdat)
     if getmaps:
-        get_maps_from_glm(almdat,redofits=redofits,makeplots=makeplots,NSIDE=recdat.NSIDE)
+        get_maps_from_glm(almdat,redofits=redofits,makeplots=makeplots,NSIDE=recdat.NSIDE,savemaps=savemaps)
 
         #compute rho
         if dorho:
@@ -909,7 +959,8 @@ def avgbyell(ellvals, arr2avg):
 #    getmaps - if True, get fits files for maps that go with recs
 #    makeplots - if getmaps and True, also make png files
 #  Assumes all recs have same Nlm and Nreal
-def domany_isw_recs(cldatlist,glmdatlist,reclist,outfiletag='iswREC',outruntag='',writetofile=True,getmaps=True,redofits=True,makeplots=False,dorho=True,fitbias=True):
+def domany_isw_recs(cldatlist,glmdatlist,reclist,outfiletag='iswREC',outruntag='',writetofile=True,getmaps=True,
+                    redofits=True,makeplots=False,dorho=True,fitbias=True, savemaps=True):
     print "In domany_isw_recs func"    
     SameCl=False
     Sameglm=False
@@ -919,6 +970,8 @@ def domany_isw_recs(cldatlist,glmdatlist,reclist,outfiletag='iswREC',outruntag='
         glmdatlist=[glmdatlist]
     if len(cldatlist)==1:
         SameCl=True
+    else: #170517
+        assert len(cldatlist)==len(reclist) 
     if len(glmdatlist)==1:
         Sameglm=True
     i=0
@@ -936,7 +989,7 @@ def domany_isw_recs(cldatlist,glmdatlist,reclist,outfiletag='iswREC',outruntag='
         #print '-->rec.includeglm',rec.includeglm
         #print '   rec.includecl',rec.includeglm
         #print '   rec.lmin,.lmax',rec.lmin,rec.lmax
-        almdat=calc_isw_est(cldat,glmdat,rec,writetofile=False,getmaps=getmaps,redofits=redofits,makeplots=makeplots,dorho=dorho,fitbias=fitbias)
+        almdat=calc_isw_est(cldat,glmdat,rec,writetofile=False,getmaps=getmaps,redofits=redofits,makeplots=makeplots,dorho=dorho,fitbias=fitbias,savemaps=savemaps)
 
         if i==0:
             outalmdat=almdat
@@ -1073,7 +1126,7 @@ def rell_onereal(truemap,recmap,varname='rell',normtoTrue=False):
 def getmaps_fromCl(cldat,Nreal=1,rlzns=np.array([]),reclist=[],Nglm=1,block=100,
                    glmfiletag='',almfiletag='iswREC',rhofiletag='',justgetrho=False,
                    dorho=True,dos=True,dochisq=False,dorell=False,dochisqell=False,
-                   rec_cldat=None, fitbias=True): #170217 added by NJW, so can do reconstruction from different cl_data object (all params except cl_grid must be same)
+                   rec_cldat=None, fitbias=True, saverecmaps=True): #170217 added by NJW, so can do reconstruction from different cl_data object (all params except cl_grid must be same)
     """
      The glm files take up a lot of space in memory;
      this function is meant to bundle together:
@@ -1128,7 +1181,7 @@ def getmaps_fromCl(cldat,Nreal=1,rlzns=np.array([]),reclist=[],Nglm=1,block=100,
             glmdat=generate_many_glm_fromcl(cldat,rlzns=nrlzns,savedat=False)
             if reclist:
                 print "  Doing ISW reconstructions."
-                almdat=domany_isw_recs(rec_cldat,glmdat,reclist,writetofile=False,getmaps=True,makeplots=False,outruntag=glmdat.runtag,dorho=False,fitbias=fitbias)
+                almdat=domany_isw_recs(rec_cldat,glmdat,reclist,writetofile=False,getmaps=True,makeplots=False,outruntag=glmdat.runtag,dorho=False,fitbias=fitbias,savemaps=saverecmaps)
 #                almdat=domany_isw_recs(cldat,glmdat,reclist,writetofile=False,getmaps=True,makeplots=False,outruntag=glmdat.runtag,dorho=False)
             #    print '  ************alm after rec:',almdat.maptaglist
             #print '  *****glm generated from healpy:',glmdat.maptaglist
@@ -1174,14 +1227,15 @@ def getmaps_fromCl(cldat,Nreal=1,rlzns=np.array([]),reclist=[],Nglm=1,block=100,
         print get_rho_filename(recdat,almdat,filetag=rhofiletag)
 
 
-def doiswrec_formaps(dummyglm,cldat,Nreal=1,rlzns=np.array([]),reclist=[],Nglm=0,block=100,glmfiletag='',almfiletag='iswREC',rhofiletag='',domaps=True,dorell=False,dos=True,fitbias=True):
+def doiswrec_formaps(dummyglm,cldat,Nreal=1,rlzns=np.array([]),reclist=[],Nglm=0,block=100,glmfiletag='',
+                     almfiletag='iswREC',rhofiletag='',domaps=True,dorell=False,dos=True,fitbias=True,savemaps=True):
     """
     #------------------------------------------------------------------------
     # doiswrec_formaps - given a dummy glmdata with info for existing .fits maps
     #                   make ISW reconstructiosn, compute stats, etc
     # input:
     #  dummyglm - glmData object with Nreal=0, but containing input map names, lmax, etc
-    #  cldat - clData object containing info for maps to be used in reconstruction
+    #  cldat - clData object containing info for maps to be used in reconstruction. <-- Actually this is the cldata used to build estimator
     #  Nreal, rlzns; tell what or how many realizations to do reconstruction for
     #  reclist - list of recdat objects, containing reconstruction parameters, such as which glm of cldat to us
     #  Nglm - if nonzero, number of realizations for which to save glm data
@@ -1190,8 +1244,9 @@ def doiswrec_formaps(dummyglm,cldat,Nreal=1,rlzns=np.array([]),reclist=[],Nglm=0
     #  glmfiletag,almfiletag - for if you want to save glm data
     #  rhofiletag- appended to filename where rho data is saved
     #  domaps - do we want to generate maps or just look at them? set to false
-    #           if we want to just calc rho and other stats
+    #           if we want to just calc rho and other stats from already-made maps
     #  dorell - set to True if we want to compute variance at different ell
+    #  savemaps - save the reconstructed isw maps as fits files (if domaps==True). Added as switch on 170519, before was True by default
     #  
     """
     #block=3
@@ -1236,17 +1291,21 @@ def doiswrec_formaps(dummyglm,cldat,Nreal=1,rlzns=np.array([]),reclist=[],Nglm=0
             print "Getting glm from maps for rlzns {0:d}-{1:d}".format(nrlzns[0],nrlzns[-1])
             #glmdat=generate_many_glm_fromcl(cldat,rlzns=nrlzns,savedat=False)
             glmdat=getglm_frommaps(dummyglm,rlzns=nrlzns)
-            print 'have glm, now compute alm'
-            almdat=domany_isw_recs(cldat,glmdat,reclist,writetofile=False,getmaps=True,makeplots=False,outruntag=glmdat.runtag,dorho=False,fitbias=fitbias)
+#            print 'have glm, now compute alm'
+            almdat=domany_isw_recs(cldat,glmdat,reclist,writetofile=False,getmaps=True,makeplots=False,outruntag=glmdat.runtag,dorho=False,fitbias=fitbias,savemaps=savemaps)
             if thisNglm:
-                print 'thisNglm in doiswrec_formaps'
+#                print 'thisNglm ({0}) in doiswrec_formaps'.format(thisNglm)
                 saveglm=glmdat.copy(Nreal=thisNglm) #save glm for these
-                saveglm= write_glm_to_files(saveglm,setnewfiletag=True,newfiletag=glmfiletag)
-                get_maps_from_glm(saveglm,redofits=False,makeplots=True)
-                print 'glms saved, now save alm'
+#                print 'copied. Now saving'
+                saveglm= write_glm_to_files(saveglm,setnewfiletag=True,newfiletag=glmfiletag) 
+#                print 'making plots'
+#                get_maps_from_glm(saveglm,redofits=False,makeplots=False)#True) # this is the true bottleneck. Setting makeplost to False -- already make them when generating maps
+#                print 'glms saved, maps gotten, now copy alm'
                 savealm=almdat.copy(Nreal=thisNglm)
+#                print 'alms copied. Now saving'
                 savealm=write_glm_to_files(savealm,setnewfiletag=True,newfiletag=almfiletag)
-                get_maps_from_glm(savealm,redofits=False,makeplots=True)
+#                print 'alms saved, maps gotten, now save alm maps and plots'
+                get_maps_from_glm(savealm,redofits=False,makeplots=True) #this goes fast
         else:
             print "Reading maps for rlzns {0:d}-{1:d}".format(nrlzns[0],nrlzns[-1])
             #need to get almdat and glmdat for filenames
@@ -1254,13 +1313,13 @@ def doiswrec_formaps(dummyglm,cldat,Nreal=1,rlzns=np.array([]),reclist=[],Nglm=0
             almdat=get_dummy_recalmdat(glmdat,reclist,outruntag=glmdat.runtag)
         #for each list, get rho
         print "   Computing and saving rho and s statistics"
-        calc_rho_forreclist(glmdat,almdat,reclist,nrlzns,filetag=rhofiletag,overwrite=NEWRHOFILE,varname='rho') #start new file for first block, then add to it
+        calc_rho_forreclist(glmdat,almdat,reclist,nrlzns,filetag=rhofiletag,overwrite=NEWRHOFILE,varname='rho',recmap_from_file=savemaps) #start new file for first block, then add to it
         if dos:
             print 'dos true'
-            calc_rho_forreclist(glmdat,almdat,reclist,nrlzns,filetag=rhofiletag,overwrite=NEWRHOFILE,varname='s') #start new file for first block, then add to it
+            calc_rho_forreclist(glmdat,almdat,reclist,nrlzns,filetag=rhofiletag,overwrite=NEWRHOFILE,varname='s',recmap_from_file=savemaps) #start new file for first block, then add to it
         if dorell: #this is slow
             print "  Computing and saving r_ell statistics."
-            calc_rell_forreclist(glmdat,almdat,reclist,nrlzns,overwrite=NEWRHOFILE,filetag=rhofiletag)
+            calc_rell_forreclist(glmdat,almdat,reclist,nrlzns,overwrite=NEWRHOFILE,filetag=rhofiletag,recmap_from_file=savemaps)
         
         NEWRHOFILE=False
     for recdat in reclist:
@@ -1270,19 +1329,23 @@ def doiswrec_formaps(dummyglm,cldat,Nreal=1,rlzns=np.array([]),reclist=[],Nglm=0
 #------------------------------------------------------------------------
 # calc_rho_forreclist - given glmdat, almdat (can be dummy) plus reclist
 #                  return 2d array of [rec][real] of rho values
+#       if recmap_from_file==False, then calculate recmap from almdat and use that f or rho calc
+#           instead of using almdat to read map from fits file (reads from file ["True"] by default) 170519
 #      if savedat, writes rho values to file
 #          if overwrite, will makenew rho output file
 #          otherwise, will add rho data to that in existing file
-def calc_rho_forreclist(glmdat,almdat,reclist,rlzns,savedat=True,overwrite=False,filetag='',varname='rho'):
+def calc_rho_forreclist(glmdat,almdat,reclist,rlzns,savedat=True,overwrite=False,filetag='',varname='rho',recmap_from_file=True):
     print "-------Computing ",varname,"statistics-------"
     rhogrid=[]
+    assert len(reclist)==almdat.Nmap #ensure that numer of reconstructions matches the reconstruction alms 170519
     for i, rec in enumerate(reclist):
-        if rec.userectags_fortrueisw:
+        if rec.userectags_fortrueCMB:
             #modtag and masktag from recdat. As of 170101, using modtag for isw_bin0 as well since not using same base isw maps for different variances now
-            if rec.useObsCl:
-                modtag = rec.rectag[:rec.rectag.rfind('-fromObs')] #truemaps don't have this string, only recreations
-            else:
-                modtag = rec.rectag
+            modtag=rec.modtag #170512 using modtag directly now
+#            if rec.useObsCl:
+#                modtag = rec.rectag[:rec.rectag.rfind('-fromObs')] #truemaps don't have this string, only recreations
+#            else:
+#                modtag = rec.rectag
             truemapf=glmdat.get_mapfile_fortags(0,reclist[i].zerotagstr, modtag=modtag)#, masktag=reclist[i].masktag) #recdat masktag has lmin also
         else:
             truemapf=glmdat.get_mapfile_fortags(0,reclist[i].zerotagstr) #mod/mask tags default
@@ -1293,9 +1356,11 @@ def calc_rho_forreclist(glmdat,almdat,reclist,rlzns,savedat=True,overwrite=False
         #print '----'
         #print 'truemapbase',truemapbase
         #print 'recmapbase',recmapbase
+        
         lmin=reclist[i].lmin
         lmax=reclist[i].lmax
-        rhovals=rho_manyreal(truemapbase,recmapbase,rlzns=rlzns,savedat=False,varname=varname,lmin=lmin,lmax=lmax)           
+        rhovals=rho_manyreal(truemapbase,recmapbase,rlzns=rlzns,savedat=False,varname=varname,lmin=lmin,lmax=lmax,recmap_from_file=recmap_from_file,
+                             recalmdat=almdat,mapind=i)    
         rhogrid.append(rhovals)
         if savedat:
             save_rhodat(rhovals,rlzns,truemapbase,recmapbase,overwrite=overwrite,filetag=filetag,varname=varname)
@@ -1304,16 +1369,17 @@ def calc_rho_forreclist(glmdat,almdat,reclist,rlzns,savedat=True,overwrite=False
 
 #------------------------------------------------------------------------
 #given list of reconstruction ojbects, and realizations, computes r_ell for them
-def calc_rell_forreclist(glmdat,almdat,reclist,rlzns,savedat=True,overwrite=False,filetag='',varname='rell',userectags_fortrueisw=False):
+def calc_rell_forreclist(glmdat,almdat,reclist,rlzns,savedat=True,overwrite=False,filetag='',varname='rell',userectags_fortrueCMB=False):
     #print "Computing s statistics"
     rellgrid=[]
     for i, rec in enumerate(reclist):
-        if rec.userectags_fortrueisw:
+        if rec.userectags_fortrueCMB:
             #modtag and masktag from recdat. As of 170101, using modtag for isw_bin0 as well since not using same base isw maps for different variances now
-            if rec.useObsCl:
-                modtag = rec.rectag[:rec.rectag.rfind('-fromObs')] #truemaps don't have this string, only recreations
-            else:
-                modtag = rec.rectag
+            modtag=rec.modtag
+#            if rec.useObsCl:
+#                modtag = rec.rectag[:rec.rectag.rfind('-fromObs')] #truemaps don't have this string, only recreations
+#            else:
+#                modtag = rec.rectag
             truemapf=glmdat.get_mapfile_fortags(0,reclist[i].zerotagstr, modtag=modtag)#, masktag=reclist[i].masktag) #recdat masktag has lmin also
         else:
             truemapf=glmdat.get_mapfile_fortags(0,reclist[i].zerotagstr) #mod/mask tags default
@@ -1332,10 +1398,17 @@ def calc_rell_forreclist(glmdat,almdat,reclist,rlzns,savedat=True,overwrite=Fals
 #   does so by turning it to glm, setting all glm with l<lmin to zero
 #   if lmax passed that is>0, will set l>lmax to zero too
 #   then turns it back into a map, which is returned
-def remove_lowell_frommap(hpmap,lmin,reclmax=-1):
-    nside=hp.npix2nside(hpmap.size)
-    alm=hp.map2alm(hpmap)
-    lmax=hp.sphtfunc.Alm.getlmax(alm.size)
+#   170521: added alm_passed switch. if True, then treat hpmap arg as alm array instead of a map.
+def remove_lowell_frommap(hpmap,lmin,reclmax=-1, alm_passed=False):
+    if alm_passed: #hpmap is actually an alm array, not a pixel map.
+        alm = hpmap
+        lmax=hp.sphtfunc.Alm.getlmax(alm.size)
+        nside = (lmax+1)/3
+        assert nside==32, nside  
+    else:
+        nside=hp.npix2nside(hpmap.size)
+        alm=hp.map2alm(hpmap)
+        lmax=hp.sphtfunc.Alm.getlmax(alm.size)
     l,m=hp.sphtfunc.Alm.getlm(lmax)
     keepell=l>=lmin
     if reclmax>0 and reclmax<lmax:
@@ -1349,25 +1422,38 @@ def remove_lowell_frommap(hpmap,lmin,reclmax=-1):
 #  input: mapdir -  directory where the maps are 
 #        filebases - filename of maps, up to but not including '.rXXXXX.fits'
 #        rlzns, Nreal - if rlzns is empty, rlzns=np.arange(Nreal), otherwise Nreal=rlzns.size
-
-def rho_manyreal(truefilebase,recfilebase,Nreal=1,rlzns=np.array([]),savedat=False,overwrite=False,filetag='',varname='rho',lmin=1,lmax=-1):
+#       recalm_arr - array of Nreal x Nlm corresponding to this recdat reconstruction. Select via alm.glm[:,rec,:] 170519
+def rho_manyreal(truefilebase,recfilebase,Nreal=1,rlzns=np.array([]),savedat=False,overwrite=False,
+                 filetag='',varname='rho',lmin=1,lmax=-1, recmap_from_file=True, recalmdat=False, mapind=False):
     if rlzns.size:
         Nreal=rlzns.size
     else:
         rlzns=np.arange(Nreal)
     rhovals=np.zeros(Nreal)
+      
     #read in the maps
     for r in xrange(Nreal):
+        realind=recalmdat.get_realind(rlzns[r])
         f1=''.join([truefilebase,'.r{0:05d}.fits'.format(rlzns[r])])
         f2=''.join([recfilebase,'.r{0:05d}.fits'.format(rlzns[r])])
         #print f1
         #print f2
         map1orig=hp.read_map(f1,verbose=False)
-        map2orig=hp.read_map(f2,verbose=False)
+        if recmap_from_file:
+            map2orig=hp.read_map(f2,verbose=False)
+            map2=remove_lowell_frommap(map2orig,lmin,lmax)
+        elif recalmdat!=False:
+            #healpy complains if array isn't C contiguous, do this to avoid errors
+            #  (errors don't always appear without, may depend on size)
+            contigalm = np.ascontiguousarray(recalmdat.glm[realind,mapind,:])
+#            map2orig = hp.sphtfunc.alm2map(contigalm,NSIDE,verbose=False)
+            map2=remove_lowell_frommap(contigalm,lmin,lmax, alm_passed=True)
+        else:
+            raise Exception, 'Not using file, but no almdat passed to compute rho!'
         #print '  pre ell removal rms:',np.std(map1orig),np.std(map2orig)
         #filter out ell<lmin
         map1=remove_lowell_frommap(map1orig,lmin,lmax)
-        map2=remove_lowell_frommap(map2orig,lmin,lmax)
+#        map2=remove_lowell_frommap(map2orig,lmin,lmax)
         #print '  true/rec map rms:',np.std(map1),np.std(map2)
         
         #compute cross correlations and store the value
@@ -1638,7 +1724,7 @@ def compute_rho_fromcl(cldat,recdat,reccldat=0,varname='rho',fitbias=True):
 #    print '\ncldat bintaglist:',cldat.bintaglist
 #    print 'recdat includglm:',recdat_true.includeglm
 #    print Dl[4,:,:]
-    Dinv=invert_Dl(Dl)
+    Dinv=invert_Dl(Dl, lmin=lmin) #170509 added lmin arg since cmb has no l=1, so get singular matrix if reconstructing dipole
 #    print Dinv[4,:,:]
 
 #    print Dinv[4,:,:]
@@ -1680,12 +1766,12 @@ def compute_rho_fromcl(cldat,recdat,reccldat=0,varname='rho',fitbias=True):
                 #only fit to lvalues we want to use
                 b0[i]=fitcl_forb0_onereal(recDl[lmin:lmax+1,i+1,i+1],Dl[lmin:lmax+1,i+1,i+1])
         recDl=scale_Dl_byb0(recDl,b0)
-        recDinv=invert_Dl(recDl)
+        recDinv=invert_Dl(recDl, lmin=lmin)
         recNl=np.zeros(Nell)
 
-        for l in xrange(Nell):
+        for l in xrange(lmin,lmax+1):
             if recDinv[l,0,0]!=0:
-                recNl[l]=1/recDinv[l,0,0]
+                recNl[l]=1./recDinv[l,0,0]
             elif l!=0: print 'recDinv[0,0]=0 for l={0}! Cannot invert for recNl!!'.format(l,)
     else:
         recDl=Dl
@@ -1909,7 +1995,7 @@ def compute_rell_fromcl(cldat,recdat,reccldat=0,varname='rell',fitbias=True):
     Dl,dtags=get_Dl_matrix(cldat,recdat.includecl,recdat.zerotagstr) 
 #    Dl,dtags=get_Dl_matrix(cldat,recdat_true.includeglm,recdat.zerotagstr) #set to includeglm to match compute_rho_fromcl
 #    print Dl[5,:,:]
-    Dinv=invert_Dl(Dl)
+    Dinv=invert_Dl(Dl, lmin=lmin)
     Nell=Dinv.shape[0]
     lvals=np.arange(Nell)
     Nl=np.zeros(Nell)
@@ -1935,7 +2021,7 @@ def compute_rell_fromcl(cldat,recdat,reccldat=0,varname='rell',fitbias=True):
             for i in xrange(NLSS):
                 b0[i]=np.squeeze(fitcl_forb0_onereal(recDl[lmin:lmax+1,i+1,i+1],Dl[lmin:lmax+1,i+1,i+1]))
         recDl=scale_Dl_byb0(recDl,b0)
-        recDinv=invert_Dl(recDl)
+        recDinv=invert_Dl(recDl, lmin=lmin)
         recNl=np.zeros(Nell)
         for l in xrange(Nell):
             if recDinv[l,0,0]!=0:
