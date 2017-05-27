@@ -1166,7 +1166,7 @@ def caltest_get_scaleinfo(varlist,scaletovar=False):
         #print 'finding max'
         refvar=max(varlist)
         refind=np.where(varlist==refvar)[0][0] #scale all calib maps from largest
-    print refvar,refind
+#    print refvar,refind
     return refvar,refind
 
 def caltest_get_reclist(varlist,shape='g',width=10.,lmin=0,lmax=30,recminelllist=np.array([2])):

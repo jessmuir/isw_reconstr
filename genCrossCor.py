@@ -80,16 +80,19 @@ class ClData(object):
         mapind1=self.tagdict[tag1]
         mapind2=self.tagdict[tag2]
         xind=self.crossinds[mapind1,mapind2]
-        return xind in self.docross
+        return xind in self.docross 
     
     def get_cl_from_pair(self,tag1,tag2,ell=False, include_nbar=False): 
         """return cl for pair of maptags (autopower if same tag). If no ell given, returns full ell array"""
-        if not self.clcomputed_forpair(tag1,tag2):
-            print "No Cl data for {0:s} with {1:s}".format(tag1, tag2)
-            return float('NaN')
+#        if not self.clcomputed_forpair(tag1,tag2):
+#            print "No Cl data for {0:s} with {1:s}".format(tag1, tag2)
+#            return float('NaN')
         mapind1=self.tagdict[tag1]
         mapind2=self.tagdict[tag2]#tagdict[tag1] #this was erroneously [tag1] instead of 2. Corrected 160621 NJW. Not called anywhere, so should be ok.
         xind=self.crossinds[mapind1,mapind2]
+        if not xind in self.docross: #170525 self.pairs was messing up due to CMBTT not having _bin0 at end (consolidate dotags is culprit)
+            print "No Cl data for {0:s} with {1:s}".format(tag1, tag2)
+            return float('NaN')
         if ell:
             if include_nbar: return self.cl[xind,ell]+self.noisecl[xind,ell]
             else: return self.cl[xind, ell]
@@ -155,7 +158,7 @@ class ClData(object):
         self.crossinds=crossinds #[mapind,mapind] (Nmap x Nmap)
         #THIS IS A TEMPORARY HACK
         self.pairs=consolidate_dotags(['all'],self.bintaglist)
-        #self.docross=['all'] 
+#        self.docross=['all'] 
         #self.pairs=get_pairs_fromcrossind(self.bintaglist,newdocross,self.crosspairs,self.crossinds)
         self.cl=newcl
         self.nbar=np.delete(self.nbar,oldmapind)
@@ -241,7 +244,7 @@ class ClData(object):
                 self.noisecl[diagind,0]=0
         return (self,tag) #return the new (now uniqe) tag
 
-    def addCMBtemp(self,cmbclfile = 'camb_workspace/noisw_scalCls.dat', cmbtag='CMBTT',hasISWpower=False,iswtag = 'isw_bin0'):
+    def addCMBtemp(self,cmbclfile = 'camb_workspace/noisw_scalCls.dat', cmbtag='CMBTT_bin0',hasISWpower=False,iswtag = 'isw_bin0'):
         """
         Given the name of a CAMB output file containing CMB scalar power,
         reads in temperature C_l, adds it to the cldata object with appropriate
@@ -291,17 +294,25 @@ class ClData(object):
                     newnoisecl[newcrossinds[i,j],:] = self.noisecl[self.crossinds[i,j],:]
                 newdocross.append(newcrossinds[i,j])
         self.docross = newdocross #added 170501 NJW so can call get_cl_from_pair()
+#        print 'CMB added. New docross: ',self.docross
         self.bintaglist.append(cmbtag)
         self.cmbtt_tag = cmbtag
         self.Nmap = newNmap
         self.tagdict[cmbtag] = cmbind
         self.crosspairs = newcrosspairs
         self.crossinds = newcrossinds
+#        print 'CMB added. New crossinds: ',self.crossinds
         self.cl = newcl
         self.noisecl = newnoisecl
         newnbar = -1*np.ones(newNmap) #CMB will have -1 for nbar and therefore 0 noise
         newnbar[:-1] = self.nbar
         self.nbar = newnbar
+#        print 'CMB added. New crosspairs: ',self.crosspairs
+#        print 'CMB added. New bintaglist: ',self.bintaglist
+        self.pairs=get_pairs_fromcrossind(self.bintaglist,self.docross,self.crosspairs,self.crossinds)
+#        print 'CMB added. New pairs: ',self.pairs
+        assert self.pairs, self.pairs
+        assert self.clcomputed_forpair(self.cmbtt_tag, self.bintaglist[1])
 
 ###########################################################################
 def sphericalBesselj(n,x):
@@ -1059,12 +1070,16 @@ def get_index_pairs_old(Nmap):
 def get_pairs_fromcrossind(taglist,docrossind,crosspairs=np.array([]),crossinds=np.array([])):
     if not crosspairs.size or not crossinds.size:
         crosspairs,crossinds=get_index_pairs(len(taglist))
+#        print 'getting index pairs'
     pairlist=[]
     for n in docrossind:
         i0=crosspairs[n,0]
         i1=crosspairs[n,1]
         pair =(taglist[i0],taglist[i1])
         pairlist.append(pair)
+#    print 'inget_pairs. pairlist: ',pairlist
+#    print len(pairlist)
+#    print 'taglist: ',taglist
     return consolidate_dotags(pairlist,taglist)
 #-------------------------------------------------------------------------
 # Given list of BinMaps and dopairs [(tag1,tag2),(,)...] list
@@ -1081,7 +1096,7 @@ def get_docross_ind(tagdict,dopairs,crossinds=np.array([]),addauto=False):
         for i in xrange(len(tagdict)):
             docross.append(crossinds[i,i])
     for pair in dopairs:
-        #print 'in get_docross_ind: on pair',pair
+#        print 'in get_docross_ind: on pair',pair
         p0=pair[0]
         p1=pair[1]
         i0=i1=-1 #-1 means not in tagdict
@@ -1112,14 +1127,23 @@ def get_docross_ind(tagdict,dopairs,crossinds=np.array([]),addauto=False):
                     itype = tagdict[tag]
                     new=True
                 if new: #if a new maptype match has been found
-                    #print 'adding to computations',tag,': ',p0,p1
+#                    print 'adding to computations',tag,': ',p0,p1
                     docross.append(crossinds[i0,i1])
         else: #both types of bin
             i0list=[]
             i1list=[]
             for tag in tagdict:
-                if tag[:tag.find('_bin')]==p0: i0list.append(tagdict[tag])
-                if tag[:tag.find('_bin')]==p1: i1list.append(tagdict[tag])
+                strcut = tag.find('_bin')  #170525 added to adapt to CMBTT not having _bin0 appended. Should really just add the suffix and rerun maps
+                if strcut !=-1: #added this conditional 170525. DOES NOT SOLVE PROBLEM OF NOT INCLDUING CMBTT IN DOCROSS
+                    if tag[:strcut]==p0: i0list.append(tagdict[tag])
+                    if tag[:strcut]==p1: i1list.append(tagdict[tag])
+                else:
+                    if tag==p0:
+                        i0list.append(tagdict[tag])
+                        print 'p0 adding ',tag
+                    if tag==p1:
+                        i1list.append(tagdict[tag])
+                        print 'p1 adding ',tag
             i0i1combos= itertools.product(i0list,i1list)
             for combo in i0i1combos:
                 docross.append(crossinds[combo[0]][combo[1]])
@@ -1214,13 +1238,20 @@ def  consolidate_dotags(pairs,bintaglist):
     typedict={}
     binind_fortype=[]# [type][list of indices for bintagss]
     for n in xrange(Nmap):
-        tt= bintaglist[n][:bintaglist[n].find('_bin')]
+        strcut = bintaglist[n].find('_bin')
+#        assert strcut != -1
+        if strcut==-1:
+            tt = bintaglist[n]
+        else:
+            tt= bintaglist[n][:strcut] #note, errors if _bin isn't in!
         if tt not in types:
             types.append(tt)
             typedict[tt]=len(types)-1#index of type
             binind_fortype.append([n])
+#            print 'adding to types: ',tt
         else:
             binind_fortype[typedict[tt]].append(n)
+#            print 'already in types: ',tt
 
     #get crosscorr indices for all 'do' pairs. assumes all autocorrs included
     docross=get_docross_ind(tagdict,pairs,crossinds)
@@ -1600,4 +1631,6 @@ def get_reduced_cldata(incldat,dothesemaps=[]):
             outcl[outcxij,:]=incldat.cl[cxij,:]
 
     outcldat=ClData(incldat.rundat,newtags,incldat.pairs,outcl,nbarlist=newnbars)
+    if incldat.cmbtt_tag in dothesemaps:
+        outcldat.cmbtt_tag = incldat.cmbtt_tag 
     return outcldat

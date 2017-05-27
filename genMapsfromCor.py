@@ -757,7 +757,7 @@ def get_maps_from_glm(glmdata,rlzns=np.array([]),redofits=False,makeplots=False,
                 os.mkdir(thismapdir)
 
     mapgrid=[]
-    print 'getting maps now:'
+    print 'getting maps now {0} dirs. First: {1}'.format(glmdata.Nmap, glmdata.mapdir()+fbases[i])
     for r in rlzns:
         mapgrid.append(get_maps_from_glm_1real(glmdata,r,redofits,makeplots,NSIDE,checkdir=False,savemaps=savemaps))
     mapgrid=np.array(mapgrid)
@@ -767,7 +767,7 @@ def get_maps_from_glm(glmdata,rlzns=np.array([]),redofits=False,makeplots=False,
 #      associated with a given realization number
 #    input: glmdat - glmData object
 #           rlz - realization number, int; will check that glmdat has this real.
-#           redofits - bool. if false, reads in data from existing files
+#           redofits - bool. if false, reads in data from existing files (if it exists)
 #                            if true, overwrites any files with matching name
 #           makeplot - if true, also makes a plot of map and puts it in a png file
 #                      isw maps have red/blue colors, other maps are greyscale
@@ -871,8 +871,10 @@ def plotmap(m,outfname,rlz,maptag,modtag='unmod',masktag='fullsky',titlenote='')
     #variance=np.var(m)
     maxval=max(np.fabs(m))
     #nsig=6
-    scale_arr=np.array([1e-5, 5e-5, 1e-4, 5e-4, 1e-3, 5e-3, 1e-2, 5e-2, 1e-1, .5, 1, 5])
-    absscale = scale_arr[np.searchsorted(scale_arr, 0.7*maxval)] #get index of scale_arr element just larger than maxval    
+    scale_arr=np.array([1e-5, 5e-5, 1e-4, 5e-4, 1e-3, 5e-3, 1e-2, 5e-2, 1e-1, .5, 1, 5, 10, 50, 100, 500, 1000])
+    try:
+        absscale = scale_arr[np.searchsorted(scale_arr, 0.6*maxval)] #get index of scale_arr element just larger than maxval    
+    except: absscale=maxval
     scalemax= absscale#0.7*maxval#nsig*variance
     scalemin= -absscale#-0.7*maxval
     plt.figure(0)
@@ -882,8 +884,9 @@ def plotmap(m,outfname,rlz,maptag,modtag='unmod',masktag='fullsky',titlenote='')
     maptitle=''.join([maptag,'.',modtag,'.',masktag,titletag,', rlzn ',str(rlz)])
     redblue_cm = matplotlib.cm.RdYlBu_r
     redblue_cm.set_under("w")#set background to white
-    if 'isw' in maptag:
-        hp.mollview(m,title=maptitle,min=scalemin,max=scalemax,cmap=redblue_cm)
+    if 'CMBTT' in maptag[:7]:# or 'isw' in maptag: #beginning of maptag, so map is CMBTT, (as opposed to iswREC using CMBTT)
+        
+        hp.mollview(m,title=maptitle,min=-1e-4,max=1e-4,cmap=redblue_cm)
     else:#for dm and galmaps, use light for high density, black for low
         mono_cm=matplotlib.cm.Greys_r
         mono_cm.set_under("w") #set background to white
@@ -1168,12 +1171,13 @@ def getmodtag_fixedvar(sig2,shape='g',lmin=0,lmax=30,width=10.):
 #                        where each maptag  only appears once
 #   insert_cmb_modtags - add modtags for isw and cmbtt in cldata object (AFTER generating clib errors) for file locating purposes.
 #                       No calib erros added to cmb or isw.
+#   nomono - ensures all auto and cross correlations of monopole is 0. Added 170522 to addresss errors with bad cl correlations with l=0
 #
 # neglects multiplicative errors
 # assumes epsilon propto c_00
 # assumes calibration error maps are uncorrelated with each other and galaxies [NO LONGER. USE F_XCORR FOR CROSSCORR]
 #------------------------------------------------------------------------
-def apply_additive_caliberror_tocl(cldat,mapmodcombos=[],f_xcorr=0,insert_cmb_modtags=False):
+def apply_additive_caliberror_tocl(cldat,mapmodcombos=[],f_xcorr=0,insert_cmb_modtags=False,nomono=True):
     # f_xcorr is fraction of cross-correlation between map calibration errors:
     # Cl_cal_XY = f_xcorr * sqrt(Cl_cal_XX * Cl_cal_YY).
     # Note, -1 =< f_xcorr <= 1
@@ -1212,6 +1216,7 @@ def apply_additive_caliberror_tocl(cldat,mapmodcombos=[],f_xcorr=0,insert_cmb_mo
 #                print (mtag,thiscalcl[:4])
             else:
                 print "modtag not recognized:",ctag
+                raise Exception
             #put this cal cl into clcal grid
             thisNell=thiscalcl.size
             calcl[mapind,:thisNell]=thiscalcl#(calcl[i,:thisNell]=thiscalcl #changed i-->mapind 160712) #calcl for l = [0,thisNell] of the ith map
@@ -1235,7 +1240,6 @@ def apply_additive_caliberror_tocl(cldat,mapmodcombos=[],f_xcorr=0,insert_cmb_mo
             outcl[n,:]+=calcl[i,:] #additive power from calib error auto power
         elif f_xcorr!=0: #added 160822 NJW
             outcl[n,:] += f_xcorr * np.sqrt(calcl[i,:]*calcl[j,:]) #cross correlation of calib error from the autocorrelations times calib correlation coeff b/n the maps(f_xcorr)
-            
         outcl[n,0]+=-4*np.pi*epsilon[i]*epsilon[j] 
 #        outcl[n,0]+=-1*np.sqrt(calcl[i,0]*calcl[j,0]) #from some of the epsilon terms 
 #        print outcl[n,4]
@@ -1246,6 +1250,22 @@ def apply_additive_caliberror_tocl(cldat,mapmodcombos=[],f_xcorr=0,insert_cmb_mo
 #        print outcl[n,4]
 #        print 'mapA,mapB, Cl00: {0}, {1}, {2}'.format(i,j,outcl[n,0])
         #print '  changed?',np.any(outcl[n,:]==cldat.cl[n,:])
+        if nomono: #remove monopole components
+            outcl[:,0]=0
+        if i!=j: #wouldn't work in general, but since all autopowers are first in array, they will get updated first and so this hould only be comparing elements that have been updated with calcl
+            iauto = crossinds[i,i]
+            jauto = crossinds[j,j]
+            if not np.all(outcl[n,:]**2 <= outcl[iauto,:]*outcl[jauto,:]):
+                badell = np.where(outcl[n,:]**2 > outcl[iauto,:]*outcl[jauto,:])
+                testell=4
+#                badell=testell
+                print '\nError in adding Calib Cls for maps {0} and {1}, for ells: {2}'.format(cldat.bintaglist[i], cldat.bintaglist[j],badell)
+                print 'Cl_ij, Cl_ii, Cl_jj, for l={0}'.format(badell)
+                print (outcl[n,badell], outcl[iauto,badell], outcl[jauto,badell])
+                print 'Cl_ij^2, Cl_ii*Cl_jj:'
+                print (outcl[n,badell]**2, outcl[iauto,badell]*outcl[jauto,badell])
+                raise Exception
+#    assert np.all(outcl < 10) and np.all(outcl > -10), outcl
 
     #creat outcldata object with new outcl and nbar
     #print 'HAS CL changed? ',np.any(cldat.cl-outcl)

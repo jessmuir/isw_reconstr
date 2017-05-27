@@ -314,8 +314,8 @@ def get_glm_array_forrec(glmdat,includelist=[],zerotag='isw_bin0'):
             dinds.append(xind)
             indexforD+=1
     #collect appropriate glm info
-    print 'In au.get_glm_array_forrec. Doing rec with following glm indices (based on modtags): ',dinds
-    print 'Corresponding to maps: ',[glmdat.maptaglist[ind] for ind in dinds]
+#    print 'In au.get_glm_array_forrec. Doing rec with following glm indices (based on modtags): ',dinds
+#    print 'Corresponding to maps: ',[glmdat.maptaglist[ind] for ind in dinds]
         
     outglm=np.zeros((glmdat.Nreal,len(dinds),glmdat.Nlm),dtype=np.complex)
     for d in xrange(len(dinds)):
@@ -361,7 +361,7 @@ def calc_isw_est(cldat,glmdat,recdat,writetofile=True,getmaps=True,redofits=True
     #print 'Dinv',Dinv
     #get glmdata with right indices, dim realzxNLSSxNlm
     glmgrid,dinds=get_glm_array_forrec(glmdat,recdat.includeglm,recdat.zerotag)
-    print 'recdat.includeglm = ',recdat.includeglm
+#    print 'recdat.includeglm = ',recdat.includeglm
     #fit for constant bias for each LSS map (assume all non-zero indices are LSS)
     Nreal=glmgrid.shape[0]
     NLSS=glmgrid.shape[1] 
@@ -975,7 +975,8 @@ def domany_isw_recs(cldatlist,glmdatlist,reclist,outfiletag='iswREC',outruntag='
     if len(glmdatlist)==1:
         Sameglm=True
     i=0
-
+#    print 'len(reclist) = ',len(reclist)
+#    print reclist
     for rec in reclist:
         if SameCl:
             cldat=cldatlist[0]
@@ -986,9 +987,9 @@ def domany_isw_recs(cldatlist,glmdatlist,reclist,outfiletag='iswREC',outruntag='
         else:
             glmdat=glmdatlist[i]
         #rec contains expected info here
-        #print '-->rec.includeglm',rec.includeglm
-        #print '   rec.includecl',rec.includeglm
-        #print '   rec.lmin,.lmax',rec.lmin,rec.lmax
+#        print '-->rec.includeglm',rec.includeglm
+#        print '   rec.includecl',rec.includeglm
+#        print '   rec.lmin,.lmax',rec.lmin,rec.lmax
         almdat=calc_isw_est(cldat,glmdat,rec,writetofile=False,getmaps=getmaps,redofits=redofits,makeplots=makeplots,dorho=dorho,fitbias=fitbias,savemaps=savemaps)
 
         if i==0:
@@ -1126,7 +1127,7 @@ def rell_onereal(truemap,recmap,varname='rell',normtoTrue=False):
 def getmaps_fromCl(cldat,Nreal=1,rlzns=np.array([]),reclist=[],Nglm=1,block=100,
                    glmfiletag='',almfiletag='iswREC',rhofiletag='',justgetrho=False,
                    dorho=True,dos=True,dochisq=False,dorell=False,dochisqell=False,
-                   rec_cldat=None, fitbias=True, saverecmaps=True): #170217 added by NJW, so can do reconstruction from different cl_data object (all params except cl_grid must be same)
+                   rec_cldat=None, fitbias=True, saverecmaps=True, Nmaps=5): #170217 added by NJW, so can do reconstruction from different cl_data object (all params except cl_grid must be same)
     """
      The glm files take up a lot of space in memory;
      this function is meant to bundle together:
@@ -1167,7 +1168,16 @@ def getmaps_fromCl(cldat,Nreal=1,rlzns=np.array([]),reclist=[],Nglm=1,block=100,
         else:
             nrlzns=rlzns[rmin:rmax]#np.arange(rmin,rmax)
         #print nrlzns
-        
+        if Nmaps=='all':
+            Nmaps=Nreal
+        #tracks how many maps to save, given block realization structure
+        if Nmaps>rmax:
+            thisNmaps=rmax-rmin-1
+            Nmaps-=thisNmaps
+        else:
+            thisNmaps=Nmaps
+            Nmaps=0
+
         if Nglm>rmax:
             thisNglm=rmax-rmin-1
             Nglm-=thisNglm
@@ -1188,15 +1198,27 @@ def getmaps_fromCl(cldat,Nreal=1,rlzns=np.array([]),reclist=[],Nglm=1,block=100,
             print 'getting galaxy maps'
             get_maps_from_glm(glmdat,redofits=True,makeplots=False)
             # note that 'getmaps' is done for isw Recs in 'domany_isw_recs'
-            if thisNglm:
+            if thisNmaps:
+                print '  Saving fits data for Nreal=',thisNmaps
+                saveglm=glmdat.copy(Nreal=thisNmaps) #save glm for these
+                saveglm.filetags=[glmfiletag]
+                saveglm.ONEFILE=True
+                get_maps_from_glm(saveglm,redofits=False,makeplots=True, savemaps=True)
+                if reclist:
+                    savealm = almdat.copy(Nreal=thisNmaps)
+                    savealm.filetags=[almfiletag]
+                    savealm.ONEFILE=True
+                    get_maps_from_glm(savealm, redofits=False, makeplots=True, savemaps=True)
+ 
+            if thisNglm: #note I think the filenaming conventions don't work for this, such that glm's get written over
                 print '  Saving glm data for Nreal=',thisNglm 
                 saveglm=glmdat.copy(Nreal=thisNglm) #save glm for these
                 saveglm= write_glm_to_files(saveglm,setnewfiletag=True,newfiletag=glmfiletag)
-                get_maps_from_glm(saveglm,redofits=False,makeplots=True)
+                get_maps_from_glm(saveglm,redofits=False,makeplots=False, savemaps=False)
                 if reclist:
                     savealm=almdat.copy(Nreal=thisNglm)
                     savealm=write_glm_to_files(savealm,setnewfiletag=True,newfiletag=almfiletag)
-                    get_maps_from_glm(savealm,redofits=False,makeplots=True)
+                    get_maps_from_glm(savealm,redofits=False,makeplots=False, savemaps=False)
         elif reclist:
             print "Reading maps for rlzns {0:d}-{1:d}".format(nrlzns[0],nrlzns[-1])
             #need to get almdat and glmdat for filenames
@@ -1228,7 +1250,7 @@ def getmaps_fromCl(cldat,Nreal=1,rlzns=np.array([]),reclist=[],Nglm=1,block=100,
 
 
 def doiswrec_formaps(dummyglm,cldat,Nreal=1,rlzns=np.array([]),reclist=[],Nglm=0,block=100,glmfiletag='',
-                     almfiletag='iswREC',rhofiletag='',domaps=True,dorell=False,dos=True,fitbias=True,savemaps=True):
+                     almfiletag='iswREC',rhofiletag='',domaps=True,dorell=False,dos=True,fitbias=True,Nmaps='all'):
     """
     #------------------------------------------------------------------------
     # doiswrec_formaps - given a dummy glmdata with info for existing .fits maps
@@ -1246,30 +1268,38 @@ def doiswrec_formaps(dummyglm,cldat,Nreal=1,rlzns=np.array([]),reclist=[],Nglm=0
     #  domaps - do we want to generate maps or just look at them? set to false
     #           if we want to just calc rho and other stats from already-made maps
     #  dorell - set to True if we want to compute variance at different ell
-    #  savemaps - save the reconstructed isw maps as fits files (if domaps==True). Added as switch on 170519, before was True by default
+    #  Nmaps - if nonzero, number of reconstructed isw maps fits files to save (if domaps==True). If 'all', sets Nmaps to Nreal (default behavior). Added 170522
     #  
     """
     #block=3
     arangereal=not rlzns.size
     if rlzns.size:
         Nreal=rlzns.size
-
+#    print arangereal
     #to avoid having giant glm arrays, run in batches, 100ish should be fine
     Nblock=Nreal/block
     remainder=Nreal%block
     
+#    print 'len(reclist) = ',len(reclist)
+#    print reclist
     #rhogrid will hold rho values
     #first index dientifies which recdata, second is block
     rhogrid=[] #will have indices [block][rec][real]
 
     NEWRHOFILE=(not rlzns.size) or np.all(rlzns==np.arange(rlzns.size))
-
+    
+    if Nmaps=='all':
+        Nmaps=Nreal
+    if Nmaps==Nreal:
+        recmap_from_file=True
+    else:
+        recmap_from_file=False
     #generate maps!
     for n in xrange(Nblock+1):
         rmin=n*block
         if n==Nblock:
             if not remainder:
-                continue #nothing left!
+                 continue #nothing left!
             rmax=rmin+remainder
         else:
             rmax=(n+1)*block
@@ -1278,7 +1308,7 @@ def doiswrec_formaps(dummyglm,cldat,Nreal=1,rlzns=np.array([]),reclist=[],Nglm=0
             nrlzns=np.arange(rmin,rmax)
         else:
             nrlzns=rlzns[rmin:rmax]#np.arange(rmin,rmax)
-        #print nrlzns
+#        print nrlzns
         
         if Nglm>rmax:
             thisNglm=rmax-rmin-1
@@ -1286,13 +1316,30 @@ def doiswrec_formaps(dummyglm,cldat,Nreal=1,rlzns=np.array([]),reclist=[],Nglm=0
         else:
             thisNglm=Nglm
             Nglm=0
-
+            
+        #tracks how many maps to save, given block realization structure
+        if Nmaps>rmax:
+            thisNmaps=rmax-rmin-1
+            Nmaps-=thisNmaps
+        else:
+            thisNmaps=Nmaps
+            Nmaps=0
+            
+#        savemaps=True
         if domaps:
             print "Getting glm from maps for rlzns {0:d}-{1:d}".format(nrlzns[0],nrlzns[-1])
             #glmdat=generate_many_glm_fromcl(cldat,rlzns=nrlzns,savedat=False)
             glmdat=getglm_frommaps(dummyglm,rlzns=nrlzns)
+            if n==0: #if first block
+                print glmdat.get_mapfile()
 #            print 'have glm, now compute alm'
-            almdat=domany_isw_recs(cldat,glmdat,reclist,writetofile=False,getmaps=True,makeplots=False,outruntag=glmdat.runtag,dorho=False,fitbias=fitbias,savemaps=savemaps)
+            almdat=domany_isw_recs(cldat,glmdat,reclist,writetofile=False,getmaps=True,makeplots=False,outruntag=glmdat.runtag,dorho=False,fitbias=fitbias,savemaps=False)
+            if thisNmaps: #added 170522 to specify how many iswRec fits files and pngs to save
+                print 'thisNmaps ({0}) in doiswrec_formaps. Saving fits files'.format(thisNmaps)
+                savealm = almdat.copy(Nreal=thisNmaps)
+                savealm.filetags=[almfiletag]
+                savealm.ONEFILE=True
+                get_maps_from_glm(savealm, redofits=False, makeplots=True, savemaps=True)
             if thisNglm:
 #                print 'thisNglm ({0}) in doiswrec_formaps'.format(thisNglm)
                 saveglm=glmdat.copy(Nreal=thisNglm) #save glm for these
@@ -1305,7 +1352,7 @@ def doiswrec_formaps(dummyglm,cldat,Nreal=1,rlzns=np.array([]),reclist=[],Nglm=0
 #                print 'alms copied. Now saving'
                 savealm=write_glm_to_files(savealm,setnewfiletag=True,newfiletag=almfiletag)
 #                print 'alms saved, maps gotten, now save alm maps and plots'
-                get_maps_from_glm(savealm,redofits=False,makeplots=True) #this goes fast
+                get_maps_from_glm(savealm,redofits=False,makeplots=False) #this goes fast
         else:
             print "Reading maps for rlzns {0:d}-{1:d}".format(nrlzns[0],nrlzns[-1])
             #need to get almdat and glmdat for filenames
@@ -1313,13 +1360,13 @@ def doiswrec_formaps(dummyglm,cldat,Nreal=1,rlzns=np.array([]),reclist=[],Nglm=0
             almdat=get_dummy_recalmdat(glmdat,reclist,outruntag=glmdat.runtag)
         #for each list, get rho
         print "   Computing and saving rho and s statistics"
-        calc_rho_forreclist(glmdat,almdat,reclist,nrlzns,filetag=rhofiletag,overwrite=NEWRHOFILE,varname='rho',recmap_from_file=savemaps) #start new file for first block, then add to it
+        calc_rho_forreclist(glmdat,almdat,reclist,nrlzns,filetag=rhofiletag,overwrite=NEWRHOFILE,varname='rho',recmap_from_file=recmap_from_file) #start new file for first block, then add to it
         if dos:
             print 'dos true'
-            calc_rho_forreclist(glmdat,almdat,reclist,nrlzns,filetag=rhofiletag,overwrite=NEWRHOFILE,varname='s',recmap_from_file=savemaps) #start new file for first block, then add to it
+            calc_rho_forreclist(glmdat,almdat,reclist,nrlzns,filetag=rhofiletag,overwrite=NEWRHOFILE,varname='s',recmap_from_file=recmap_from_file) #start new file for first block, then add to it
         if dorell: #this is slow
             print "  Computing and saving r_ell statistics."
-            calc_rell_forreclist(glmdat,almdat,reclist,nrlzns,overwrite=NEWRHOFILE,filetag=rhofiletag,recmap_from_file=savemaps)
+            calc_rell_forreclist(glmdat,almdat,reclist,nrlzns,overwrite=NEWRHOFILE,filetag=rhofiletag,recmap_from_file=recmap_from_file)
         
         NEWRHOFILE=False
     for recdat in reclist:
@@ -1433,7 +1480,6 @@ def rho_manyreal(truefilebase,recfilebase,Nreal=1,rlzns=np.array([]),savedat=Fal
       
     #read in the maps
     for r in xrange(Nreal):
-        realind=recalmdat.get_realind(rlzns[r])
         f1=''.join([truefilebase,'.r{0:05d}.fits'.format(rlzns[r])])
         f2=''.join([recfilebase,'.r{0:05d}.fits'.format(rlzns[r])])
         #print f1
@@ -1443,6 +1489,7 @@ def rho_manyreal(truefilebase,recfilebase,Nreal=1,rlzns=np.array([]),savedat=Fal
             map2orig=hp.read_map(f2,verbose=False)
             map2=remove_lowell_frommap(map2orig,lmin,lmax)
         elif recalmdat!=False:
+            realind=recalmdat.get_realind(rlzns[r])
             #healpy complains if array isn't C contiguous, do this to avoid errors
             #  (errors don't always appear without, may depend on size)
             contigalm = np.ascontiguousarray(recalmdat.glm[realind,mapind,:])

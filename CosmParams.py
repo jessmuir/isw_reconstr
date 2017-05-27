@@ -228,7 +228,7 @@ class Cosmology(object):
         self.hub =self.Hubble#interp1d(self.z_array,self.H_array,kind='cubic') #analytic!
         self.growth =interp1d(self.z_array,self.g_array,kind='cubic',bounds_error=False,fill_value=0.)
         self.growthrate = interp1d(self.z_array,self.f_array,kind='cubic',bounds_error=False,fill_value=0.)
-        print self.co_r(np.arange(0,3,.1))
+#        print self.co_r(np.arange(0,3,.1))
         print '     Tabulation done.'
            
     #==================================================
