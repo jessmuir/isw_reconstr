@@ -70,7 +70,7 @@ class ClData(object):
         for i in xrange(self.Nmap):
             if self.nbar[i]!=-1: #assumes -1 for no noise or isw
                 diagind=self.crossinds[i,i]
-                self.noisecl[diagind,:]=1/self.nbar[i]
+                self.noisecl[diagind,:]=1./self.nbar[i]
                 self.noisecl[diagind,0]=0
 
     def hasClvals(self):
@@ -81,7 +81,14 @@ class ClData(object):
         mapind2=self.tagdict[tag2]
         xind=self.crossinds[mapind1,mapind2]
         return xind in self.docross 
-    
+        
+    def get_lss_bintags(self):
+        assert self.bintaglist[0] == 'isw_bin0', self.bintaglist
+        if self.cmbtt_tag==None:
+           return self.bintaglist[1:]
+        else:
+            return self.bintaglist[1:].remove(self.cmbtt_tag)
+            
     def get_cl_from_pair(self,tag1,tag2,ell=False, include_nbar=False): 
         """return cl for pair of maptags (autopower if same tag). If no ell given, returns full ell array"""
 #        if not self.clcomputed_forpair(tag1,tag2):
@@ -93,13 +100,30 @@ class ClData(object):
         if not xind in self.docross: #170525 self.pairs was messing up due to CMBTT not having _bin0 at end (consolidate dotags is culprit)
             print "No Cl data for {0:s} with {1:s}".format(tag1, tag2)
             return float('NaN')
-        if ell:
+        if np.any(ell):
             if include_nbar: return self.cl[xind,ell]+self.noisecl[xind,ell]
             else: return self.cl[xind, ell]
         else: #return all ell as array
             if include_nbar: return self.cl[xind,:]+self.noisecl[xind,:]
             else: return self.cl[xind,:]
             
+    def get_cl_var_from_pair(self, tag1, tag2, ell=False, include_nbar=False, fsky=1.):
+        """get variance of Cl_AB, where A=tag1, B=tag2. include_nbar==False by default, but typically will want to set to TRUE"""
+        if include_nbar==False:
+            print '\n -- Warning: Computing variance of Cl but neglecting nbar (noise) --'
+        Cl_AA = self.get_cl_from_pair(tag1=tag1,tag2= tag1, ell=ell, include_nbar=include_nbar)
+        if tag1==tag2:
+            Cl_BB = Cl_AA
+            Cl_AB = Cl_AA
+        else:
+            Cl_BB = self.get_cl_from_pair(tag2,tag2, ell=ell, include_nbar=include_nbar)
+            Cl_AB = self.get_cl_from_pair(tag1,tag2, ell=ell, include_nbar=include_nbar)
+        if np.any(ell):            
+            var_Cl_AB = 1./(2*ell+1) * (Cl_AA*Cl_BB + Cl_AB**2)
+        else:
+            var_Cl_AB = 1./(2.*self.rundat.lvals + 1) * (Cl_AA*Cl_BB + Cl_AB**2)
+        return var_Cl_AB/fsky
+        
     def insert_CMB_modtags(self, tag=False):
         """insert iswmodtag so writes maps with same modtags (since isw unique to each). If has CMB data, add modtag to CMB as well. 
         Currently just ensures all modtags are same, then uses first modtag."""
@@ -136,17 +160,20 @@ class ClData(object):
         if tag not in self.bintaglist:
             return False
         newNmap=self.Nmap-1
+        print newNmap
+        print self.Ncross
         newNcross=newNmap*(newNmap+1)/2
         oldmapind=self.tagdict[tag]
         newcl=np.zeros((newNcross,self.Nell))
         delxinds=self.crossinds[oldmapind,:]
         #newdocross=np.setdiff1d(self.docross,delxinds)#unique elements of docross not in delxinds
 
-
+        newdocross=[]
         newi=0        
         for j in xrange(self.Ncross):
             if not j in delxinds: #copy over values we're keeping
                 newcl[newi,:]=self.cl[j,:]
+                newdocross.append(newi)
                 newi+=1
         #set up new values
         self.Nmap=newNmap
@@ -156,10 +183,13 @@ class ClData(object):
         crosspairs,crossinds=get_index_pairs(self.Nmap)
         self.crosspairs=crosspairs #[crossind,mapinds] (NCross x2)
         self.crossinds=crossinds #[mapind,mapind] (Nmap x Nmap)
-        #THIS IS A TEMPORARY HACK
-        self.pairs=consolidate_dotags(['all'],self.bintaglist)
-#        self.docross=['all'] 
-        #self.pairs=get_pairs_fromcrossind(self.bintaglist,newdocross,self.crosspairs,self.crossinds)
+        
+#        #THIS IS A TEMPORARY HACK
+#        self.pairs=consolidate_dotags(['all'],self.bintaglist)
+##        self.docross=['all'] 
+        self.docross=newdocross #added 170703 NJW so can call get_cl_from_pair()
+        print self.docross
+        self.pairs=get_pairs_fromcrossind(self.bintaglist,newdocross,self.crosspairs,self.crossinds)
         self.cl=newcl
         self.nbar=np.delete(self.nbar,oldmapind)
         #just set up noisecl again
@@ -168,7 +198,7 @@ class ClData(object):
             if self.nbar[i]!=-1: #assumes -1 for no noise or isw
                 diagind=self.crossinds[i,i]
                 #self.noisecl[i,i]=1/self.nbar[i] #THIS INDEXING IS WRONG - fixed 160628 NJW. Function not referenced anywhere in analysis, so no impact on results. 
-                self.noisecl[diagind,:]=1/self.nbar[i]
+                self.noisecl[diagind,:]=1./self.nbar[i]
                 self.noisecl[diagind,0]=0
         return True
         
@@ -249,6 +279,7 @@ class ClData(object):
         Given the name of a CAMB output file containing CMB scalar power,
         reads in temperature C_l, adds it to the cldata object with appropriate
         cross correlations. 
+        Assumes CAMB cldata file is in format ell*(ell+1)*Cl/2*pi and is in units uK^2
 
         if hasISWpower = False, assumes that power from ISW has been removed
         from input power spectrum. If True, assumes ISW power is in the input Cl's.
@@ -259,6 +290,7 @@ class ClData(object):
         cmbcl = np.zeros(self.Nell) #starts at ell=2
         # CAMB output is actually ell*(ell+1)*Cl/2*pi and is in units uK^2
         ell = dat[:self.Nell-2,0]
+        assert ell[0] == 2, ell
         cmbcl[2:] = dat[:self.Nell-2,1]*2.*np.pi/(ell*(ell+1.))*(1.e-6**2)
 
         #get isw info
@@ -301,6 +333,7 @@ class ClData(object):
         self.tagdict[cmbtag] = cmbind
         self.crosspairs = newcrosspairs
         self.crossinds = newcrossinds
+        self.Ncross=newNcross
 #        print 'CMB added. New crossinds: ',self.crossinds
         self.cl = newcl
         self.noisecl = newnoisecl
@@ -442,7 +475,7 @@ def computeIlk(binmap,rundata):
     if not cosm.tabZ or cosm.zmax<binmap.zmax:
         cosm.tabulateZdep(max(rundata.zmax,binmap.zmax),nperz=cosm.nperz)
     co_r = cosm.co_r #function with arg z
-    print co_r(np.arange(0,3,.1))
+#    print co_r(np.arange(0,3,.1))
     krcutadd=rundata.kdata.krcutadd #to make integral well behaved w fast osc
     krcutmult=rundata.kdata.krcutmult
     #bounds for integral in comoving radius
@@ -451,7 +484,9 @@ def computeIlk(binmap,rundata):
     print '\nbinmap.zmin, binmap.zmax = ',(binmap.zmin, binmap.zmax)
     print 'rmin, rmax = ',(rmin, rmax)
     print 'zintlim = ',zintlim
-    print 'lvals: ',lvals
+    print 'tabulated zmin, zmax',(cosm.z_array[0], cosm.zmax)
+    print ' rmin, rmax = ',(cosm.r_array[0], cosm.z_array[-1])
+#    print 'lvals: ',lvals
     lk= itertools.product(lvals,kvals) #items=[l,k]
     argiter=itertools.izip(lk,itertools.repeat(rmin),itertools.repeat(rmax),itertools.repeat(cosm),itertools.repeat(binmap),itertools.repeat(krcutadd),itertools.repeat(krcutmult),itertools.repeat(zintlim),itertools.repeat(eps),itertools.repeat(rundata.sharpkcut),itertools.repeat(rundata.besselxmincut))
     if DOPARALLEL:
@@ -654,18 +689,19 @@ def readIlk_file(binmap,rundata):
     if limberl>=0 and limberl<=rundata.lmax:
         # these are the expected ell values we want out
         checkell=rundata.lvals[:np.where(rundata.lvals<limberl)[0][-1]+1]
-        print '0 <=limberl ({0}) < lmaxlen(rundata.lvals)= {1}'.format(limberl,len(checkell))
+        print '0 <= limberl ({0}) < lmaxlen(rundata.lvals)= {1}'.format(limberl,len(checkell))
     else:
         checkell=rundata.lvals
+        print 'no limber calcs'
         print 'len(rundata.lvals)= ',len(checkell)
-    if l.size>=checkell.size:
+    if l.size>=checkell.size: #make sure Ilk file even has enough lvalues, if so, make sure it has the ones we want to eval at
         lind_incheck=[] #index of each checkell element in l
         for lval in checkell:
             where = np.where(l==lval)[0]
             if where.size==1:
                 lind_incheck.append(where[0])
             else:
-                print " *** unexpected lvals, recompute."
+                print " *** unexpected lval: {0}, recompute.".format(lval)
                 return np.array([]),np.array([])
         lind_incheck=np.array(lind_incheck)
         if innperlogk>= rundata.kdata.nperlogk and inkmin<=rundata.kdata.kmin and inkmax>=rundata.kdata.kmax:
@@ -675,7 +711,7 @@ def readIlk_file(binmap,rundata):
             return np.array([]),np.array([])
 
     else:
-        print " *** unexpected number of lvals, recompute."
+        print " *** Not enough lvalues in Ilk file. Recompute."
         return np.array([]),np.array([])
 
 ###########################################################################
@@ -905,7 +941,7 @@ def computeCl(binmaps,rundata,dopairs=[],docrossind=[],redoIlk=False,addauto=Fal
         lnkmax=np.log(kdata.kmax)
   
         #Do Cl computations, interating through crosspairs and lvals
-        print "  Performing non-Limber C_l integrals."
+        print "  Performing non-Limber C_l integrals for ell = ",lvals_preLim
         nl= itertools.product(xrange(Ncross),xrange(Nell_preLim)) #items=[n,lind]
         Ipair_fornl=[(Igrid[crosspairs[xind,0],lind,:],Igrid[crosspairs[xind,1],lind,:]) for (xind,lind) in itertools.product(xrange(Ncross),xrange(Nell_preLim))]
         lnkforIpair=[(lnkforIgrid[crosspairs[xind,0],:],lnkforIgrid[crosspairs[xind,1],:]) for (xind,lind) in itertools.product(xrange(Ncross),xrange(Nell_preLim))]
@@ -925,7 +961,7 @@ def computeCl(binmaps,rundata,dopairs=[],docrossind=[],redoIlk=False,addauto=Fal
 
     # Do Limber approx calculations 
     if Nell_postLim:
-        print "  Performing Limber approx C_l integrals."
+        print "  Performing Limber approx C_l integrals for ell= ",lvals_postLim
         #make sure z-dep functions have been tabulated
         #print [m.zmax for m in binmaps]
         zmax=max([m.zmax for m in binmaps])

@@ -38,8 +38,9 @@ iswcontrib = fidtt - noiswtt
 
 iswtag = 'isw_bin0'
 iswind = cldat.tagdict[iswtag]
-iswautocl = cldat.cl[cldat.crossinds[iswind,iswind],2:]*(.3**2)*(2.73**2)
-iswautocl_us = cldat.cl[cldat.crossinds[iswind,iswind],2:] #unscaled, since already added? 170411
+obh2 = 0.0223; och2=0.1188; h=0.6774; om = (obh2+och2)/h**2;
+iswautocl = cldat.cl[cldat.crossinds[iswind,iswind],2:]*(om**2)*(2.73**2)
+iswautocl_us = cldat.cl[cldat.crossinds[iswind,iswind],2:]
 
 #plt.semilogy(ell,iswcontrib,label='isw from camb')
 #plt.semilogy(ell,iswautocl,label='from our code')

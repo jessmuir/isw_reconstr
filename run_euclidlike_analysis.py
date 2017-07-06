@@ -1461,9 +1461,10 @@ def caltest_getmapmods_onebin(lssbintag,varlist=[1.e-1,1.e-2,1.e-3,1.e-4],lmax=3
     return mapmods
 
 def caltest_getmapmods_multibin(lssbintag_list,varlist=[1.e-1,1.e-2,1.e-3,1.e-4],lmax=30,lmin=0,shape='g',width=10., diffvar=False):
-    #construct map-mod combos for the lss bins and variances given. Return as
+    """#construct map-mod combos for the lss bins and variances given. Return as
     #[[(bintagA, modtag0),(bintagB,modtag0)], [(bintagA,modtag1),(bintagB,modtag1),...]]
     #[160815 NW]  add diffvar to allow passing varlist as a list of sublists of length lssbintag_list.
+    """
     if diffvar:
         assert type(varlist[0])==list
         if shape=='g':
@@ -3964,6 +3965,12 @@ def angmomtest_LrecLtrue_corrcoef(datdir='output/angmom_study/',plotdir='output/
         r=Rmatrix[0,1] #off diag tells us corr between maps
         print labels[n],', Pearson corr between Lrec-Ltrue = ',r
 
+def WMAPtest_get_Cl(justread=True,z0vals = np.array([0.57, 0.7, 0.8]), outtag=''): #[added outtag to allow easy spec of different output directory]
+    bins=depthtest_get_binmaps(z0vals)
+    zmax=max(m.zmax for m in bins) #get highest max z of all the binmaps
+    rundat = clu.ClRunData(tag='wmaptest',rundir='output/wmaptest'+outtag+'/',cosmpfile='testparam_wmap7.cosm',lmax=95,zmax=zmax) #keep info like lmax, output dir, tag, zmax, etc. and other general cl information we'll need for all maps
+    return gcc.getCl(bins,rundat,dopairs=['all'],DoNotOverwrite=justread)
+
 
 #################################################################
 if __name__=="__main__":
@@ -3993,9 +4000,10 @@ if __name__=="__main__":
             #note, if you just want t compute rho but don't want to redo isw recs
             # change domaps to False
 #----- MULTI ------        
-    outtag = '_multi_same_cltimed_full'
-    if 0: #compute Cl # this takes a while;
-        depthtest_get_Cl(justread=False,z0vals=depthtestz0, outtag=outtag)
+#    outtag = '_multi_same_cltimed_full'
+    outtag = ''
+    if 1: #compute Cl # this takes a while;
+        WMAPtest_get_Cl(justread=False, outtag=outtag)
     if 0: #generate MULTI depthhtest maps (don't want togr)
         Nreal=100
         simmaps=True #do you want to simulate maps, or just do reconstructions (on maps that already exist?

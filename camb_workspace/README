@@ -5,3 +5,5 @@ in the other calculations for this project.
 
 The difference between them is that, before running with the "noisw" tag,
 we edited CAMB's equations.f90 so that ISW=0 for z=  1/a -1 <30. 
+
+170531: Note, CAMB output Cl’s need to be scaled by 2*np.pi*(1.e-6**2)/(ell*(ell+1)) to be same units as our Cl’s (K^2, vs CAMB’s uK^2)

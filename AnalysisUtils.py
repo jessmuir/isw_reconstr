@@ -2193,17 +2193,19 @@ def plot_Tin_Trec(iswmapfiles,recmapfiles,reclabels,plotdir='output/',plotname='
     plt.close()
 
 #-----------------------------------------------------------------------------
-# plot rho hist - plots histograms of rho
-#  rhogrid - NrecxNreal array of rho values
-#  reclabels - Nrec string labels for legend, order matches rhogrid 0 axis
-#  rhopred - if empty, nothing happens. if not, holds Nrec <rho> values 
+def plot_rhohist(rhogrid,reclabels,testname,plotdir,plotname,rhopred=[], show=False):
+    """plot rho hist - plots histograms of rho
+  rhogrid - NrecxNreal array of rho values
+  reclabels - Nrec string labels for legend, order matches rhogrid 0 axis
+  rhopred - if empty, nothing happens. if not, holds Nrec <rho> values 
+"""
 #-----------------------------------------------------------------------------
-def plot_rhohist(rhogrid,reclabels,testname,plotdir,plotname,rhopred=[]):
+
     varstr=r'\rho'
     Nreal=rhogrid.shape[1]
     title=r'{0:s}: correlation coef. $\rho$ for {1:g} rlzns'.format(testname,Nreal)
     xtitle=r'$\rho=\langle T_{{\rm true}}T_{{\rm rec}}\rangle_{{\rm pix}}/\sigma_{{T}}^{{\rm true}}\sigma_{{T}}^{{\rm rec}}$'
-    plothist(varstr,rhogrid,reclabels,title,xtitle,plotdir,plotname,rhopred)
+    plothist(varstr,rhogrid,reclabels,title,xtitle,plotdir,plotname,rhopred,show=show)
 
 def plot_shist(sgrid,reclabels,testname,plotdir,plotname,spred=[]):
     varstr='s'
@@ -2236,7 +2238,7 @@ def plot_chisqhist(grid,reclabels,testname,plotdir,plotname,cspred=[]):
 # predvalues - if we've computed expectation values analytically, pass them here
 #              if they're given, they'll print in legend, plot vertical line
 #-----------------------------------------------------------------------------
-def plothist(varstr,datagrid,reclabels,plottitle,xlabel,plotdir,plotname,predvals=[],vallim=0):
+def plothist(varstr,datagrid,reclabels,plottitle,xlabel,plotdir,plotname,predvals=[],vallim=0, show=False):
     Nbins=100
     Nrecs=datagrid.shape[0]
     Nreal=datagrid.shape[1]
@@ -2270,7 +2272,7 @@ def plothist(varstr,datagrid,reclabels,plottitle,xlabel,plotdir,plotname,predval
             # elif varstr=='chisq':
             #     label=r'{0:s}: $\langle {3:s}\rangle={2:0.3f}$; $\bar{{{3:s}}}={1:0.3f}$'.format(reclabels[i],mean,predval,varstr)
         else:
-            label='{0:s}: $\bar{{{3:s}}}={1:0.3f} $, $\sigma={2:0.3f}$'.format(reclabels[i],mean,sigma,varstr)
+            label=r'{0:s}: $\bar{{{3:s}}}={1:0.3f} $, $\sigma={2:0.3f}$'.format(reclabels[i],mean,sigma,varstr)
         plt.axvline(mean,linestyle='--',color=colstr)
         nvals,evals,patches=plt.hist(datagrid[i,:],bins=Nbins,range=vallim,histtype='stepfilled',label=label)
         plt.setp(patches,'facecolor',colstr,'alpha',0.6)
@@ -2291,7 +2293,10 @@ def plothist(varstr,datagrid,reclabels,plottitle,xlabel,plotdir,plotname,predval
     outname=plotdir+plotname+'.pdf'
     print 'saving',outname
     plt.savefig(outname)
-    plt.close()
+    if show:
+        plt.show()
+    elif close:
+        plt.close()
 
 #-----------------------------------------------------------------------------
 # plot_relldat- plot r_ell data

@@ -50,6 +50,13 @@ def dndz_NVSSlike(z,z0=.32,alpha=0.36):
     result*=np.exp(exponent)
     return result
 
+def dndz_MphG_like(z, m=1.5, b=2.3, z0=0.34):
+    """Planck XXI Eq. 7 dn/dz for SDSS_MphG catalog"""
+    exponent=-(1.*z/z0)**b
+    result=b * (z/z0)**m / z0
+    result*=np.exp(exponent)
+    return result
+
 #===============================================================
 # This will return a surveyType object with dndz like DES
 #     6 redshift bins; 10 of width .2 going from 0-1., then 1 for z>1

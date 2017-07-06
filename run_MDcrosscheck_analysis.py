@@ -36,8 +36,34 @@ def get_NVSSlike_SurveyType(tag=''):
     biasargs=[]
     dndzargs=[.32,0.36]
     return mp.SurveyType(tag,zedges,sigz,nbar,dndz,bias,dndzargs=dndzargs,longtag=longtag)
+
+def get_Planck_NVSSlike_SurveyType(tag='', nbar=1.584e5):
+    """From Planck XXI table 1"""
+    if not tag:
+        tag='nvss'
+    zedges=np.array([0.01,6.])
+    bias = mu.quadbias
+    dndz = mu.dndz_NVSSlike
+    longtag='NVSS-like survey with b(z)'
+    sigz=.1 #only one bin, so this won't be used
+    biasargs=[0.9, 0.54]
+    dndzargs=[.33,0.37]
+    return mp.SurveyType(tag,zedges,sigz,nbar,dndz=dndz,bias=bias,dndzargs=dndzargs,biasargs=biasargs,longtag=longtag)
     ### see MapParams for SurveyType
 
+def get_Planck_MphG_like_SurveyType(tag='', nbar=9.680e6):
+    """From Planck XXI table 1"""
+    if not tag:
+        tag='MphG'
+    zedges=np.array([0.01,2.])
+    bias = mu.quadbias
+    dndz = mu.dndz_MphG_like
+    longtag='SDSS_MphG-like survey with bias=1.2'
+    sigz=.1 #only one bin, so this won't be used
+    biasargs=[1.2, 0] #const bias of 1.2, per Planck
+    dndzargs=[1.5, 2.3, 0.34]
+    return mp.SurveyType(tag,zedges,sigz,nbar,dndz=dndz,bias=bias,dndzargs=dndzargs,biasargs=biasargs,longtag=longtag)
+    
 def get_MDDESlike_SurveyType(tag='',nbins=2):
     if not tag:
         tag='desMD{0:d}bin'.format(nbins)
@@ -75,7 +101,30 @@ def MDtest_get_binmaps(includeisw=True,Ndesbins=[2,3],nvss=True):
         bins=iswbins+bins
     return bins
 
-
+def PlanckTest_get_Cl(justread=True, addCMB=True, limberl=20):
+    surveys=[]
+    surveys.append(get_Planck_NVSSlike_SurveyType())
+    surveys.append(get_Planck_MphG_like_SurveyType())
+    bins=[]
+    for survey in surveys:
+        bins=bins+survey.binmaps
+        
+    iswmaptype = mu.get_fullISW_MapType(zmax=15)
+    iswbins = iswmaptype.binmaps
+    bins=iswbins+bins
+        
+    zmax = max(m.zmax for m in bins)*1.01 #make sure integrate out past highest z of all the maps
+    if limberl!=20:
+        mytag = 'Plancktest_lim{0}'.format(limberl)
+    else: mytag= 'Plancktest'
+    rundat = clu.ClRunData(tag=mytag,rundir='output/Planck_checks/',lmax=95,zmax=zmax,limberl=limberl,iswilktag='fidisw',noilktag=True)
+    #this object holds a bunch of info needed to do the integrals ^^
+    pairs=['all']
+    cldat=gcc.getCl(bins,rundat,dopairs=pairs,DoNotOverwrite=justread)
+    if addCMB:
+        cldat.addCMBtemp()
+    return cldat
+    
 #
 def MDtest_get_Cl(justread=True,Ndesbins=[2,3],nvss=True): #do a survey splitting DES into 2 bins and one splitting into 3 bins. NVSS is just one bin
     surveys = MDtest_get_maptypelist(Ndesbins=Ndesbins,nvss=nvss) #each 
@@ -93,8 +142,9 @@ def MDtest_get_Cl(justread=True,Ndesbins=[2,3],nvss=True): #do a survey splittin
     #can pass specific bins (which must be in the output). So don't need to recompute all the time. So this function mostly gets used to just read them in.
     return cldat
 
-def MDtest_boostNVSSnoise(cldat):
-    newnbar=1.e8 #smaller than prev used 1.e9
+def MDtest_boostNVSSnoise(cldat, newnbar=1.e8):
+    """go through cldat and change nbar to newnbar value for any bin that has nvss in name."""
+    #smaller than prev used 1.e9
     for i in xrange(cldat.Nmap):
         if 'nvss' in cldat.bintaglist[i]:
             nvssind=i
@@ -230,7 +280,7 @@ def MDtest_plot_zwindowfuncs(desNbins=[3],nvss=True,plotdir='output/MDchecks/plo
                  ax.get_xticklabels() + ax.get_yticklabels()):
         item.set_fontsize(24)
     plt.xlabel('Redshift z')
-    plt.ylabel(r'$dn/dz$ (arb. units)')
+    plt.ylabel(r'$dn/dz*b(z)$ (arb. units)')
     #ymax=.33
     #plt.ylim(0,ymax)
     plt.xlim(0,zmax)
@@ -243,7 +293,7 @@ def MDtest_plot_zwindowfuncs(desNbins=[3],nvss=True,plotdir='output/MDchecks/plo
             ntot+=binsetlist[n][i].nbar
         for i in xrange(len(binsetlist[n])):#loop through individual bins
             m=binsetlist[n][i]
-            if maptypes[n].tag=='nvss': ### WHY NVSS DIFFERENT?
+            if maptypes[n].tag=='nvss': ### WHY NVSS DIFFERENT? Maybe because it's first?
                 wgrid=m.window(zgrid)
             else:
                 wgrid=m.window(zgrid)*m.nbar/ntot
@@ -258,6 +308,83 @@ def MDtest_plot_zwindowfuncs(desNbins=[3],nvss=True,plotdir='output/MDchecks/plo
     print 'saving',outname
     plt.savefig(outname)
     plt.close()
+######################
+    
+def Plancktest_plot_zwindowfuncs(desNbins=[3],nvss=True, nvss_old=True, MphG=True, plotdir='output/MDchecks/plots/', dndz_only=False,show=True):
+    maptypes = [get_Planck_NVSSlike_SurveyType(), get_Planck_MphG_like_SurveyType(), get_NVSSlike_SurveyType()] + [get_MDDESlike_SurveyType(nbins=n) for n in desNbins]
+        
+#    maptypes += MDtest_get_maptypelist(includeisw=False, Ndesbins=desNbins, nvss=True)
+    Nrecs=len(maptypes)
+    plotname='Plancktest_zbins'
+    Nrecs=len(maptypes)
+    binsetlist=[s.binmaps for s in maptypes]
+    print 'binsetlist = ',binsetlist
+    labels=[s.tag for s in maptypes]
+#    for s in maptypes:
+#        if 'nvss' in s.tag:
+#            labels.append('NVSS')
+#        elif 'desMD2bin' in s.tag:
+#            labels.append('DES 2 bin')
+#        elif 'desMD3bin' in s.tag:
+#            labels.append('DES 3 bin')
+    colors=['#ff7f00','#377eb8','#e7298a','red','blue']#d95f02','#1b9e77']
+    zmax=6.
+    nperz=100 ### resolution for grid
+    zgrid=np.arange(nperz*zmax)/float(nperz)
+    plt.figure(0)
+    ax=plt.subplot()
+    ax.set_yticklabels([])
+    plt.subplots_adjust(bottom=.2)
+    plt.subplots_adjust(left=.1)
+    plt.subplots_adjust(right=.85)
+    for item in ([ax.title, ax.xaxis.label, ax.yaxis.label] +
+                 ax.get_xticklabels() + ax.get_yticklabels()):
+        item.set_fontsize(24)
+    plt.xlabel('Redshift z')
+    if dndz_only:#all normalized to 1
+        plt.ylabel(r'$dn/dz$ (arb. units)') 
+    else: #dndz normed to 1, then multiplied by b(z)
+        plt.ylabel(r'$dn/dz*b(z)$ (arb. units)')
+    #ymax=.33
+    #plt.ylim(0,ymax)
+    plt.xlim(0,zmax)
+    ax.tick_params(axis='x')
+    ax.set_yticklabels([])
+    for n in xrange(Nrecs): ### for each recon
+        print labels[n]
+        colstr=colors[n%len(colors)]
+        ntot=0
+        
+        for i in xrange(len(binsetlist[n])):
+            print 'adding nbar= {0:g}'.format(binsetlist[n][i].nbar)
+            ntot+=binsetlist[n][i].nbar
+        print 'ntot = {0:g}'.format(ntot)
+        for i in xrange(len(binsetlist[n])):#loop through individual bins
+            m=binsetlist[n][i]
+#            if maptypes[n].tag=='nvss': ### WHY NVSS DIFFERENT? Maybe because it's first? --> No, because only one bin
+#                wgrid=m.window(zgrid)
+#            else:
+#            print m.nbar
+#            wgrid=m.window(zgrid)*m.nbar/ntot #this doesn't normalize everyhting to same, since still scaled by bias.
+            if dndz_only:
+                wgrid=m.dndzfull(zgrid)*m.nbar/ntot
+            else:
+                wgrid=m.window(zgrid)*m.nbar/ntot #m.window(z) = m.dndzfull(z) * m.bias(z)
+#            print wgrid.sum()
+            if i==0:
+                label=labels[n]
+            else:
+                label=''
+            plt.plot(zgrid,wgrid,color=colstr,label=label,linewidth=2)
+
+    plt.legend(prop={'size':20})
+    outname=plotdir+plotname+'.pdf'
+    print 'saving',outname
+    plt.savefig(outname)
+    if show:
+        plt.show()
+    else:
+        plt.close()
 
 
 def MDtest_plot_rhohist(varname='rho',Ndesbins=[2,3],lmin=3,lmax=80,getrhopred=True,firstNreal=-1,rhofiletag='',nvss=True,plottag=''):
@@ -377,7 +504,7 @@ if __name__=="__main__":
     lmax=80
     
     Nreal=10000 #10000
-    if 1:
+    if 0:
         #rhofiletag='nob0fit'
         rhofiletag=''
         #given Cls, create the true ISW and LSS maps
@@ -388,9 +515,12 @@ if __name__=="__main__":
         MDtest_plot_rhohist('rho',Ndesbins=[2,3],nvss=1,lmin=lmin,lmax=lmax,firstNreal=Nreal,rhofiletag=rhofiletag,plottag=rhofiletag)
         
         #for debugging
-    if 1: #Looking at Cl to test that they look reasonable
+    if 0: #Looking at Cl to test that they look reasonable
         MDtest_plot_clvals(Ndesbins=[2,3],nvss=True,tag='all')
         MDtest_plot_clvals(Ndesbins=[3],nvss=0,tag='just3')
         MDtest_plot_clvals(Ndesbins=[2],nvss=0,tag='just2')
         MDtest_plot_clvals(Ndesbins=[],nvss=1,tag='justnvss')
 
+    if 1:
+        cldat=PlanckTest_get_Cl(justread=False, limberl=0)
+        Plancktest_plot_zwindowfuncs(dndz_only=False)

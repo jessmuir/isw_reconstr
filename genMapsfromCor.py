@@ -957,6 +957,9 @@ def get_fixedvar_errors_formaps(glmdat,cdatalist=[],overwrite=False,NSIDE=32,Nre
                         if nentries>5:
                             clmin=cdat[5]
         #collect maptags for which we're generating calib errs
+#        print 'mapstr= ',mapstr
+#        print glmdat.maptaglist
+
         dothesemaps=[]
         for t in glmdat.maptaglist:
             if (mapstr in t) and (t not in dothesemaps): 
@@ -980,7 +983,7 @@ def get_fixedvar_errors_formaps(glmdat,cdatalist=[],overwrite=False,NSIDE=32,Nre
             #print 'cvar',cvar,int(width),clmax,clmin
             modtag='g{1:d}_var{0:.2e}_{3:d}l{2:d}'.format(cvar,int(width),clmax,clmin)
 #        print 'USING MODTAG',modtag
-
+#        print 'in gmc.get_fixedvar...; dothesemaps = ',dothesemaps
         rcountblock=100
         #loop through maps and realizations, generating calib maps
         for m in dothesemaps:
@@ -1079,14 +1082,37 @@ def get_shotnoise_formaps(glmdat,noisedatlist=[],overwrite=False,NSIDE=32,Nreal=
 def get_modtag_shotnbar(nbar):
     modtag='shotnbar{0:0.1e}'.format(nbar)
     return modtag
+    
+# vvv old l2 function. Diverges at ell=0, which is where all gauss errors start,
+    #so need to agree. Thus changing to (l+1)^(-2) instead of l^-2. This is also what Elsner et al. do to test their mode projection on various spectra.
+##------------------------------------------------------------------------
+## gen_error_cl_fixedvar_l2
+##   variance of calibration error field is fixed to sig2 for 1<l<=caliblmax
+##   and calib error is assumed to have l^-2 spectrum
+##------------------------------------------------------------------------
+#def gen_error_cl_fixedvar_l2(sig2=0.1,caliblmax=30,lmin=1):
+##    if lmin==0:
+##        lmin=1 # added 160915 NJW
+#    assert lmin>0, lmin
+#    invnorm=0 #clcal=norm/l^2, 
+#    clcal=np.zeros(caliblmax+1)
+#    for l in xrange(lmin,caliblmax+1):#find using rel between variance and C_l
+#        invnorm+=(2*l+1.)/(4*np.pi*l*l)
+#    norm =sig2/invnorm
+#    #print 'norm=',norm
+#    for l in xrange(lmin,caliblmax+1):
+#        clcal[l]=norm/(l*l)#/(2*l+1.)
+#    return clcal
+
 #------------------------------------------------------------------------
 # gen_error_cl_fixedvar_l2
 #   variance of calibration error field is fixed to sig2 for 1<l<=caliblmax
 #   and calib error is assumed to have l^-2 spectrum
 #------------------------------------------------------------------------
-def gen_error_cl_fixedvar_l2(sig2=0.1,caliblmax=30,lmin=1):
-    if lmin==0:
-        lmin=1 # added 160915 NJW
+def gen_error_cl_fixedvar_l2(sig2=0.1,caliblmax=30,lmin=0):
+#    if lmin==0:
+#        lmin=1 # added 160915 NJW
+    assert lmin>0, lmin
     invnorm=0 #clcal=norm/l^2, 
     clcal=np.zeros(caliblmax+1)
     for l in xrange(lmin,caliblmax+1):#find using rel between variance and C_l
@@ -1096,6 +1122,7 @@ def gen_error_cl_fixedvar_l2(sig2=0.1,caliblmax=30,lmin=1):
     for l in xrange(lmin,caliblmax+1):
         clcal[l]=norm/(l*l)#/(2*l+1.)
     return clcal
+
 
 def getmodtag_fixedvar_l2(sig2,caliblmax,caliblmin):
     modtag='l2_var{0:.2e}_{2:d}l{1:d}'.format(sig2,caliblmax,caliblmin)

@@ -348,12 +348,15 @@ def test_Ilk_krcut():
     Nmaps = len(maps) #number of maps per krcut
 
     Idata = [[] for c in krcutlist] #[kcut,map,l,k]
+    print
+    print Nmaps
+    print len(Idata)
     for c in xrange(Ncut):
         print "ON KRCUT=",krcutlist[c]
         for m in maps:
             Idata[c].append(getIlk_for_binmap(m,rundatlist[c],redo=REDODATA))
     Idata=np.array(Idata)
-    #print 'Idata.shape',Idata.shape
+    print 'Idata.shape',Idata.shape
 
     plotdir = outdir+'plots/'
     k=kdatlist[0].karray
@@ -1467,7 +1470,7 @@ if __name__=="__main__":
     #test_cosm_tabs()
     #test_bessel_integration_quad()
     #test_bessel_integration_romberg()
-    #test_Ilk_krcut()
+    test_Ilk_krcut()
     #test_Ilk_nperlogk()
     #eyeball_Ilk_convergence()
 

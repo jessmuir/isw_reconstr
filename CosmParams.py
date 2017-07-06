@@ -76,7 +76,9 @@ class Cosmology(object):
                 self.CAMBtag = data
             elif label=='w0':
                 self.w0 = float(data)
-                if self.w0!=-1: print 'WARNING: w0!=-1; growth function innaccurate.!'
+                if self.w0!=-1:
+                    print 'WARNING: w0!=-1; growth function innaccurate.!'
+                    raise Exception
             elif label =='Oc':
                 self.Oc = float(data)
                 haveOc=1
@@ -215,7 +217,7 @@ class Cosmology(object):
 #        plt.plot(z_test,func2(z_test))
 #        plt.show()
 #        self.co_r = interp1d(z_copy,r_copy,kind='cubic',bounds_error=True,fill_value=0., assume_sorted=True)
-        self.co_r = interp1d(self.z_array,self.r_array,kind='cubic')#,bounds_error=False,fill_value=0.)
+        self.co_r = interp1d(self.z_array,self.r_array,kind='cubic',bounds_error=False,fill_value=0.)
 #        print 'z_array = ',self.z_array
 #        print 'zmin, zmax = ',(self.z_array.min(), self.z_array.max())
 #        print 'r_array = ',self.r_array
@@ -224,6 +226,7 @@ class Cosmology(object):
 #        print self.co_r(z_test)
 #        print 'reversed'
 #        print self.co_r(-z_test[::-1])
+        ## 170705 get "ValueError: A value in x_new is above the interpolation range." if don't set bouns_error=False in these, in the newI=np.array(results.get()) in gcc.computeIlk
         self.z_from_cor= interp1d(self.r_array,self.z_array,kind='cubic',bounds_error=False,fill_value=0.)
         self.hub =self.Hubble#interp1d(self.z_array,self.H_array,kind='cubic') #analytic!
         self.growth =interp1d(self.z_array,self.g_array,kind='cubic',bounds_error=False,fill_value=0.)

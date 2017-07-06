@@ -85,7 +85,8 @@ class MapType(MapWrapper):
             edgesharpness=sharpness
             #sig=edgesharpness*(zedges[-1]-zedges[0])
             #EDITED zmin/max on 5/8/15
-            zmin = max(0.001,self.zedges[0]-5*edgesharpness*(zedges[1]-zedges[0]))
+#            zmin = max(0.001,self.zedges[0]-5*edgesharpness*(zedges[1]-zedges[0])) #170705 Changed so ISW doesn't use endpoints of tabulated
+            zmin = max(0.002,self.zedges[0]-5*edgesharpness*(zedges[1]-zedges[0]))
             zmax = self.zedges[-1]+5*edgesharpness*(zedges[-1]-zedges[-2])
             self.binmaps=[]
             for n in xrange(self.Nbins):
