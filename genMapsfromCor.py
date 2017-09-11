@@ -1110,17 +1110,18 @@ def get_modtag_shotnbar(nbar):
 #   and calib error is assumed to have l^-2 spectrum
 #------------------------------------------------------------------------
 def gen_error_cl_fixedvar_l2(sig2=0.1,caliblmax=30,lmin=0):
+    #Changed 170717 to be (l+1)^-2, so doesn't diverge
 #    if lmin==0:
 #        lmin=1 # added 160915 NJW
-    assert lmin>0, lmin
+#    assert lmin>0, lmin
     invnorm=0 #clcal=norm/l^2, 
     clcal=np.zeros(caliblmax+1)
     for l in xrange(lmin,caliblmax+1):#find using rel between variance and C_l
-        invnorm+=(2*l+1.)/(4*np.pi*l*l)
+        invnorm+=(2*l+1.)/(4*np.pi*(l+1.)*(l+1.))
     norm =sig2/invnorm
     #print 'norm=',norm
     for l in xrange(lmin,caliblmax+1):
-        clcal[l]=norm/(l*l)#/(2*l+1.)
+        clcal[l]=norm/((l+1.)*(l+1.))#/(2*l+1.)
     return clcal
 
 
@@ -1227,6 +1228,8 @@ def apply_additive_caliberror_tocl(cldat,mapmodcombos=[],f_xcorr=0,insert_cmb_mo
         mapind=-1
         for i in xrange(Nmap):
             if mtag==cldat.bintaglist[i]:
+                if mtag==cldat.cmbtt_tag:
+                    raise Exception, 'Not set up to add errors to CMB!'
                 mapind=i
                 break
         if mapind==-1:

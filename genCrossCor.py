@@ -87,10 +87,13 @@ class ClData(object):
         if self.cmbtt_tag==None:
            return self.bintaglist[1:]
         else:
-            return self.bintaglist[1:].remove(self.cmbtt_tag)
+            newlist = self.bintaglist[1:]
+            newlist.remove(self.cmbtt_tag)
+            return newlist
             
-    def get_cl_from_pair(self,tag1,tag2,ell=False, include_nbar=False): 
-        """return cl for pair of maptags (autopower if same tag). If no ell given, returns full ell array"""
+    def get_cl_from_pair(self,tag1,tag2,ell=False, include_nbar=False, unitless=False): 
+        """return cl for pair of maptags (autopower if same tag). If no ell given, returns full ell array.
+        if unitless=True, convert CMB and ISW Cl's to dT/T instead of dT"""
 #        if not self.clcomputed_forpair(tag1,tag2):
 #            print "No Cl data for {0:s} with {1:s}".format(tag1, tag2)
 #            return float('NaN')
@@ -100,24 +103,31 @@ class ClData(object):
         if not xind in self.docross: #170525 self.pairs was messing up due to CMBTT not having _bin0 at end (consolidate dotags is culprit)
             print "No Cl data for {0:s} with {1:s}".format(tag1, tag2)
             return float('NaN')
+        if include_nbar:
+            result = self.cl[xind,:]+self.noisecl[xind,:]
+        else: 
+            result =  np.copy(self.cl[xind,:])
+        if unitless:
+            for tag in (tag1, tag2):
+                if tag==self.cmbtt_tag or tag=='isw_bin0':
+#                    print tag
+                    result = result/2.7255 #convert from Kelvin to dT/T if a CMB or ISW map
         if np.any(ell):
-            if include_nbar: return self.cl[xind,ell]+self.noisecl[xind,ell]
-            else: return self.cl[xind, ell]
-        else: #return all ell as array
-            if include_nbar: return self.cl[xind,:]+self.noisecl[xind,:]
-            else: return self.cl[xind,:]
-            
-    def get_cl_var_from_pair(self, tag1, tag2, ell=False, include_nbar=False, fsky=1.):
+            return result[ell]
+        else: 
+            return result #return all ell as array
+        
+    def get_cl_var_from_pair(self, tag1, tag2, ell=False, include_nbar=False, unitless=False, fsky=1.):
         """get variance of Cl_AB, where A=tag1, B=tag2. include_nbar==False by default, but typically will want to set to TRUE"""
         if include_nbar==False:
             print '\n -- Warning: Computing variance of Cl but neglecting nbar (noise) --'
-        Cl_AA = self.get_cl_from_pair(tag1=tag1,tag2= tag1, ell=ell, include_nbar=include_nbar)
+        Cl_AA = self.get_cl_from_pair(tag1=tag1,tag2= tag1, ell=ell, include_nbar=include_nbar, unitless=unitless)
         if tag1==tag2:
             Cl_BB = Cl_AA
             Cl_AB = Cl_AA
         else:
-            Cl_BB = self.get_cl_from_pair(tag2,tag2, ell=ell, include_nbar=include_nbar)
-            Cl_AB = self.get_cl_from_pair(tag1,tag2, ell=ell, include_nbar=include_nbar)
+            Cl_BB = self.get_cl_from_pair(tag2,tag2, ell=ell, include_nbar=include_nbar, unitless=unitless)
+            Cl_AB = self.get_cl_from_pair(tag1,tag2, ell=ell, include_nbar=include_nbar, unitless=unitless)
         if np.any(ell):            
             var_Cl_AB = 1./(2*ell+1) * (Cl_AA*Cl_BB + Cl_AB**2)
         else:
@@ -279,7 +289,8 @@ class ClData(object):
         Given the name of a CAMB output file containing CMB scalar power,
         reads in temperature C_l, adds it to the cldata object with appropriate
         cross correlations. 
-        Assumes CAMB cldata file is in format ell*(ell+1)*Cl/2*pi and is in units uK^2
+        Assumes CAMB cldata file is in format ell*(ell+1)*Cl/2*pi and is in units uK^2.
+            Converts to unscaled Cl (no ell or 2 pi factors), in units of Kelvin
 
         if hasISWpower = False, assumes that power from ISW has been removed
         from input power spectrum. If True, assumes ISW power is in the input Cl's.
@@ -1524,13 +1535,14 @@ def combineCl_twobin(cldat,tag1,tag2,combotag,newruntag='',keept1=False,keept2=F
     return outcldat
 
 #=========================================================================
-# renameCl_binmap:
-#   given input cldat containing map with tag intag, rename that bin to newtag
-#   keeporig - if False, intag just gets renamed, otherwise, it is copied
-#   newtag- binmap tag to be associated with new map made from combo
-#        note that it should have _bin# in order to be id's as a binmap tag
-#  ouptut: clData object with new bin label
 def renameCl_binmap(cldat,intag,newtag,newruntag='',keeporig=True):
+    """
+   given input cldat containing map with tag intag, rename that bin to newtag
+   keeporig - if False, intag just gets renamed, otherwise, it is copied
+   newtag- binmap tag to be associated with new map made from combo
+        note that it should have _bin# in order to be id's as a binmap tag
+  ouptut: clData object with new bin label
+    """
     inmapind=cldat.tagdict[intag]
     if not keeporig:#just change name in place
         #need to change bintaglist, tagdict
@@ -1588,7 +1600,8 @@ def renameCl_binmap(cldat,intag,newtag,newruntag='',keeporig=True):
                 newdocross.append(n)
 
     #construct clData object and return it
-    outcldat=ClData(copy.deepcopy(cldat.rundat),newbintaglist,clgrid=newcl,addauto=False,docrossind=newdocross,nbarlist=newnbarlist)
+    outcldat=ClData(copy.deepcopy(cldat.rundat),newbintaglist,clgrid=newcl,addauto=False,docrossind=newdocross,nbarlist=newnbarlist,
+                    mapmodslist=cldat.mapmodslist, fxcorr=cldat.fx, cmbtt_tag=cldat.cmbtt_tag)
     if newruntag:
         outcldat.rundat.tag=newruntag
     return outcldat
@@ -1666,7 +1679,8 @@ def get_reduced_cldata(incldat,dothesemaps=[]):
             outcxij= outxinds[i,j] #crossind of ij pair in output cl basis
             outcl[outcxij,:]=incldat.cl[cxij,:]
 
-    outcldat=ClData(incldat.rundat,newtags,incldat.pairs,outcl,nbarlist=newnbars)
+    outcldat=ClData(incldat.rundat,newtags,incldat.pairs,outcl,nbarlist=newnbars,
+                    mapmodslist=incldat.mapmodslist, fxcorr=incldat.fx, cmbtt_tag=incldat.cmbtt_tag)
     if incldat.cmbtt_tag in dothesemaps:
         outcldat.cmbtt_tag = incldat.cmbtt_tag 
     return outcldat

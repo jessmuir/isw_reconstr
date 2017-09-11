@@ -102,7 +102,7 @@ class RecData(object):
 #                    self.modtaglist = modtaglist*len(includeglm)
 #            else:
 #                self.modtaglist = modtaglist
-                
+        
     def set_includeglm(self,newglmlist):
         if newglmlist[0] == self.zerotagstr:  #[zerotag wasn't present when I was running multi tests, resulting in error. NJW 160609]      
             newglmlist.remove(self.zerotagstr)

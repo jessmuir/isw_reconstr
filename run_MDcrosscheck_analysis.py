@@ -4,6 +4,7 @@
 # 
 ##################################################################
 from scipy.optimize import leastsq
+from scipy.interpolate import interp1d
 import MapParams as mp
 import ClRunUtils as clu
 import genCrossCor as gcc
@@ -41,11 +42,11 @@ def get_Planck_NVSSlike_SurveyType(tag='', nbar=1.584e5):
     """From Planck XXI table 1"""
     if not tag:
         tag='nvss'
-    zedges=np.array([0.01,6.])
+    zedges=np.array([0.01,8.])
     bias = mu.quadbias
     dndz = mu.dndz_NVSSlike
     longtag='NVSS-like survey with b(z)'
-    sigz=.1 #only one bin, so this won't be used
+    sigz=.01 #only one bin, so this won't be used #changed to 0.01 on 170706 just to make sure doesn't have effect
     biasargs=[0.9, 0.54]
     dndzargs=[.33,0.37]
     return mp.SurveyType(tag,zedges,sigz,nbar,dndz=dndz,bias=bias,dndzargs=dndzargs,biasargs=biasargs,longtag=longtag)
@@ -59,7 +60,7 @@ def get_Planck_MphG_like_SurveyType(tag='', nbar=9.680e6):
     bias = mu.quadbias
     dndz = mu.dndz_MphG_like
     longtag='SDSS_MphG-like survey with bias=1.2'
-    sigz=.1 #only one bin, so this won't be used
+    sigz=.01 #only one bin, so this won't be used
     biasargs=[1.2, 0] #const bias of 1.2, per Planck
     dndzargs=[1.5, 2.3, 0.34]
     return mp.SurveyType(tag,zedges,sigz,nbar,dndz=dndz,bias=bias,dndzargs=dndzargs,biasargs=biasargs,longtag=longtag)
@@ -117,7 +118,7 @@ def PlanckTest_get_Cl(justread=True, addCMB=True, limberl=20):
     if limberl!=20:
         mytag = 'Plancktest_lim{0}'.format(limberl)
     else: mytag= 'Plancktest'
-    rundat = clu.ClRunData(tag=mytag,rundir='output/Planck_checks/',lmax=95,zmax=zmax,limberl=limberl,iswilktag='fidisw',noilktag=True)
+    rundat = clu.ClRunData(tag=mytag,rundir='output/Planck_checks_lim{0}/'.format(limberl),lmax=95,zmax=zmax,limberl=limberl,iswilktag='fidisw',noilktag=True)
     #this object holds a bunch of info needed to do the integrals ^^
     pairs=['all']
     cldat=gcc.getCl(bins,rundat,dopairs=pairs,DoNotOverwrite=justread)
@@ -125,6 +126,27 @@ def PlanckTest_get_Cl(justread=True, addCMB=True, limberl=20):
         cldat.addCMBtemp()
     return cldat
     
+def PlanckTest_get_recdat(nvss=True, MphG=True, cmbtag=None, lmin=2):
+    """enter cmbtag if want to use it for recon"""
+#    maptypes=MDtest_get_maptypelist(Ndesbins=Ndesbins,nvss=nvss)
+    maptypes=[]
+    if nvss:
+        maptypes.append(get_Planck_NVSSlike_SurveyType())
+    if MphG:
+        maptypes.append(get_Planck_MphG_like_SurveyType())
+
+    inmaptag = ''
+    includeglm = []
+    for i,mtype in enumerate(maptypes):
+        inmaptag += '+'+mtype.tag #label in output glmdat
+        includeglm = includeglm + [b.tag for b in mtype.binmaps]
+    if cmbtag != None:
+        inmaptag += '+'+cmbtag #label in output glmdat
+        includeglm = includeglm + [cmbtag]
+        
+    recdat = au.RecData(includeglm=includeglm,inmaptag=inmaptag,minl_forrec=lmin)
+#        reclist.append(recdat)
+    return recdat
 #
 def MDtest_get_Cl(justread=True,Ndesbins=[2,3],nvss=True): #do a survey splitting DES into 2 bins and one splitting into 3 bins. NVSS is just one bin
     surveys = MDtest_get_maptypelist(Ndesbins=Ndesbins,nvss=nvss) #each 
@@ -494,8 +516,96 @@ def MDtest_plot_clvals(Ndesbins=[2,3],nvss=True,tag='check'):
     plt.savefig(outdir+outname)
     plt.close()
 
+def get_corr_func(cl_arr, lmin_of_cl=0, getkernel=False):
+    """convert angular power spectrum to two point function.
+    lmin_of_cl indicates what the lowest ell in the cl_arr is (i.e. index 0)"""
+    assert len(cl_arr.shape)==1
+    if lmin_of_cl != 0:
+        full_cl = np.lib.pad(cl_arr, (lmin_of_cl,0), 'constant', constant_values=(0, 0))
+        print 'new cl: '       
+        print full_cl.shape
+        print full_cl[:5]
+    else: full_cl = np.copy(cl_arr)
+    coef = (2.*np.arange(len(full_cl))+1)/(4*np.pi)
+#    plt.plot(coef*full_cl,'.-')
+#    plt.show()
+    w_cos = np.polynomial.legendre.Legendre(coef * full_cl) #function 
+#    myx = np.arange(0,1,1./6)*np.pi#np.pi/3
+#    print w_cos(np.cos(myx))
+    w_theta = lambda x: w_cos(np.cos(x))
+#    print w_theta(myx)
+    if getkernel:
+        return(w_theta, coef*full_cl)
+    else:
+        return w_theta
+        
+def test_correlation_funcs(logy=True):
+    """using nvss Cls, plot correlation function and various ways of extrapolating Cls to smooth it"""
+    cldat=PlanckTest_get_Cl(justread=True, limberl=96)
+    binnum=1
+    my_cls=cldat.cl[binnum,:] #first non-isw autopower
+    print cldat.bintaglist[binnum]
+#        plt.plot((2.*np.arange(96)+1)*my_cls/(4*np.pi))
+    fig, axes = plt.subplots(3, squeeze=True, figsize=(6,12)) #cls, kernel, w(theta)
+#        axes[0].plot(my_cls)
+    my_w,mykern = get_corr_func(my_cls, lmin_of_cl=0,getkernel=True)
+    mydeg=np.arange(4,180,.01)
+    myrad = mydeg*np.pi/180.
+#        interp_cl = interp1d(np.array(range(96) + [200]), np.array(list(my_cls) + [0]), kind='quadtratic') #extend Cl's to zero to seeif helps ringing of correlation
+#        clextend = interp_cl(range(201))
+    axes[1].plot(mykern,label='raw')
+    axes[2].plot(mydeg,(my_w(myrad)), '-',label='raw')
     
-
+    for (lmax, kind) in [(200, 'linear'), (200, 'quadratic'),(400, 'linear'), (400, 'quadratic')]:
+        interp_cl2 = interp1d(np.array(range(96) + [lmax]), np.array(list(my_cls) + [0]), kind=kind) #extend Cl's to zero to seeif helps ringing of correlation
+        clextend2 = interp_cl2(range(lmax+1))
+        my_w2, mykern2 = get_corr_func(clextend2, lmin_of_cl=0, getkernel=True)
+        mylabel='ext_{0}_{1}'.format(lmax,kind)
+        myalpha=.6
+        axes[0].plot(clextend2, label=mylabel, alpha=myalpha)
+        axes[0].set_title('Cl vs ell')
+        axes[1].plot(mykern2,label=mylabel, alpha=myalpha)
+        axes[1].set_title('Cl*(2*l+1)/(4pi) vs ell')
+        axes[2].plot(mydeg, my_w2(myrad), label=mylabel, alpha=myalpha)
+        axes[2].set_xscale('log')
+        if logy: axes[2].set_yscale('log')
+        axes[2].set_title('Correlation w(theta) vs deg')
+        plt.legend(loc='best')
+        
+def corr_with_var(varlist=[1e-4, 1e-5], lmin=2, logy=False):
+    cldat=PlanckTest_get_Cl(justread=True, limberl=96)
+    binnum=2
+    my_cls=cldat.cl[binnum,:] #first non-isw autopower
+    binlab=cldat.bintaglist[binnum]
+    print binlab
+    lmax,kind = (200, 'linear')
+    interp_cl = interp1d(np.array(range(96) + [lmax]), np.array(list(my_cls) + [0]), kind=kind) #extend Cl's to zero to seeif helps ringing of correlation
+    clextend = interp_cl(range(lmax+1))
+    clextend[0:lmin]=0
+    
+    my_w,mykern = get_corr_func(clextend, lmin_of_cl=0, getkernel=True)
+    mydeg=np.arange(2,180,.01)
+    myrad = mydeg*np.pi/180.
+#        plt.plot((2.*np.arange(96)+1)*my_cls/(4*np.pi))
+    fig, ax = plt.subplots(1, squeeze=True)#, figsize=(6,12)) #cls, kernel, w(theta)
+    ax.plot(mydeg,mydeg*(my_w(myrad)), '-',label=cldat.bintaglist[binnum])
+    for myvar in varlist:
+        cl_calib = np.zeros_like(clextend)
+        cl_calib[lmin:51] = gmc.gen_error_cl_fixedvar_gauss(sig2=myvar,caliblmax=50,lmin=0,width=10.)[lmin:]
+        newcl = clextend+cl_calib
+        my_w,mykern = get_corr_func(newcl, lmin_of_cl=0, getkernel=True)
+        ax.plot(mydeg,mydeg*my_w(myrad), '-',label='+{0:.1e} var[c]'.format(myvar))
+    plt.xscale('log')
+    plt.xlabel('deg')
+    plt.ylabel('theta * w(theta)')
+    if logy:
+        plt.yscale('log')
+    plt.title('w(theta) of '+binlab)
+    plt.legend(loc='best')
+    plt.grid(which='both')
+    plt.show()
+#        axes[0].plot(my_cls)
+    
 #################################################################
 if __name__=="__main__":
     MDtest_plot_zwindowfuncs([2,3])
@@ -522,5 +632,31 @@ if __name__=="__main__":
         MDtest_plot_clvals(Ndesbins=[],nvss=1,tag='justnvss')
 
     if 1:
-        cldat=PlanckTest_get_Cl(justread=False, limberl=0)
-        Plancktest_plot_zwindowfuncs(dndz_only=False)
+        test_correlation_funcs(logy=False)
+    if 1:
+        corr_with_var()
+    if 0:
+        mycl = PlanckTest_get_Cl(justread=True, addCMB=True, limberl=96)
+        cmbtag = mycl.cmbtt_tag
+        print cmbtag
+        mycl_cmb = mycl.get_cl_from_pair(cmbtag,cmbtag)
+        labellist=[]
+        fig,axes = plt.subplots(len(mycl.bintaglist), figsize=(5,15))
+        for i,bintag1 in enumerate(mycl.bintaglist):
+            auto1 = mycl.get_cl_from_pair(bintag1, bintag1, include_nbar=False, unitless=True)
+            axes[i].set_title('xcorr with '+bintag1)
+            for bintag2 in mycl.bintaglist:
+                auto2 = mycl.get_cl_from_pair(bintag2, bintag2, include_nbar=False, unitless=True)
+                if bintag1!=bintag2:
+                    xcorr = mycl.get_cl_from_pair(bintag1, bintag2, include_nbar=False, unitless=True)
+                    r_cc = xcorr/np.sqrt(auto1*auto2)
+                    labellist.append(bintag1+'-'+bintag2)
+                    axes[i].plot(r_cc, label=bintag2)
+            axes[i].legend()
+        plt.show()
+        ells = np.arange(96)
+        tlpo=ells*(ells+1)
+        plt.plot((mycl_cmb*tlpo)[2:])
+        
+        plt.show()
+        
