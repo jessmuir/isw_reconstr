@@ -1744,7 +1744,7 @@ def read_relldat_wfile(filename):
 def compute_rho_fromcl(cldat,recdat,reccldat=0,varname='rho',fitbias=True):
     #print 'recdat.includeglm',recdat.includeglm
     #print 'recdat.includecl',recdat.includecl
-    #Dl is a matrix of Cls, with isw at zero index
+    #Dl is a matrix of Cls, with isw at zero index (Nell, NLSS+1, NLSS+1)
     #  and other maps in order specified by recdat.includecl
     if not reccldat:
         DIFFREC=False
@@ -1913,6 +1913,11 @@ def compute_rho_fromcl(cldat,recdat,reccldat=0,varname='rho',fitbias=True):
         result =np.sum(chisqell)#sum over ell
     elif varname=='estop':
         result = estop
+    elif varname=='weights': #Avg contribution to alm_rec for each bin, assuming recDl = Dl_sky
+        weights = np.zeros((NLSS, Nell))
+        for i in xrange(NLSS):
+            weights[i,:] = estop[i,:]*np.sqrt(recDl[:,i+1,i+1]) 
+        result = weights
     elif varname=='Nl_tup':
         result = (Nl, recNl) #Nl is variance of opitmal estimator
     elif varname=='sigNl_tup': #exploring how could get an analytical variance. Not complete
