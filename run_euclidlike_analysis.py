@@ -455,7 +455,7 @@ def bintest_get_maptypelist(finestN=6,getdivs=['all'],z0=0.7,sigz=0.05,nbar=3.5e
 def bintest_get_binmaps(finestN=6,getdivs=['all'],z0=0.7,sigz=0.05,includeisw=True,justfinest=False):
     if justfinest:
         getdivs=['1'*finestN]
-    maptypes=bintest_get_maptypelist(finestN,getdivs,z0,sigz,includeisw)
+    maptypes=bintest_get_maptypelist(finestN=finestN,getdivs=getdivs,z0=z0,sigz=sigz,includeisw=includeisw)
     binmaps,bintags = mp.get_binmaplist(maptypes)
     return binmaps
 

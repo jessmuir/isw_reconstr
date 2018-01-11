@@ -1913,11 +1913,25 @@ def compute_rho_fromcl(cldat,recdat,reccldat=0,varname='rho',fitbias=True):
         result =np.sum(chisqell)#sum over ell
     elif varname=='estop':
         result = estop
-    elif varname=='weights': #Avg contribution to alm_rec for each bin, assuming recDl = Dl_sky
-        weights = np.zeros((NLSS, Nell))
+    elif varname=='binclrec': #Avg contribution to Cl_rec for each bin, assuming recDl = Dl_sky
+        binclrec = np.zeros((NLSS, Nell))
         for i in xrange(NLSS):
-            weights[i,:] = estop[i,:]*np.sqrt(recDl[:,i+1,i+1]) 
-        result = weights
+            binclrec[i,:] = estop[i,:]**2*recDl[:,i+1,i+1]
+        result = binclrec
+    elif varname=='recbinpow': #Avg sig2rec for each bin, assuming recDl = Dl_sky
+        binclrec = np.zeros((NLSS, Nell))
+        recbinpow = np.zeros(NLSS)
+        for i in xrange(NLSS):
+            binclrec[i,:] = estop[i,:]**2*recDl[:,i+1,i+1]
+            recbinpow[i] = np.sum((binclrec[i,:]*(2.*lvals+1))[lmin:lmax+1])
+        result = recbinpow
+    elif varname=='recbinpow_norm': #Avg sig2rec for each bin, assuming recDl = Dl_sky
+        binclrec = np.zeros((NLSS, Nell))
+        recbinpow = np.zeros(NLSS)
+        for i in xrange(NLSS):
+            binclrec[i,:] = estop[i,:]**2*recDl[:,i+1,i+1]
+            recbinpow[i] = np.sum((binclrec[i,:]*(2.*lvals+1))[lmin:lmax+1])
+        result = recbinpow/sig2rec
     elif varname=='Nl_tup':
         result = (Nl, recNl) #Nl is variance of opitmal estimator
     elif varname=='sigNl_tup': #exploring how could get an analytical variance. Not complete
